@@ -1,46 +1,68 @@
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
-import { User, Mail, Phone, Lock, Eye, EyeOff } from 'lucide-react-native';
+import { Mail, Lock, Eye, EyeOff } from 'lucide-react-native';
 import { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'expo-router';
 
-export default function RegisterScreen() {
+export default function LoginScreen() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const { login, googleLogin, isLoading } = useAuth();
+  const router = useRouter();
+
+  const handleLogin = async () => {
+    if (!email.trim() || !password.trim()) {
+      Alert.alert('Lỗi', 'Vui lòng điền đầy đủ thông tin');
+      return;
+    }
+
+    const success = await login(email.trim(), password);
+    
+    if (success) {
+      Alert.alert('Thành công', 'Đăng nhập thành công!', [
+        { text: 'OK', onPress: () => router.replace('/(tabs)') }
+      ]);
+    } else {
+      Alert.alert('Lỗi', 'Email hoặc mật khẩu không đúng');
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    const success = await googleLogin();
+    
+    if (success) {
+      Alert.alert('Thành công', 'Đăng nhập Google thành công!', [
+        { text: 'OK', onPress: () => router.replace('/(tabs)') }
+      ]);
+    } else {
+      Alert.alert('Lỗi', 'Đăng nhập Google thất bại');
+    }
+  };
+
+  const handleRegister = () => {
+    router.push('/auth/register');
+  };
 
   return (
-    <ScrollView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.title}>Tạo tài khoản mới</Text>
-        <Text style={styles.subtitle}>Đăng ký để bắt đầu kết nối</Text>
+        <Text style={styles.title}>Chào mừng trở lại</Text>
+        <Text style={styles.subtitle}>Đăng nhập để tiếp tục</Text>
 
         <View style={styles.form}>
-          <View style={styles.inputContainer}>
-            <User size={20} color={COLORS.gray} style={styles.icon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Họ và tên"
-              placeholderTextColor={COLORS.gray}
-            />
-          </View>
-
           <View style={styles.inputContainer}>
             <Mail size={20} color={COLORS.gray} style={styles.icon} />
             <TextInput
               style={styles.input}
-              placeholder="Email"
+              placeholder="Email hoặc số điện thoại"
               placeholderTextColor={COLORS.gray}
               keyboardType="email-address"
               autoCapitalize="none"
-            />
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Phone size={20} color={COLORS.gray} style={styles.icon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Số điện thoại"
-              placeholderTextColor={COLORS.gray}
-              keyboardType="phone-pad"
+              value={email}
+              onChangeText={setEmail}
+              editable={!isLoading}
             />
           </View>
 
@@ -51,8 +73,11 @@ export default function RegisterScreen() {
               placeholder="Mật khẩu"
               placeholderTextColor={COLORS.gray}
               secureTextEntry={!showPassword}
+              value={password}
+              onChangeText={setPassword}
+              editable={!isLoading}
             />
-            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+            <TouchableOpacity onPress={() => setShowPassword(!showPassword)} disabled={isLoading}>
               {showPassword ? (
                 <EyeOff size={20} color={COLORS.gray} />
               ) : (
@@ -61,56 +86,47 @@ export default function RegisterScreen() {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.inputContainer}>
-            <Lock size={20} color={COLORS.gray} style={styles.icon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Xác nhận mật khẩu"
-              placeholderTextColor={COLORS.gray}
-              secureTextEntry={!showConfirmPassword}
-            />
-            <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
-              {showConfirmPassword ? (
-                <EyeOff size={20} color={COLORS.gray} />
-              ) : (
-                <Eye size={20} color={COLORS.gray} />
-              )}
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity disabled={isLoading}>
+            <Text style={styles.forgotPassword}>Quên mật khẩu?</Text>
+          </TouchableOpacity>
 
-          <View style={styles.checkboxContainer}>
-            <View style={styles.checkbox} />
-            <Text style={styles.checkboxText}>
-              Tôi đồng ý với{' '}
-              <Text style={styles.link}>Điều khoản dịch vụ</Text>
-              {' '}và{' '}
-              <Text style={styles.link}>Chính sách bảo mật</Text>
-            </Text>
-          </View>
-
-          <TouchableOpacity style={styles.registerButton}>
-            <Text style={styles.registerButtonText}>Đăng ký</Text>
+          <TouchableOpacity 
+            style={[styles.loginButton, isLoading && styles.loginButtonDisabled]} 
+            onPress={handleLogin}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color={COLORS.white} />
+            ) : (
+              <Text style={styles.loginButtonText}>Đăng nhập</Text>
+            )}
           </TouchableOpacity>
 
           <View style={styles.divider}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>Hoặc đăng ký với</Text>
+            <Text style={styles.dividerText}>Hoặc đăng nhập với</Text>
             <View style={styles.dividerLine} />
           </View>
 
-          <TouchableOpacity style={styles.googleButton}>
-            <Text style={styles.googleButtonText}>Đăng ký với Google</Text>
+          <TouchableOpacity 
+            style={styles.googleButton} 
+            disabled={isLoading} 
+            onPress={handleGoogleLogin}
+          >
+            <Text style={styles.googleButtonText}>
+              Đăng nhập với Google
+            </Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Đã có tài khoản? </Text>
-          <TouchableOpacity>
-            <Text style={styles.footerLink}>Đăng nhập ngay</Text>
+          <Text style={styles.footerText}>Chưa có tài khoản? </Text>
+          <TouchableOpacity onPress={handleRegister} disabled={isLoading}>
+            <Text style={styles.footerLink}>Đăng ký ngay</Text>
           </TouchableOpacity>
         </View>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
@@ -120,9 +136,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
   },
   content: {
+    flex: 1,
     paddingHorizontal: RESPONSIVE_SPACING.lg,
-    paddingTop: 60,
-    paddingBottom: RESPONSIVE_SPACING.xl,
+    paddingTop: 80,
   },
   title: {
     fontSize: FONT_SIZES.xxl,
@@ -136,7 +152,7 @@ const styles = StyleSheet.create({
     marginBottom: RESPONSIVE_SPACING.xl,
   },
   form: {
-    marginBottom: RESPONSIVE_SPACING.lg,
+    marginBottom: RESPONSIVE_SPACING.xl,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -155,31 +171,13 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.md,
     color: COLORS.black,
   },
-  checkboxContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+  forgotPassword: {
+    color: COLORS.primary,
+    fontSize: FONT_SIZES.sm,
+    textAlign: 'right',
     marginBottom: RESPONSIVE_SPACING.lg,
   },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    borderWidth: 2,
-    borderColor: COLORS.gray,
-    marginRight: RESPONSIVE_SPACING.sm,
-    marginTop: 2,
-  },
-  checkboxText: {
-    flex: 1,
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.darkGray,
-    lineHeight: 20,
-  },
-  link: {
-    color: COLORS.primary,
-    fontWeight: '500',
-  },
-  registerButton: {
+  loginButton: {
     backgroundColor: COLORS.primary,
     borderRadius: BORDER_RADIUS.md,
     height: 56,
@@ -187,7 +185,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: RESPONSIVE_SPACING.lg,
   },
-  registerButtonText: {
+  loginButtonDisabled: {
+    backgroundColor: COLORS.gray,
+  },
+  loginButtonText: {
     color: COLORS.white,
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
@@ -217,16 +218,22 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     marginBottom: RESPONSIVE_SPACING.lg,
   },
+  googleButtonDisabled: {
+    backgroundColor: COLORS.lightGray,
+    borderColor: COLORS.gray,
+  },
   googleButtonText: {
     color: COLORS.black,
     fontSize: FONT_SIZES.md,
     fontWeight: '500',
   },
+  googleButtonTextDisabled: {
+    color: COLORS.gray,
+  },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: RESPONSIVE_SPACING.md,
   },
   footerText: {
     color: COLORS.darkGray,

@@ -9,7 +9,15 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourapp.nexora"
+    },
+    "android": {
+      "package": "com.yourapp.nexora",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#6366F1"
+      }
     },
     "web": {
       "bundler": "metro",

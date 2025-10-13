@@ -1,84 +1,121 @@
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, StatusBar } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
-import { Image as ImageIcon, Video, Smile, MapPin, ChevronDown, X, Sparkles, Send } from 'lucide-react-native';
-import { useState } from 'react';
-import { LinearGradient } from 'expo-linear-gradient';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES, SAFE_AREA } from '@/constants/theme';
+import { ArrowLeft, Send } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import ImageUploader from '@/components/ImageUploader';
+import { FileUploadResponse } from '@/services/mediaAPI';
 
 export default function CreatePostScreen() {
-  const [privacy, setPrivacy] = useState('Công khai');
+  const [content, setContent] = useState('');
+  const [uploadedImage, setUploadedImage] = useState<FileUploadResponse | null>(null);
+  const [isPosting, setIsPosting] = useState(false);
+  const insets = useSafeAreaInsets();
+
+  const handleImageUpload = (result: FileUploadResponse) => {
+    setUploadedImage(result);
+    console.log('Image uploaded:', result);
+  };
+
+  const handleImageUploadError = (error: any) => {
+    console.error('Image upload error:', error);
+    Alert.alert('Upload Error', 'Failed to upload image. Please try again.');
+  };
+
+  const handleCreatePost = async () => {
+    if (!content.trim() && !uploadedImage) {
+      Alert.alert('Empty Post', 'Please add some content or an image to your post.');
+      return;
+    }
+
+    setIsPosting(true);
+    
+    try {
+      // TODO: Implement actual post creation API
+      console.log('Creating post:', {
+        content: content.trim(),
+        imageUrl: uploadedImage?.url,
+      });
+
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      Alert.alert('Success', 'Post created successfully!', [
+        { text: 'OK', onPress: () => {
+          setContent('');
+          setUploadedImage(null);
+          // Navigate back or refresh feed
+        }}
+      ]);
+    } catch (error) {
+      console.error('Create post error:', error);
+      Alert.alert('Error', 'Failed to create post. Please try again.');
+    } finally {
+      setIsPosting(false);
+    }
+  };
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-      
-      {/* Enhanced Header with Gradient */}
-      <LinearGradient
-        colors={[COLORS.gradientStart, COLORS.gradientEnd]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.headerGradient}
-      >
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.closeButton}>
-            <X size={24} color={COLORS.white} />
-          </TouchableOpacity>
-          
-          <View style={styles.headerCenter}>
-            <Sparkles size={20} color={COLORS.white} />
-            <Text style={styles.headerTitle}>Tạo bài viết</Text>
-          </View>
-          
-          <TouchableOpacity style={styles.postButton}>
-            <Send size={18} color={COLORS.white} />
-            <Text style={styles.postButtonText}>Đăng</Text>
-          </TouchableOpacity>
-        </View>
-      </LinearGradient>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton}>
+          <ArrowLeft size={24} color={COLORS.black} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Tạo bài viết</Text>
+        <TouchableOpacity 
+          style={[styles.postButton, (!content.trim() && !uploadedImage) && styles.postButtonDisabled]}
+          onPress={handleCreatePost}
+          disabled={isPosting || (!content.trim() && !uploadedImage)}
+        >
+          <Send size={20} color={COLORS.white} />
+        </TouchableOpacity>
+      </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* User Info */}
         <View style={styles.userSection}>
           <View style={styles.avatar} />
           <View style={styles.userInfo}>
             <Text style={styles.userName}>Nguyễn Văn A</Text>
-            <TouchableOpacity style={styles.privacyButton}>
-              <Text style={styles.privacyText}>{privacy}</Text>
-              <ChevronDown size={16} color={COLORS.darkGray} />
-            </TouchableOpacity>
+            <Text style={styles.userStatus}>Đang chia sẻ...</Text>
           </View>
         </View>
 
+        {/* Content Input */}
         <TextInput
-          style={styles.textInput}
+          style={styles.contentInput}
           placeholder="Bạn đang nghĩ gì?"
           placeholderTextColor={COLORS.gray}
+          value={content}
+          onChangeText={setContent}
           multiline
           textAlignVertical="top"
         />
 
-        <View style={styles.mediaPreview}>
-          <View style={styles.mediaPlaceholder} />
-          <TouchableOpacity style={styles.removeMediaButton}>
-            <X size={16} color={COLORS.white} />
-          </TouchableOpacity>
-        </View>
+        {/* Image Upload */}
+        <ImageUploader
+          onUploadComplete={handleImageUpload}
+          onUploadError={handleImageUploadError}
+          folder="posts"
+          maxImages={1}
+          disabled={isPosting}
+        />
 
-        <View style={styles.addOptionsContainer}>
-          <Text style={styles.addOptionsTitle}>Thêm vào bài viết</Text>
-          <View style={styles.addOptions}>
-            <TouchableOpacity style={styles.optionButton}>
-              <ImageIcon size={24} color={COLORS.success} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.optionButton}>
-              <Video size={24} color={COLORS.error} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.optionButton}>
-              <Smile size={24} color={COLORS.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.optionButton}>
-              <MapPin size={24} color={COLORS.error} />
-            </TouchableOpacity>
+        {/* Uploaded Image Preview */}
+        {uploadedImage && (
+          <View style={styles.uploadedImageContainer}>
+            <Text style={styles.uploadedImageText}>✅ Image uploaded successfully</Text>
+            <Text style={styles.uploadedImageUrl}>{uploadedImage.fileName}</Text>
           </View>
-        </View>
+        )}
+
+        {/* Posting Status */}
+        {isPosting && (
+          <View style={styles.postingStatus}>
+            <Text style={styles.postingText}>Đang tạo bài viết...</Text>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -87,142 +124,97 @@ export default function CreatePostScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  headerGradient: {
-    paddingTop: 60,
-    paddingBottom: SPACING.md,
-    paddingHorizontal: SPACING.md,
+    backgroundColor: COLORS.white,
   },
   header: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: SPACING.sm,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderLight,
   },
-  closeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: BORDER_RADIUS.md,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerCenter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
+  backButton: {
+    padding: RESPONSIVE_SPACING.sm,
   },
   headerTitle: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: '700',
-    color: COLORS.white,
-    letterSpacing: 0.5,
+    fontSize: RESPONSIVE_FONT_SIZES.lg,
+    fontWeight: '600',
+    color: COLORS.black,
   },
   postButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.lg,
-    gap: SPACING.xs,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    gap: RESPONSIVE_SPACING.xs,
   },
-  postButtonText: {
-    color: COLORS.white,
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '600',
+  postButtonDisabled: {
+    backgroundColor: COLORS.gray,
   },
   content: {
     flex: 1,
-    paddingHorizontal: SPACING.md,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
   },
   userSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderLight,
   },
   avatar: {
     width: 48,
     height: 48,
     borderRadius: BORDER_RADIUS.full,
-    backgroundColor: COLORS.lightGray,
-    marginRight: SPACING.sm,
+    backgroundColor: COLORS.primaryLight,
+    marginRight: RESPONSIVE_SPACING.md,
   },
   userInfo: {
     flex: 1,
   },
   userName: {
-    fontSize: FONT_SIZES.md,
+    fontSize: RESPONSIVE_FONT_SIZES.md,
     fontWeight: '600',
     color: COLORS.black,
-    marginBottom: SPACING.xs,
   },
-  privacyButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.lightGray,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
-    borderRadius: BORDER_RADIUS.sm,
-    alignSelf: 'flex-start',
+  userStatus: {
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    color: COLORS.gray,
+    marginTop: 2,
   },
-  privacyText: {
-    fontSize: FONT_SIZES.xs,
-    color: COLORS.darkGray,
-    marginRight: 4,
-  },
-  textInput: {
-    fontSize: FONT_SIZES.md,
+  contentInput: {
+    fontSize: RESPONSIVE_FONT_SIZES.md,
     color: COLORS.black,
     minHeight: 120,
-    marginBottom: SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.md,
+    textAlignVertical: 'top',
   },
-  mediaPreview: {
-    position: 'relative',
-    marginBottom: SPACING.md,
-  },
-  mediaPlaceholder: {
-    width: '100%',
-    height: 200,
-    backgroundColor: COLORS.lightGray,
+  uploadedImageContainer: {
+    backgroundColor: COLORS.primaryLight,
+    padding: RESPONSIVE_SPACING.md,
     borderRadius: BORDER_RADIUS.md,
+    marginVertical: RESPONSIVE_SPACING.sm,
   },
-  removeMediaButton: {
-    position: 'absolute',
-    top: SPACING.sm,
-    right: SPACING.sm,
-    width: 32,
-    height: 32,
-    borderRadius: BORDER_RADIUS.full,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
+  uploadedImageText: {
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    color: COLORS.primary,
+    fontWeight: '500',
+  },
+  uploadedImageUrl: {
+    fontSize: RESPONSIVE_FONT_SIZES.xs,
+    color: COLORS.gray,
+    marginTop: RESPONSIVE_SPACING.xs,
+  },
+  postingStatus: {
     alignItems: 'center',
+    paddingVertical: RESPONSIVE_SPACING.lg,
   },
-  addOptionsContainer: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md,
-  },
-  addOptionsTitle: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.black,
-    fontWeight: '600',
-    marginBottom: SPACING.sm,
-  },
-  addOptions: {
-    flexDirection: 'row',
-    gap: SPACING.md,
-  },
-  optionButton: {
-    width: 48,
-    height: 48,
-    backgroundColor: COLORS.lightGray,
-    borderRadius: BORDER_RADIUS.md,
-    justifyContent: 'center',
-    alignItems: 'center',
+  postingText: {
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    color: COLORS.gray,
   },
 });

@@ -1,148 +1,226 @@
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Image } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Image, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
+import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES, SAFE_AREA, DIMENSIONS } from '@/constants/theme';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react-native';
 import { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const { login, isLoading } = useAuth();
+
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Lỗi', 'Vui lòng nhập đầy đủ email và mật khẩu');
+      return;
+    }
+
+    try {
+      const success = await login(email, password);
+      if (success) {
+        Alert.alert('Thành công', 'Đăng nhập thành công!');
+        // Navigation sẽ được xử lý bởi AuthGuard
+      } else {
+        Alert.alert('Lỗi', 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.');
+      }
+    } catch (error: any) {
+      console.error('Login error:', error);
+      Alert.alert('Lỗi', error.message || 'Có lỗi xảy ra khi đăng nhập');
+    }
+  };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.title}>Chào mừng trở lại</Text>
-        <Text style={styles.subtitle}>Đăng nhập để tiếp tục</Text>
-
-        <View style={styles.form}>
-          <View style={styles.inputContainer}>
-            <Mail size={20} color={COLORS.gray} style={styles.icon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Email hoặc số điện thoại"
-              placeholderTextColor={COLORS.gray}
-              keyboardType="email-address"
-              autoCapitalize="none"
+    <KeyboardAvoidingView 
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.content}>
+          <View style={styles.logoContainer}>
+            <Image
+              source={require('../../assets/images/icon.png')}
+              style={styles.logo}
+              resizeMode="contain"
             />
           </View>
+          
+          <Text style={styles.title}>Chào mừng trở lại</Text>
+          <Text style={styles.subtitle}>Đăng nhập để tiếp tục</Text>
 
-          <View style={styles.inputContainer}>
-            <Lock size={20} color={COLORS.gray} style={styles.icon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Mật khẩu"
-              placeholderTextColor={COLORS.gray}
-              secureTextEntry={!showPassword}
-            />
-            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-              {showPassword ? (
-                <EyeOff size={20} color={COLORS.gray} />
-              ) : (
-                <Eye size={20} color={COLORS.gray} />
-              )}
+          <View style={styles.form}>
+            <View style={styles.inputContainer}>
+              <Mail size={DIMENSIONS.isLargeDevice ? 24 : 20} color={COLORS.gray} style={styles.icon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Email hoặc số điện thoại"
+                placeholderTextColor={COLORS.gray}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={email}
+                onChangeText={setEmail}
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Lock size={DIMENSIONS.isLargeDevice ? 24 : 20} color={COLORS.gray} style={styles.icon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Mật khẩu"
+                placeholderTextColor={COLORS.gray}
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={setPassword}
+              />
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                {showPassword ? (
+                  <EyeOff size={DIMENSIONS.isLargeDevice ? 24 : 20} color={COLORS.gray} />
+                ) : (
+                  <Eye size={DIMENSIONS.isLargeDevice ? 24 : 20} color={COLORS.gray} />
+                )}
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity style={styles.forgotPassword}>
+              <Text style={styles.forgotPasswordText}>Quên mật khẩu?</Text>
             </TouchableOpacity>
-          </View>
 
-          <TouchableOpacity>
-            <Text style={styles.forgotPassword}>Quên mật khẩu?</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.loginButton}>
-            <Text style={styles.loginButtonText}>Đăng nhập</Text>
-          </TouchableOpacity>
-
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>Hoặc đăng nhập với</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <View style={styles.socialButtons}>
-            <TouchableOpacity style={styles.socialButton}>
-              <Text style={styles.socialButtonText}>Google</Text>
+            <TouchableOpacity style={styles.loginButton} onPress={handleLogin} disabled={isLoading}>
+              <Text style={styles.loginButtonText}>
+                {isLoading ? 'Đang đăng nhập...' : 'Đăng nhập'}
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.socialButton}>
-              <Text style={styles.socialButtonText}>Apple</Text>
+
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>hoặc</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <TouchableOpacity style={styles.googleButton}>
+              <Text style={styles.googleButtonText}>Đăng nhập với Google</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.socialButton}>
-              <Text style={styles.socialButtonText}>Facebook</Text>
-            </TouchableOpacity>
+
+            <View style={styles.signupContainer}>
+              <Text style={styles.signupText}>Chưa có tài khoản? </Text>
+              <TouchableOpacity>
+                <Text style={styles.signupLink}>Đăng ký ngay</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
-
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Chưa có tài khoản? </Text>
-          <TouchableOpacity>
-            <Text style={styles.footerLink}>Đăng ký ngay</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.background,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingTop: SAFE_AREA.top,
+    paddingBottom: SAFE_AREA.bottom + RESPONSIVE_SPACING.lg,
   },
   content: {
     flex: 1,
-    paddingHorizontal: SPACING.lg,
-    paddingTop: 80,
+    paddingHorizontal: RESPONSIVE_SPACING.lg,
+    justifyContent: 'center',
+    minHeight: DIMENSIONS.screenHeight - SAFE_AREA.top - SAFE_AREA.bottom,
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: RESPONSIVE_SPACING.xxl,
+  },
+  logo: {
+    width: DIMENSIONS.isLargeDevice ? 120 : 100,
+    height: DIMENSIONS.isLargeDevice ? 120 : 100,
   },
   title: {
-    fontSize: FONT_SIZES.xxl,
-    fontWeight: '700',
+    fontSize: RESPONSIVE_FONT_SIZES.xxl,
+    fontWeight: 'bold',
     color: COLORS.black,
-    marginBottom: SPACING.xs,
+    textAlign: 'center',
+    marginBottom: RESPONSIVE_SPACING.sm,
   },
   subtitle: {
-    fontSize: FONT_SIZES.md,
-    color: COLORS.darkGray,
-    marginBottom: SPACING.xl,
+    fontSize: RESPONSIVE_FONT_SIZES.md,
+    color: COLORS.gray,
+    textAlign: 'center',
+    marginBottom: RESPONSIVE_SPACING.xxl,
   },
   form: {
-    marginBottom: SPACING.xl,
+    width: '100%',
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.lightGray,
+    backgroundColor: COLORS.white,
     borderRadius: BORDER_RADIUS.md,
-    paddingHorizontal: SPACING.md,
-    marginBottom: SPACING.md,
-    height: 56,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    marginBottom: RESPONSIVE_SPACING.md,
+    height: DIMENSIONS.isLargeDevice ? 60 : 56,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: COLORS.black,
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   icon: {
-    marginRight: SPACING.sm,
+    marginRight: RESPONSIVE_SPACING.sm,
   },
   input: {
     flex: 1,
-    fontSize: FONT_SIZES.md,
+    fontSize: RESPONSIVE_FONT_SIZES.md,
     color: COLORS.black,
+    paddingVertical: RESPONSIVE_SPACING.sm,
   },
   forgotPassword: {
+    alignSelf: 'flex-end',
+    marginBottom: RESPONSIVE_SPACING.lg,
+  },
+  forgotPasswordText: {
     color: COLORS.primary,
-    fontSize: FONT_SIZES.sm,
-    textAlign: 'right',
-    marginBottom: SPACING.lg,
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    fontWeight: '500',
   },
   loginButton: {
     backgroundColor: COLORS.primary,
     borderRadius: BORDER_RADIUS.md,
-    height: 56,
+    height: DIMENSIONS.isLargeDevice ? 60 : 56,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: SPACING.lg,
+    marginBottom: RESPONSIVE_SPACING.lg,
+    shadowColor: COLORS.primary,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   loginButtonText: {
     color: COLORS.white,
-    fontSize: FONT_SIZES.md,
+    fontSize: RESPONSIVE_FONT_SIZES.lg,
     fontWeight: '600',
   },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: SPACING.lg,
+    marginBottom: RESPONSIVE_SPACING.lg,
   },
   dividerLine: {
     flex: 1,
@@ -150,40 +228,45 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.border,
   },
   dividerText: {
-    marginHorizontal: SPACING.md,
+    marginHorizontal: RESPONSIVE_SPACING.md,
     color: COLORS.gray,
-    fontSize: FONT_SIZES.sm,
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
   },
-  socialButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: SPACING.sm,
-  },
-  socialButton: {
-    flex: 1,
-    backgroundColor: COLORS.lightGray,
+  googleButton: {
+    backgroundColor: COLORS.white,
     borderRadius: BORDER_RADIUS.md,
-    height: 56,
+    height: DIMENSIONS.isLargeDevice ? 60 : 56,
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: RESPONSIVE_SPACING.xl,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: COLORS.black,
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  socialButtonText: {
+  googleButtonText: {
     color: COLORS.black,
-    fontSize: FONT_SIZES.sm,
+    fontSize: RESPONSIVE_FONT_SIZES.md,
     fontWeight: '500',
   },
-  footer: {
+  signupContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  footerText: {
-    color: COLORS.darkGray,
-    fontSize: FONT_SIZES.sm,
+  signupText: {
+    color: COLORS.gray,
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
   },
-  footerLink: {
+  signupLink: {
     color: COLORS.primary,
-    fontSize: FONT_SIZES.sm,
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
     fontWeight: '600',
   },
 });

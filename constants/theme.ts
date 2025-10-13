@@ -1,3 +1,7 @@
+import { Dimensions, Platform } from 'react-native';
+
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+
 export const COLORS = {
   // Nexora Brand Colors
   primary: '#6366F1', // Indigo
@@ -42,6 +46,7 @@ export const SPACING = {
   md: 16,
   lg: 24,
   xl: 32,
+  xxl: 40,
 };
 
 export const BORDER_RADIUS = {
@@ -59,4 +64,41 @@ export const FONT_SIZES = {
   lg: 18,
   xl: 24,
   xxl: 32,
+};
+
+// Responsive dimensions
+export const DIMENSIONS = {
+  screenWidth,
+  screenHeight,
+  isSmallDevice: screenWidth < 375,
+  isMediumDevice: screenWidth >= 375 && screenWidth < 414,
+  isLargeDevice: screenWidth >= 414,
+  isTablet: screenWidth >= 768,
+};
+
+// Safe area helpers
+export const SAFE_AREA = {
+  top: Platform.OS === 'ios' ? 44 : 24,
+  bottom: Platform.OS === 'ios' ? 34 : 0,
+  horizontal: Platform.OS === 'ios' ? 20 : 16,
+};
+
+// Responsive spacing based on screen size
+export const RESPONSIVE_SPACING = {
+  xs: DIMENSIONS.isSmallDevice ? 2 : 4,
+  sm: DIMENSIONS.isSmallDevice ? 4 : 8,
+  md: DIMENSIONS.isSmallDevice ? 8 : DIMENSIONS.isLargeDevice ? 20 : 16,
+  lg: DIMENSIONS.isSmallDevice ? 12 : DIMENSIONS.isLargeDevice ? 28 : 24,
+  xl: DIMENSIONS.isSmallDevice ? 16 : DIMENSIONS.isLargeDevice ? 36 : 32,
+  xxl: DIMENSIONS.isSmallDevice ? 20 : DIMENSIONS.isLargeDevice ? 44 : 40,
+};
+
+// Responsive font sizes
+export const RESPONSIVE_FONT_SIZES = {
+  xs: DIMENSIONS.isSmallDevice ? 10 : 12,
+  sm: DIMENSIONS.isSmallDevice ? 12 : 14,
+  md: DIMENSIONS.isSmallDevice ? 14 : DIMENSIONS.isLargeDevice ? 18 : 16,
+  lg: DIMENSIONS.isSmallDevice ? 16 : DIMENSIONS.isLargeDevice ? 20 : 18,
+  xl: DIMENSIONS.isSmallDevice ? 20 : DIMENSIONS.isLargeDevice ? 28 : 24,
+  xxl: DIMENSIONS.isSmallDevice ? 24 : DIMENSIONS.isLargeDevice ? 36 : 32,
 };
