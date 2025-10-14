@@ -1,14 +1,43 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES, SAFE_AREA, DIMENSIONS } from '@/constants/theme';
 import { Settings, MapPin, Calendar, Link as LinkIcon, Users, Grid2x2 as Grid, LogOut, Mail, Phone } from 'lucide-react-native';
 import PostCard from '@/components/PostCard';
 import { useState } from 'react';
+import { userAPI, UpdateUserPayload } from '@/services/api';
+import ImageUploader from '@/components/ImageUploader';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ProfileScreen() {
   const [activeTab, setActiveTab] = useState<'posts' | 'friends'>('posts');
-  const { user, logout } = useAuth();
+  const { user, logout, token } = useAuth();
+  const [displayUser, setDisplayUser] = useState(user);
+  const [editVisible, setEditVisible] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState<UpdateUserPayload>({
+    fullName: user?.fullName || '',
+    bio: user?.bio || '',
+    avatarUrl: user?.avatarUrl || '',
+    coverImageUrl: '',
+    phoneNumber: user?.phoneNumber || '',
+    dateOfBirth: user?.dateOfBirth || '',
+    location: user?.location || '',
+  });
+  const [dobDay, setDobDay] = useState<string>(() => {
+    if (!user?.dateOfBirth) return '';
+    const d = new Date(user.dateOfBirth);
+    return d.getDate() ? String(d.getDate()) : '';
+  });
+  const [dobMonth, setDobMonth] = useState<string>(() => {
+    if (!user?.dateOfBirth) return '';
+    const d = new Date(user.dateOfBirth);
+    return d.getMonth() + 1 ? String(d.getMonth() + 1) : '';
+  });
+  const [dobYear, setDobYear] = useState<string>(() => {
+    if (!user?.dateOfBirth) return '';
+    const d = new Date(user.dateOfBirth);
+    return d.getFullYear() ? String(d.getFullYear()) : '';
+  });
   const insets = useSafeAreaInsets();
 
   const handleLogout = () => {
@@ -38,62 +67,62 @@ export default function ProfileScreen() {
 
         <View style={styles.profileInfo}>
           <View style={styles.avatarContainer}>
-            {user?.avatarUrl ? (
-              <Image source={{ uri: user.avatarUrl }} style={styles.avatar} />
+            {displayUser?.avatarUrl ? (
+              <Image source={{ uri: displayUser.avatarUrl }} style={styles.avatar} />
             ) : (
               <View style={styles.avatar} />
             )}
           </View>
 
-          <Text style={styles.name}>{user?.fullName || 'Người dùng'}</Text>
+          <Text style={styles.name}>{displayUser?.fullName || 'Người dùng'}</Text>
           <Text style={styles.bio}>
-            {user?.bio || 'Chưa có tiểu sử'}
+            {displayUser?.bio || 'Chưa có tiểu sử'}
           </Text>
 
           <View style={styles.infoRow}>
             <Mail size={16} color={COLORS.darkGray} />
-            <Text style={styles.infoText}>{user?.email || 'Chưa có email'}</Text>
+            <Text style={styles.infoText}>{displayUser?.email || 'Chưa có email'}</Text>
           </View>
 
-          {user?.phoneNumber && (
+          {displayUser?.phoneNumber && (
             <View style={styles.infoRow}>
               <Phone size={16} color={COLORS.darkGray} />
-              <Text style={styles.infoText}>{user.phoneNumber}</Text>
+              <Text style={styles.infoText}>{displayUser.phoneNumber}</Text>
             </View>
           )}
 
-          {user?.location && (
+          {displayUser?.location && (
             <View style={styles.infoRow}>
               <MapPin size={16} color={COLORS.darkGray} />
-              <Text style={styles.infoText}>{user.location}</Text>
+              <Text style={styles.infoText}>{displayUser.location}</Text>
             </View>
           )}
 
           <View style={styles.infoRow}>
             <Calendar size={16} color={COLORS.darkGray} />
             <Text style={styles.infoText}>
-              Tham gia {user?.createdAt ? new Date(user.createdAt).toLocaleDateString('vi-VN') : 'Chưa xác định'}
+              Tham gia {displayUser?.createdAt ? new Date(displayUser.createdAt).toLocaleDateString('vi-VN') : 'Chưa xác định'}
             </Text>
           </View>
 
           <View style={styles.stats}>
             <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{user?.postsCount || 0}</Text>
+              <Text style={styles.statNumber}>{displayUser?.postsCount || 0}</Text>
               <Text style={styles.statLabel}>Bài viết</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{user?.followersCount || 0}</Text>
+              <Text style={styles.statNumber}>{displayUser?.followersCount || 0}</Text>
               <Text style={styles.statLabel}>Người theo dõi</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{user?.followingCount || 0}</Text>
+              <Text style={styles.statNumber}>{displayUser?.followingCount || 0}</Text>
               <Text style={styles.statLabel}>Đang theo dõi</Text>
             </View>
           </View>
 
-          <TouchableOpacity style={styles.editButton}>
+          <TouchableOpacity style={styles.editButton} onPress={() => setEditVisible(true)}>
             <Text style={styles.editButtonText}>Chỉnh sửa hồ sơ</Text>
           </TouchableOpacity>
         </View>
@@ -136,6 +165,199 @@ export default function ProfileScreen() {
           </View>
         )}
       </ScrollView>
+
+      <Modal visible={editVisible} transparent animationType="slide" onRequestClose={() => setEditVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Chỉnh sửa hồ sơ</Text>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 480 }}>
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Họ tên</Text>
+                <TextInput
+                  style={styles.input}
+                  value={form.fullName}
+                  onChangeText={(t) => setForm({ ...form, fullName: t })}
+                  placeholder="Nhập họ tên"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Tiểu sử</Text>
+                <TextInput
+                  style={[styles.input, { height: 88 }]}
+                  value={form.bio}
+                  onChangeText={(t) => setForm({ ...form, bio: t })}
+                  placeholder="Giới thiệu bản thân"
+                  multiline
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Ảnh đại diện</Text>
+                {form.avatarUrl ? (
+                  <Image source={{ uri: form.avatarUrl }} style={styles.previewImage} />
+                ) : null}
+                <ImageUploader
+                  maxImages={1}
+                  folder="avatars"
+                  onUploadComplete={(res: any) => {
+                    console.log('ProfileScreen: Upload response:', res);
+                    // Sử dụng publicUrl thay vì url
+                    const url = Array.isArray(res) ? res[0]?.publicUrl : res?.publicUrl;
+                    console.log('ProfileScreen: Extracted URL:', url);
+                    if (url) {
+                      setForm({ ...form, avatarUrl: url });
+                    } else {
+                      console.error('ProfileScreen: No publicUrl found in response');
+                    }
+                  }}
+                  onUploadError={(error) => {
+                    console.error('Avatar upload error:', error);
+                    Alert.alert('Lỗi', 'Không thể upload ảnh đại diện. Vui lòng thử lại.');
+                  }}
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Ảnh bìa</Text>
+                {form.coverImageUrl ? (
+                  <Image source={{ uri: form.coverImageUrl }} style={styles.previewCover} />
+                ) : null}
+                <ImageUploader
+                  maxImages={1}
+                  folder="covers"
+                  onUploadComplete={(res: any) => {
+                    console.log('ProfileScreen: Cover upload response:', res);
+                    // Sử dụng publicUrl thay vì url
+                    const url = Array.isArray(res) ? res[0]?.publicUrl : res?.publicUrl;
+                    console.log('ProfileScreen: Extracted cover URL:', url);
+                    if (url) {
+                      setForm({ ...form, coverImageUrl: url });
+                    } else {
+                      console.error('ProfileScreen: No publicUrl found in cover response');
+                    }
+                  }}
+                  onUploadError={(error) => {
+                    console.error('Cover upload error:', error);
+                    Alert.alert('Lỗi', 'Không thể upload ảnh bìa. Vui lòng thử lại.');
+                  }}
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Số điện thoại</Text>
+                <TextInput
+                  style={styles.input}
+                  value={form.phoneNumber}
+                  onChangeText={(t) => setForm({ ...form, phoneNumber: t })}
+                  placeholder="Nhập số điện thoại"
+                  keyboardType="phone-pad"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Ngày sinh</Text>
+                <View style={styles.dobRow}>
+                  <TextInput
+                    style={[styles.input, styles.dobInput]}
+                    value={dobDay}
+                    onChangeText={(t) => {
+                      setDobDay(t.replace(/[^0-9]/g, ''));
+                    }}
+                    placeholder="DD"
+                    keyboardType="number-pad"
+                    maxLength={2}
+                  />
+                  <TextInput
+                    style={[styles.input, styles.dobInput]}
+                    value={dobMonth}
+                    onChangeText={(t) => {
+                      setDobMonth(t.replace(/[^0-9]/g, ''));
+                    }}
+                    placeholder="MM"
+                    keyboardType="number-pad"
+                    maxLength={2}
+                  />
+                  <TextInput
+                    style={[styles.input, styles.dobInputYear]}
+                    value={dobYear}
+                    onChangeText={(t) => {
+                      setDobYear(t.replace(/[^0-9]/g, ''));
+                    }}
+                    placeholder="YYYY"
+                    keyboardType="number-pad"
+                    maxLength={4}
+                  />
+                </View>
+                <Text style={styles.helperText}>Định dạng: ngày/tháng/năm</Text>
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Địa điểm</Text>
+                <TextInput
+                  style={styles.input}
+                  value={form.location}
+                  onChangeText={(t) => setForm({ ...form, location: t })}
+                  placeholder="Ví dụ: Hà Nội"
+                />
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={[styles.actionBtn, styles.cancelBtn]} onPress={() => setEditVisible(false)} disabled={saving}>
+                <Text style={styles.cancelText}>Hủy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.saveBtn]}
+                onPress={async () => {
+                  if (!user?.id) {
+                    Alert.alert('Lỗi', 'Không xác định được người dùng.');
+                    return;
+                  }
+                  try {
+                    setSaving(true);
+                    // Tính ISO thực từ ngày/tháng/năm nếu có đủ dữ liệu
+                    let isoDob = form.dateOfBirth;
+                    if (dobDay && dobMonth && dobYear) {
+                      const d = new Date(
+                        Number(dobYear),
+                        Number(dobMonth) - 1,
+                        Number(dobDay)
+                      );
+                      if (!isNaN(d.getTime())) {
+                        isoDob = d.toISOString();
+                      }
+                    }
+
+                    const payload: UpdateUserPayload = {
+                      fullName: form.fullName,
+                      bio: form.bio,
+                      avatarUrl: form.avatarUrl,
+                      coverImageUrl: form.coverImageUrl,
+                      phoneNumber: form.phoneNumber,
+                      dateOfBirth: isoDob,
+                      location: form.location,
+                    };
+                    await userAPI.updateUser(user.id, payload);
+                // Optimistically update local display data
+                setDisplayUser((prev) => prev ? { ...prev, ...payload } as any : (payload as any));
+                    Alert.alert('Thành công', 'Cập nhật hồ sơ thành công.');
+                    setEditVisible(false);
+                  } catch (e: any) {
+                    Alert.alert('Lỗi', e?.response?.data?.message || 'Cập nhật không thành công.');
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+                disabled={saving}
+              >
+                {saving ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.saveText}>Lưu</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -294,5 +516,96 @@ const styles = StyleSheet.create({
     fontSize: RESPONSIVE_FONT_SIZES.xs,
     color: COLORS.black,
     textAlign: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    padding: RESPONSIVE_SPACING.md,
+  },
+  modalContent: {
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.md,
+    padding: RESPONSIVE_SPACING.md,
+  },
+  modalTitle: {
+    fontSize: RESPONSIVE_FONT_SIZES.lg,
+    fontWeight: '700',
+    color: COLORS.black,
+    marginBottom: RESPONSIVE_SPACING.sm,
+    textAlign: 'center',
+  },
+  formGroup: {
+    marginBottom: RESPONSIVE_SPACING.sm,
+  },
+  label: {
+    fontSize: RESPONSIVE_FONT_SIZES.xs,
+    color: COLORS.gray,
+    marginBottom: 6,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: BORDER_RADIUS.sm,
+    paddingHorizontal: RESPONSIVE_SPACING.sm,
+    paddingVertical: 10,
+    backgroundColor: COLORS.white,
+    color: COLORS.black,
+  },
+  previewImage: {
+    width: 80,
+    height: 80,
+    borderRadius: BORDER_RADIUS.md,
+    marginBottom: RESPONSIVE_SPACING.xs,
+  },
+  previewCover: {
+    width: '100%',
+    height: 120,
+    borderRadius: BORDER_RADIUS.md,
+    marginBottom: RESPONSIVE_SPACING.xs,
+    backgroundColor: COLORS.lightGray,
+  },
+  dobRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: RESPONSIVE_SPACING.xs,
+  },
+  dobInput: {
+    flex: 1,
+  },
+  dobInputYear: {
+    flex: 2,
+  },
+  helperText: {
+    marginTop: 6,
+    fontSize: RESPONSIVE_FONT_SIZES.xs,
+    color: COLORS.gray,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: RESPONSIVE_SPACING.sm,
+    marginTop: RESPONSIVE_SPACING.sm,
+  },
+  actionBtn: {
+    height: 44,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    borderRadius: BORDER_RADIUS.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelBtn: {
+    backgroundColor: COLORS.lightGray,
+  },
+  saveBtn: {
+    backgroundColor: COLORS.primary,
+  },
+  cancelText: {
+    color: COLORS.black,
+    fontWeight: '600',
+  },
+  saveText: {
+    color: COLORS.white,
+    fontWeight: '700',
   },
 });

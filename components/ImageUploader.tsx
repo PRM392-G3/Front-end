@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Alert, Image } from 'react-na
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES } from '@/constants/theme';
 import { Camera, Image as ImageIcon, X } from 'lucide-react-native';
-import { mediaAPI, FileUploadResponse } from '@/services/mediaAPI';
+import { mediaAPI, FileUploadResponse, testToken } from '@/services/mediaAPI';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface ImageUploaderProps {
@@ -42,16 +42,17 @@ export default function ImageUploader({
 
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
+        mediaTypes: ['images'],
+        allowsEditing: true, // Luôn cho phép edit
         aspect: [4, 3],
         quality: 0.8,
-        allowsMultipleSelection: selectedImages.length < maxImages,
+        allowsMultipleSelection: false, // Chỉ cho phép chọn 1 ảnh
       });
 
       if (!result.canceled) {
-        const newImages = Array.isArray(result.assets) ? result.assets : [result.assets];
-        setSelectedImages(prev => [...prev, ...newImages].slice(0, maxImages));
+        const newImage = result.assets[0];
+        // Thay thế ảnh cũ bằng ảnh mới
+        setSelectedImages([newImage]);
       }
     } catch (error) {
       console.error('Image picker error:', error);
@@ -70,13 +71,15 @@ export default function ImageUploader({
 
     try {
       const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.8,
       });
 
       if (!result.canceled) {
-        setSelectedImages(prev => [...prev, result.assets[0]].slice(0, maxImages));
+        // Thay thế ảnh cũ bằng ảnh mới
+        setSelectedImages([result.assets[0]]);
       }
     } catch (error) {
       console.error('Camera error:', error);
@@ -89,25 +92,30 @@ export default function ImageUploader({
   };
 
   const uploadImages = async () => {
-    if (selectedImages.length === 0 || !token) return;
+    if (selectedImages.length === 0) return;
 
     setUploading(true);
     const uploadResults: FileUploadResponse[] = [];
 
     try {
+      // Test token trước khi upload
+      console.log('ImageUploader: Testing token before upload...');
+      await testToken();
+      
       for (const image of selectedImages) {
-        const result = await mediaAPI.uploadFile(image, folder, token);
+        // Token sẽ được thêm tự động bởi request interceptor
+        const result = await mediaAPI.uploadFile(image, folder);
         uploadResults.push(result);
       }
 
       setSelectedImages([]);
       onUploadComplete?.(uploadResults[0]); // Return first result for single image
       
-      Alert.alert('Success', `${uploadResults.length} image(s) uploaded successfully!`);
+      Alert.alert('Thành công', 'Ảnh đã được tải lên thành công!');
     } catch (error) {
       console.error('Upload error:', error);
       onUploadError?.(error);
-      Alert.alert('Upload Failed', 'Failed to upload images. Please try again.');
+      Alert.alert('Tải lên thất bại', 'Không thể tải lên ảnh. Vui lòng thử lại.');
     } finally {
       setUploading(false);
     }
@@ -115,12 +123,12 @@ export default function ImageUploader({
 
   const showImageOptions = () => {
     Alert.alert(
-      'Select Image',
-      'Choose how you want to add an image',
+      'Chọn ảnh',
+      'Chọn cách bạn muốn thêm ảnh',
       [
-        { text: 'Camera', onPress: takePhoto },
-        { text: 'Photo Library', onPress: pickImage },
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Máy ảnh', onPress: takePhoto },
+        { text: 'Thư viện ảnh', onPress: pickImage },
+        { text: 'Hủy', style: 'cancel' },
       ]
     );
   };
@@ -147,18 +155,16 @@ export default function ImageUploader({
 
       {/* Upload Buttons */}
       <View style={styles.buttonContainer}>
-        {selectedImages.length < maxImages && (
-          <TouchableOpacity
-            style={[styles.button, disabled && styles.buttonDisabled]}
-            onPress={showImageOptions}
-            disabled={disabled || uploading}
-          >
-            <ImageIcon size={20} color={COLORS.primary} />
-            <Text style={styles.buttonText}>
-              {selectedImages.length === 0 ? 'Add Image' : 'Add More'}
-            </Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={[styles.button, disabled && styles.buttonDisabled]}
+          onPress={showImageOptions}
+          disabled={disabled || uploading}
+        >
+          <ImageIcon size={20} color={COLORS.primary} />
+          <Text style={styles.buttonText}>
+            {selectedImages.length === 0 ? 'Chọn ảnh' : 'Thay đổi ảnh'}
+          </Text>
+        </TouchableOpacity>
 
         {selectedImages.length > 0 && (
           <TouchableOpacity
@@ -167,7 +173,7 @@ export default function ImageUploader({
             disabled={uploading}
           >
             <Text style={styles.uploadButtonText}>
-              {uploading ? 'Uploading...' : `Upload ${selectedImages.length} Image(s)`}
+              {uploading ? 'Đang tải lên...' : 'Tải lên'}
             </Text>
           </TouchableOpacity>
         )}

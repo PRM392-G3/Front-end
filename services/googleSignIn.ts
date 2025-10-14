@@ -9,7 +9,7 @@ WebBrowser.maybeCompleteAuthSession();
 // Google OAuth configuration
 const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || 
                         Constants.expoConfig?.extra?.googleClientId ||
-                        '310764216947-6bq7kia8mnhhrr9mdckbkt5jaq0f2i2o.apps.googleusercontent.com';
+                        '317895360043-ahjdk8h07qierl6p84qvhusmc8pgq17i.apps.googleusercontent.com';
 
 // Sử dụng redirect URI từ environment hoặc fallback
 const getRedirectURI = () => {
