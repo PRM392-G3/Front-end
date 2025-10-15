@@ -1,15 +1,88 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, RefreshControl, Alert } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, FONT_SIZES, BORDER_RADIUS, SAFE_AREA, DIMENSIONS } from '@/constants/theme';
 import PostCard from '@/components/PostCard';
+import CreatePostScreen from '@/screens/CreatePostScreen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import GoogleOAuthDebug from '@/components/GoogleOAuthDebug';
+import { Plus, RefreshCw } from 'lucide-react-native';
+import { postAPI, PostResponse } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { usePostContext } from '@/contexts/PostContext';
+import { useFocusEffect } from '@react-navigation/native';
 
 export default function HomeScreen() {
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showCreatePost, setShowCreatePost] = useState(false);
+  const { user } = useAuth();
+  const { posts, setPosts, updatePostLike } = usePostContext();
   const insets = useSafeAreaInsets();
-  
+
+  const fetchPosts = useCallback(async () => {
+    try {
+      console.log('HomeScreen: Fetching posts...');
+      const fetchedPosts = await postAPI.getAllPosts();
+      console.log('HomeScreen: Posts fetched successfully:', fetchedPosts.length);
+      setPosts(fetchedPosts);
+    } catch (error) {
+      console.error('HomeScreen: Error fetching posts:', error);
+      Alert.alert('Lỗi', 'Không thể tải bài viết. Vui lòng thử lại.');
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, []);
+
+  const handleRefresh = useCallback(() => {
+    setIsRefreshing(true);
+    fetchPosts();
+  }, [fetchPosts]);
+
+  const handlePostCreated = useCallback((newPost: PostResponse) => {
+    console.log('HomeScreen: New post created:', newPost);
+    setPosts(prevPosts => [newPost, ...prevPosts]);
+    setShowCreatePost(false);
+  }, []);
+
+  const handlePostDeleted = useCallback((postId: number) => {
+    console.log('HomeScreen: Post deleted:', postId);
+    setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
+  }, []);
+
+  const handleLikeToggle = useCallback((postId: number, isLiked: boolean) => {
+    console.log('HomeScreen: Like toggled:', postId, isLiked);
+    updatePostLike(postId, isLiked);
+  }, [updatePostLike]);
+
+  // Fetch posts when screen focuses
+  useFocusEffect(
+    useCallback(() => {
+      fetchPosts();
+    }, [fetchPosts])
+  );
+
+  if (showCreatePost) {
+    return (
+      <CreatePostScreen
+        navigation={{ goBack: () => setShowCreatePost(false) }}
+        onPostCreated={handlePostCreated}
+      />
+    );
+  }
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Trang chủ</Text>
+        <TouchableOpacity 
+          style={styles.createButton}
+          onPress={() => setShowCreatePost(true)}
+        >
+          <Plus size={20} color={COLORS.white} />
+        </TouchableOpacity>
+      </View>
       
       {/* Content Feed */}
       <ScrollView
@@ -19,6 +92,14 @@ export default function HomeScreen() {
         contentInsetAdjustmentBehavior="automatic"
         bounces={true}
         alwaysBounceVertical={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            colors={[COLORS.primary]}
+            tintColor={COLORS.primary}
+          />
+        }
       >
         <View style={styles.storiesSection}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.storiesScroll}>
@@ -31,60 +112,43 @@ export default function HomeScreen() {
           </ScrollView>
         </View>
 
-        {/* Debug Section */}
-        <GoogleOAuthDebug />
-
         <View style={styles.postsSection}>
-          <Text style={styles.sectionTitle}>Bài viết mới nhất</Text>
-          <PostCard 
-            showImage={true} 
-            imageUrl="https://picsum.photos/400/300?random=1"
-            postData={{
-              id: 1,
-              content: "Hôm nay thật tuyệt vời! Cảm ơn mọi người đã ủng hộ. 🌟 #nexora #happiness",
-              imageUrl: "https://picsum.photos/400/300?random=1",
-              user: {
-                fullName: "Nguyễn Văn A",
-                avatarUrl: "https://picsum.photos/100/100?random=1"
-              },
-              createdAt: new Date().toISOString(),
-              likesCount: 24,
-              commentsCount: 8,
-              isLiked: false
-            }}
-          />
-          <PostCard 
-            showImage={false}
-            postData={{
-              id: 2,
-              content: "Chia sẻ một số suy nghĩ về cuộc sống và công việc. Hy vọng mọi người sẽ thích! 💭",
-              user: {
-                fullName: "Trần Thị B",
-                avatarUrl: "https://picsum.photos/100/100?random=2"
-              },
-              createdAt: new Date(Date.now() - 3600000).toISOString(),
-              likesCount: 15,
-              commentsCount: 5,
-              isLiked: true
-            }}
-          />
-          <PostCard 
-            showImage={true}
-            imageUrl="https://picsum.photos/400/300?random=3"
-            postData={{
-              id: 3,
-              content: "Bữa tối ngon tuyệt! 🍽️ #food #delicious",
-              imageUrl: "https://picsum.photos/400/300?random=3",
-              user: {
-                fullName: "Lê Văn C",
-                avatarUrl: "https://picsum.photos/100/100?random=3"
-              },
-              createdAt: new Date(Date.now() - 7200000).toISOString(),
-              likesCount: 42,
-              commentsCount: 12,
-              isLiked: false
-            }}
-          />
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Bài viết mới nhất</Text>
+            <TouchableOpacity onPress={handleRefresh} disabled={isRefreshing}>
+              <RefreshCw 
+                size={16} 
+                color={COLORS.gray} 
+                style={isRefreshing ? styles.refreshingIcon : undefined}
+              />
+            </TouchableOpacity>
+          </View>
+          
+          {isLoading ? (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Đang tải bài viết...</Text>
+            </View>
+          ) : posts.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>Chưa có bài viết nào</Text>
+              <TouchableOpacity 
+                style={styles.emptyButton}
+                onPress={() => setShowCreatePost(true)}
+              >
+                <Text style={styles.emptyButtonText}>Tạo bài viết đầu tiên</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            posts.map((post) => (
+              <PostCard
+                key={post.id}
+                postData={post}
+                onPostDeleted={handlePostDeleted}
+                onLikeToggle={handleLikeToggle}
+                showImage={!!post.imageUrl}
+              />
+            ))
+          )}
         </View>
       </ScrollView>
     </View>
@@ -96,12 +160,34 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.sm,
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderLight,
+  },
+  headerTitle: {
+    fontSize: FONT_SIZES.xl,
+    fontWeight: '700',
+    color: COLORS.black,
+  },
+  createButton: {
+    backgroundColor: COLORS.primary,
+    width: 40,
+    height: 40,
+    borderRadius: BORDER_RADIUS.full,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   feed: {
     flex: 1,
   },
   feedContent: {
     paddingBottom: RESPONSIVE_SPACING.xl,
-    paddingTop: RESPONSIVE_SPACING.md,
   },
   storiesSection: {
     backgroundColor: COLORS.white,
@@ -136,11 +222,47 @@ const styles = StyleSheet.create({
   postsSection: {
     paddingHorizontal: RESPONSIVE_SPACING.md,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: RESPONSIVE_SPACING.md,
+    marginTop: RESPONSIVE_SPACING.sm,
+  },
   sectionTitle: {
     fontSize: FONT_SIZES.lg,
     fontWeight: '700',
     color: COLORS.black,
+  },
+  refreshingIcon: {
+    transform: [{ rotate: '360deg' }],
+  },
+  loadingContainer: {
+    paddingVertical: RESPONSIVE_SPACING.xl,
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.gray,
+  },
+  emptyContainer: {
+    paddingVertical: RESPONSIVE_SPACING.xl,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.gray,
     marginBottom: RESPONSIVE_SPACING.md,
-    marginTop: RESPONSIVE_SPACING.sm,
+  },
+  emptyButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  emptyButtonText: {
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.white,
+    fontWeight: '600',
   },
 });
