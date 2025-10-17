@@ -60,9 +60,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       console.log('AuthContext: Stored token exists:', !!storedToken);
       console.log('AuthContext: Stored user exists:', !!storedUser);
+      console.log('AuthContext: Stored token length:', storedToken ? storedToken.length : 0);
+      console.log('AuthContext: Stored token preview:', storedToken ? storedToken.substring(0, 20) + '...' : 'No token');
 
       // Trong development, có thể force clear auth data
-      if (__DEV__ && true) { // Set thành true để force clear
+      if (__DEV__ && false) { // Set thành false để không force clear
         console.log('AuthContext: Force clearing auth data in development');
         await clearAuthData();
         return;
@@ -130,11 +132,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const { user: userData, token: accessToken, expiresAt } = response;
 
         console.log('AuthContext: Login successful, saving data...');
+        console.log('AuthContext: Token to save:', accessToken ? 'Token exists' : 'No token');
+        console.log('AuthContext: Token length:', accessToken ? accessToken.length : 0);
 
         // Lưu token và user data
         await AsyncStorage.setItem('auth_token', accessToken);
         await AsyncStorage.setItem('user_data', JSON.stringify(userData));
         await AsyncStorage.setItem('token_expires_at', expiresAt);
+
+        // Verify token was saved
+        const savedToken = await AsyncStorage.getItem('auth_token');
+        console.log('AuthContext: Token saved successfully:', savedToken ? 'Yes' : 'No');
+        console.log('AuthContext: Saved token length:', savedToken ? savedToken.length : 0);
 
         setToken(accessToken);
         setRefreshToken(null); // Backend không trả về refresh token

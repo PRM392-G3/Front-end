@@ -1,13 +1,16 @@
 import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Media API interfaces
 export interface FileUploadResponse {
-  success: boolean;
-  filePath: string;
   fileName: string;
+  filePath: string;
+  publicUrl: string;
   fileSize: number;
   contentType: string;
-  url: string;
+  uploadedAt: string;
+  userId: string;
+  fileType: string;
 }
 
 export interface FileUrlResponse {
@@ -27,7 +30,7 @@ export interface FileListResponse {
 
 // Cấu hình axios instance cho media API
 const mediaApi = axios.create({
-  baseURL: 'https://1d1ad5815ae8.ngrok-free.app/api',
+  baseURL: 'https://selenographical-ashlynn-moonily.ngrok-free.dev/api',
   timeout: 30000, // Tăng timeout cho upload
   headers: {
     'ngrok-skip-browser-warning': 'true',
@@ -36,8 +39,23 @@ const mediaApi = axios.create({
 
 // Request interceptor để thêm token vào header
 mediaApi.interceptors.request.use(
-  (config) => {
-    // Token sẽ được thêm bởi AuthContext
+  async (config) => {
+    // Lấy token từ AsyncStorage
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      console.log('MediaAPI: Getting token from storage:', token ? 'Token exists' : 'No token');
+      console.log('MediaAPI: Token length:', token ? token.length : 0);
+      
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+        console.log('MediaAPI: Added Authorization header to request');
+        console.log('MediaAPI: Request URL:', config.url);
+      } else {
+        console.log('MediaAPI: No token found, request will be sent without Authorization header');
+      }
+    } catch (error) {
+      console.error('Error getting token for media API:', error);
+    }
     return config;
   },
   (error) => {
@@ -51,12 +69,32 @@ mediaApi.interceptors.response.use(
     return response;
   },
   (error) => {
+    console.log('MediaAPI: Response error:', error.response?.status);
+    console.log('MediaAPI: Error message:', error.message);
+    console.log('MediaAPI: Error data:', error.response?.data);
+    
     if (error.response?.status === 401) {
-      console.log('Token expired or invalid');
+      console.log('MediaAPI: Token expired or invalid');
+      console.log('MediaAPI: Request URL:', error.config?.url);
+      console.log('MediaAPI: Request headers:', error.config?.headers);
     }
     return Promise.reject(error);
   }
 );
+
+// Test function để debug token
+export const testToken = async () => {
+  try {
+    const token = await AsyncStorage.getItem('auth_token');
+    console.log('MediaAPI Test: Token exists:', !!token);
+    console.log('MediaAPI Test: Token length:', token ? token.length : 0);
+    console.log('MediaAPI Test: Token preview:', token ? token.substring(0, 50) + '...' : 'No token');
+    return token;
+  } catch (error) {
+    console.error('MediaAPI Test: Error getting token:', error);
+    return null;
+  }
+};
 
 // Media API endpoints
 export const mediaAPI = {
@@ -74,7 +112,7 @@ export const mediaAPI = {
         params: { folder },
         headers: {
           'Content-Type': 'multipart/form-data',
-          ...(token && { Authorization: `Bearer ${token}` }),
+          // Token sẽ được thêm tự động bởi request interceptor
         },
       });
 
@@ -90,9 +128,7 @@ export const mediaAPI = {
     try {
       const response = await mediaApi.get('/blob-storage/media/url', {
         params: { filePath },
-        headers: {
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
+        // Token sẽ được thêm tự động bởi request interceptor
       });
 
       return response.data;
@@ -107,9 +143,7 @@ export const mediaAPI = {
     try {
       const response = await mediaApi.get('/blob-storage/media/download', {
         params: { filePath },
-        headers: {
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
+        // Token sẽ được thêm tự động bởi request interceptor
         responseType: 'blob',
       });
 
@@ -125,9 +159,7 @@ export const mediaAPI = {
     try {
       const response = await mediaApi.delete('/blob-storage/media/delete', {
         params: { filePath },
-        headers: {
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
+        // Token sẽ được thêm tự động bởi request interceptor
       });
 
       return response.data;
@@ -142,9 +174,7 @@ export const mediaAPI = {
     try {
       const response = await mediaApi.get('/blob-storage/media/list', {
         params: { folder },
-        headers: {
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
+        // Token sẽ được thêm tự động bởi request interceptor
       });
 
       return response.data;
