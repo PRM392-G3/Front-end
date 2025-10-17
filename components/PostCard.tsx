@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Alert } from 'react-native';
+import { Video } from 'expo-av';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES } from '@/constants/theme';
 import { Heart, MessageCircle, Share2, MoveHorizontal as MoreHorizontal, Trash2, Edit } from 'lucide-react-native';
 import { PostResponse, postAPI } from '@/services/api';
@@ -258,9 +259,23 @@ export default function PostCard({
         return null;
       })()}
 
+      {/* Display image or video */}
       {showImage && postData.imageUrl && (
         <View style={styles.imageContainer}>
           <Image source={{ uri: postData.imageUrl }} style={styles.image} />
+        </View>
+      )}
+      
+      {showImage && postData.videoUrl && (
+        <View style={styles.videoContainer}>
+          <Video
+            source={{ uri: postData.videoUrl }}
+            style={styles.video}
+            useNativeControls
+            resizeMode="contain"
+            isLooping={false}
+            shouldPlay={false}
+          />
         </View>
       )}
 
@@ -384,6 +399,17 @@ const styles = StyleSheet.create({
     fontSize: RESPONSIVE_FONT_SIZES.sm,
     color: COLORS.gray,
     fontWeight: '500',
+  },
+  videoContainer: {
+    marginHorizontal: RESPONSIVE_SPACING.md,
+    marginBottom: RESPONSIVE_SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+    overflow: 'hidden',
+  },
+  video: {
+    width: '100%',
+    height: 200,
+    borderRadius: BORDER_RADIUS.md,
   },
   actions: {
     flexDirection: 'row',

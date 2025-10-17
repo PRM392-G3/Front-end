@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES } from '@/constants/theme';
 import { ArrowLeft, Heart, MessageCircle, Share, MoreVertical, Edit, Trash2, Calendar, User } from 'lucide-react-native';
+import { Video } from 'expo-av';
 import { postAPI, commentAPI, PostResponse } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePostContext } from '@/contexts/PostContext';
@@ -34,6 +35,7 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
   const [isLoadingLike, setIsLoadingLike] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   const { user } = useAuth();
   const { updatePostLike } = usePostContext();
@@ -89,7 +91,7 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
         updatePostLike(post.id, true);
         console.log(`PostDetailScreen: Successfully liked post ${post.id}`);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('PostDetailScreen: Error toggling like:', error);
       console.error('PostDetailScreen: Error details:', error.response?.data);
       console.error('PostDetailScreen: Error status:', error.response?.status);
@@ -144,7 +146,7 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
       setCommentText('');
       
       Alert.alert('Thành công', 'Bình luận đã được thêm!');
-    } catch (error) {
+    } catch (error: any) {
       console.error('PostDetailScreen: Error submitting comment:', error);
       console.error('PostDetailScreen: Error details:', error.response?.data);
       console.error('PostDetailScreen: Error status:', error.response?.status);
@@ -250,8 +252,8 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
           <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
+            style={styles.headerButton}
+            onPress={() => router.back()}
           >
             <ArrowLeft size={24} color={COLORS.black} />
           </TouchableOpacity>
@@ -272,8 +274,8 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
           <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
+            style={styles.headerButton}
+            onPress={() => router.back()}
           >
             <ArrowLeft size={24} color={COLORS.black} />
           </TouchableOpacity>
@@ -300,10 +302,14 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.headerTitle}>Chi tiết bài viết</Text>
-        </View>
-        {isOwner && (
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={() => router.back()}
+        >
+          <ArrowLeft size={24} color={COLORS.black} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Chi tiết bài viết</Text>
+        {isOwner ? (
           <TouchableOpacity
             style={styles.moreButton}
             onPress={() => {
@@ -320,8 +326,9 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
           >
             <MoreVertical size={24} color={COLORS.black} />
           </TouchableOpacity>
+        ) : (
+          <View style={styles.placeholder} />
         )}
-        {!isOwner && <View style={styles.placeholder} />}
       </View>
 
       {/* Content */}
@@ -367,6 +374,20 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
           {post.imageUrl && (
             <View style={styles.imageContainer}>
               <Image source={{ uri: post.imageUrl }} style={styles.postImage} />
+            </View>
+          )}
+
+          {/* Post Video */}
+          {post.videoUrl && (
+            <View style={styles.videoContainer}>
+              <Video
+                source={{ uri: post.videoUrl }}
+                style={styles.video}
+                useNativeControls
+                resizeMode="contain"
+                isLooping={false}
+                shouldPlay={false}
+              />
             </View>
           )}
 
@@ -515,14 +536,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
-  headerLeft: {
-    flex: 1,
-    alignItems: 'center',
-  },
   headerTitle: {
     fontSize: RESPONSIVE_FONT_SIZES.lg,
     fontWeight: '600',
     color: COLORS.black,
+  },
+  headerButton: {
+    padding: RESPONSIVE_SPACING.xs,
+    borderRadius: BORDER_RADIUS.sm,
   },
   moreButton: {
     padding: RESPONSIVE_SPACING.xs,
@@ -622,6 +643,16 @@ const styles = StyleSheet.create({
     height: 300,
     borderRadius: BORDER_RADIUS.sm,
     backgroundColor: COLORS.lightGray,
+  },
+  videoContainer: {
+    marginBottom: RESPONSIVE_SPACING.md,
+    borderRadius: BORDER_RADIUS.sm,
+    overflow: 'hidden',
+  },
+  video: {
+    width: '100%',
+    height: 300,
+    borderRadius: BORDER_RADIUS.sm,
   },
   tagsContainer: {
     flexDirection: 'row',

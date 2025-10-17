@@ -145,7 +145,7 @@ export default function HomeScreen() {
                 postData={post}
                 onPostDeleted={handlePostDeleted}
                 onLikeToggle={handleLikeToggle}
-                showImage={!!post.imageUrl}
+                showImage={!!post.imageUrl || !!post.videoUrl}
               />
             ))
           )}

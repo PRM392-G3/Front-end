@@ -3,9 +3,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // API Configuration - Manual configuration
 const API_CONFIG = {
-  BASE_URL: 'https://f2565618a901.ngrok-free.app/api',
+  BASE_URL: 'https://41a43dac9aea.ngrok-free.app/api', // Test với localhost trước
   TIMEOUT: 30000,
-  MEDIA_TIMEOUT: 60000,
+  MEDIA_TIMEOUT: 120000, // Tăng lên 2 phút cho video
 };
 
 // Helper function to test API connectivity

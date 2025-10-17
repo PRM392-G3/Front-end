@@ -279,7 +279,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: RESPONSIVE_SPACING.md,
     paddingVertical: RESPONSIVE_SPACING.sm,
     fontSize: RESPONSIVE_FONT_SIZES.md,
-    color: COLORS.text,
+    color: COLORS.black,
   },
   inputDisabled: {
     backgroundColor: COLORS.background,
@@ -325,7 +325,7 @@ const styles = StyleSheet.create({
   },
   suggestionName: {
     fontSize: RESPONSIVE_FONT_SIZES.md,
-    color: COLORS.text,
+    color: COLORS.black,
     fontWeight: '500',
   },
   suggestionDescription: {

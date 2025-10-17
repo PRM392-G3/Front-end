@@ -209,7 +209,7 @@ export default function ProfileScreen() {
                   postData={post}
                   onPostDeleted={handlePostDeleted}
                   onLikeToggle={handleLikeToggle}
-                  showImage={!!post.imageUrl}
+                  showImage={!!post.imageUrl || !!post.videoUrl}
                 />
               ))
             )}

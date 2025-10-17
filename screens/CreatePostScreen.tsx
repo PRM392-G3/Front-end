@@ -16,6 +16,7 @@ import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES } from
 import { ArrowLeft, Send, Image as ImageIcon, Hash } from 'lucide-react-native';
 import ImageUploader from '@/components/ImageUploader';
 import SimpleImageUploader from '@/components/SimpleImageUploader';
+import SimpleVideoUpload from '@/components/SimpleVideoUpload';
 import TagInput from '@/components/TagInput';
 import { postAPI, CreatePostRequest } from '@/services/api';
 import { mediaAPI, FileUploadResponse } from '@/services/mediaAPI';
@@ -29,10 +30,15 @@ interface CreatePostScreenProps {
 export default function CreatePostScreen({ navigation, onPostCreated }: CreatePostScreenProps) {
   const [content, setContent] = useState('');
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [tags, setTags] = useState<string[]>([]);
   const [isPublic, setIsPublic] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
+  
+  // Media type: 'image' | 'video' | null
+  const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
   
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
@@ -45,6 +51,8 @@ export default function CreatePostScreen({ navigation, onPostCreated }: CreatePo
   const handleImageUploadComplete = (result: FileUploadResponse) => {
     console.log('CreatePostScreen: Image upload complete:', result);
     setImageUrl(result.publicUrl);
+    setVideoUrl(null); // Clear video if image is uploaded
+    setMediaType('image');
     setIsUploadingImage(false);
   };
 
@@ -53,6 +61,7 @@ export default function CreatePostScreen({ navigation, onPostCreated }: CreatePo
     setIsUploadingImage(false);
     Alert.alert('Lỗi', 'Không thể tải lên ảnh. Vui lòng thử lại.');
   };
+
 
   const handleCreatePost = async () => {
     if (!content.trim()) {
@@ -72,6 +81,7 @@ export default function CreatePostScreen({ navigation, onPostCreated }: CreatePo
         userId: user.id,
         content: content.trim(),
         imageUrl: imageUrl || undefined,
+        videoUrl: videoUrl || undefined,
         tags: tags.length > 0 ? tags : undefined,
       };
 
@@ -79,6 +89,7 @@ export default function CreatePostScreen({ navigation, onPostCreated }: CreatePo
       console.log('CreatePostScreen: User ID:', user.id);
       console.log('CreatePostScreen: Content length:', content.trim().length);
       console.log('CreatePostScreen: Image URL:', imageUrl);
+      console.log('CreatePostScreen: Video URL:', videoUrl);
       console.log('CreatePostScreen: Tags count:', tags.length);
       
       const newPost = await postAPI.createPost(postData);
@@ -88,6 +99,7 @@ export default function CreatePostScreen({ navigation, onPostCreated }: CreatePo
       // Reset form
       setContent('');
       setImageUrl(null);
+      setVideoUrl(null);
       setTags([]);
       
       Alert.alert('Thành công', 'Bài viết đã được tạo thành công!', [
@@ -126,7 +138,7 @@ export default function CreatePostScreen({ navigation, onPostCreated }: CreatePo
   };
 
   const handleBack = () => {
-    if (content.trim() || imageUrl) {
+    if (content.trim() || imageUrl || videoUrl) {
       Alert.alert(
         'Xác nhận',
         'Bạn có chắc chắn muốn hủy? Nội dung chưa lưu sẽ bị mất.',
@@ -213,7 +225,7 @@ export default function CreatePostScreen({ navigation, onPostCreated }: CreatePo
             onUploadStart={handleImageUploadStart}
             onUploadComplete={handleImageUploadComplete}
             onUploadError={handleImageUploadError}
-            disabled={isCreating}
+            disabled={isCreating || mediaType === 'video'}
           />
           {imageUrl && (
             <View style={styles.imagePreview}>
@@ -225,6 +237,43 @@ export default function CreatePostScreen({ navigation, onPostCreated }: CreatePo
               <ActivityIndicator size="small" color={COLORS.primary} />
               <Text style={styles.uploadingText}>Đang tải lên ảnh...</Text>
             </View>
+          )}
+          {mediaType === 'video' && (
+            <Text style={styles.disabledText}>Không thể upload ảnh khi đã có video</Text>
+          )}
+        </View>
+
+        {/* Video Upload */}
+        <View style={styles.videoSection}>
+          <Text style={styles.sectionTitle}>Thêm video</Text>
+          <SimpleVideoUpload
+            folder="posts"
+            disabled={isCreating || mediaType === 'image'}
+            onUploadComplete={(url) => {
+              console.log('CreatePostScreen: Video upload complete:', url);
+              setVideoUrl(url);
+              setImageUrl(null); // Clear image if video is uploaded
+              setMediaType('video');
+              setIsUploadingVideo(false);
+            }}
+            onUploadError={(error) => {
+              console.error('CreatePostScreen: Video upload error:', error);
+              setIsUploadingVideo(false);
+            }}
+          />
+          {videoUrl && (
+            <View style={styles.videoPreview}>
+              <Text style={styles.videoPreviewText}>✓ Video đã được tải lên</Text>
+            </View>
+          )}
+          {isUploadingVideo && (
+            <View style={styles.uploadingIndicator}>
+              <ActivityIndicator size="small" color={COLORS.primary} />
+              <Text style={styles.uploadingText}>Đang tải lên video...</Text>
+            </View>
+          )}
+          {mediaType === 'image' && (
+            <Text style={styles.disabledText}>Không thể upload video khi đã có ảnh</Text>
           )}
         </View>
 
@@ -346,6 +395,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
+  videoSection: {
+    paddingVertical: RESPONSIVE_SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
   sectionTitle: {
     fontSize: RESPONSIVE_FONT_SIZES.sm,
     fontWeight: '600',
@@ -359,6 +413,17 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.sm,
   },
   imagePreviewText: {
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    color: COLORS.success,
+    fontWeight: '500',
+  },
+  videoPreview: {
+    marginTop: RESPONSIVE_SPACING.sm,
+    padding: RESPONSIVE_SPACING.sm,
+    backgroundColor: COLORS.success + '20',
+    borderRadius: BORDER_RADIUS.sm,
+  },
+  videoPreviewText: {
     fontSize: RESPONSIVE_FONT_SIZES.sm,
     color: COLORS.success,
     fontWeight: '500',
@@ -380,5 +445,12 @@ const styles = StyleSheet.create({
   },
   tagsSection: {
     paddingVertical: RESPONSIVE_SPACING.md,
+  },
+  disabledText: {
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    color: COLORS.gray,
+    fontStyle: 'italic',
+    marginTop: RESPONSIVE_SPACING.xs,
+    textAlign: 'center',
   },
 });
