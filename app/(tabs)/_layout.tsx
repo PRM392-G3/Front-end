@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { COLORS, RESPONSIVE_FONT_SIZES, SAFE_AREA, DIMENSIONS } from '@/constants/theme';
+import { COLORS, RESPONSIVE_FONT_SIZES, DIMENSIONS } from '@/constants/theme';
 import { Hop as Home, Search, SquarePlus as PlusSquare, Bell, User } from 'lucide-react-native';
 import { AuthGuard } from '@/components/AuthGuard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

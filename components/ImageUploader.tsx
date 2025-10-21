@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Image } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES } from '@/constants/theme';
-import { Camera, Image as ImageIcon, X } from 'lucide-react-native';
+import { Image as ImageIcon, X } from 'lucide-react-native';
 import { mediaAPI, FileUploadResponse } from '@/services/mediaAPI';
 import { useAuth } from '@/contexts/AuthContext';
 

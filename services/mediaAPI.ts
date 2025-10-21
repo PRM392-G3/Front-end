@@ -1,5 +1,51 @@
 import axios from 'axios';
-import { API_CONFIG } from '@/constants/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// API Configuration - Manual configuration
+const API_CONFIG = {
+  BASE_URL: 'https://bobby-unpargeted-nicole.ngrok-free.dev/api', // Test với localhost trước
+  TIMEOUT: 30000,
+  MEDIA_TIMEOUT: 120000, // Tăng lên 2 phút cho video
+  HEADERS: {
+    'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true', // Bỏ qua warning của ngrok
+  },
+};
+
+// Helper function to test API connectivity
+const testApiConnection = async (): Promise<boolean> => {
+  try {
+    console.log('testApiConnection: Testing connection to:', `${API_CONFIG.BASE_URL}/blob-storage/test-connection`);
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    
+    const response = await fetch(`${API_CONFIG.BASE_URL}/blob-storage/test-connection`, {
+      method: 'GET',
+      headers: {
+        'ngrok-skip-browser-warning': 'true',
+      },
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+    
+    console.log('testApiConnection: Response status:', response.status);
+    console.log('testApiConnection: Response ok:', response.ok);
+    
+    return response.ok;
+  } catch (error: any) {
+    console.error('testApiConnection: Connection test failed:', error);
+    console.error('testApiConnection: Error type:', error.name);
+    console.error('testApiConnection: Error message:', error.message);
+    
+    if (error.name === 'AbortError') {
+      console.error('testApiConnection: Request timed out');
+    }
+    
+    return false;
+  }
+};
 
 // Media API interfaces
 export interface FileUploadResponse {

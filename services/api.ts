@@ -103,23 +103,8 @@ const api = axios.create({
 
 // Request interceptor để thêm token vào header
 api.interceptors.request.use(
-  async (config) => {
-    // Lấy token từ AsyncStorage
-    try {
-      const token = await AsyncStorage.getItem('auth_token');
-      console.log('MainAPI: Getting token from storage:', token ? 'Token exists' : 'No token');
-      console.log('MainAPI: Token length:', token ? token.length : 0);
-      
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-        console.log('MainAPI: Added Authorization header to request');
-        console.log('MainAPI: Request URL:', config.url);
-      } else {
-        console.log('MainAPI: No token found, request will be sent without Authorization header');
-      }
-    } catch (error) {
-      console.error('Error getting token for main API:', error);
-    }
+  (config) => {
+    // Token sẽ được thêm bởi AuthContext
     return config;
   },
   (error) => {
@@ -511,7 +496,7 @@ export const tagAPI = {
       console.log('tagAPI: Response status:', response.status);
       console.log('tagAPI: Response data:', response.data);
       console.log('tagAPI: Response data type:', typeof response.data);
-      console.log('tagAPI: Response data length:', response.data?.length);
+      console.log('tagAPI: Response data length:', Array.isArray(response.data) ? response.data.length : 'Not an array');
       
       if (Array.isArray(response.data)) {
         return response.data as Tag[];
