@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { API_CONFIG } from '@/constants/api';
 
 // Test API connection
 export const testAPIConnection = async () => {
@@ -8,7 +9,7 @@ export const testAPIConnection = async () => {
     // Test basic connection
     const response = await axios.get('https://localhost:7097/swagger/index.html', {
       timeout: 5000,
-      validateStatus: (status) => status < 500, // Accept any status < 500
+      validateStatus: (status: number) => status < 500, // Accept any status < 500
     });
     
     console.log('API connection successful:', response.status);
@@ -30,7 +31,7 @@ export const testAPIConnection = async () => {
 
 // Test auth endpoints
 export const testAuthEndpoints = async () => {
-  const baseURL = 'https://localhost:7097/api';
+  const baseURL = API_CONFIG.BASE_URL;
   
   try {
     console.log('Testing auth endpoints...');
@@ -42,7 +43,7 @@ export const testAuthEndpoints = async () => {
         password: 'password123'
       }, {
         timeout: 5000,
-        validateStatus: (status) => status < 500,
+        validateStatus: (status: number) => status < 500,
       });
       console.log('Login endpoint response:', loginResponse.status);
     } catch (error: any) {
@@ -58,7 +59,7 @@ export const testAuthEndpoints = async () => {
         password: 'password123'
       }, {
         timeout: 5000,
-        validateStatus: (status) => status < 500,
+        validateStatus: (status: number) => status < 500,
       });
       console.log('Register endpoint response:', registerResponse.status);
     } catch (error: any) {
@@ -71,7 +72,7 @@ export const testAuthEndpoints = async () => {
         token: 'mock_google_token'
       }, {
         timeout: 5000,
-        validateStatus: (status) => status < 500,
+        validateStatus: (status: number) => status < 500,
       });
       console.log('Google auth endpoint response:', googleResponse.status);
     } catch (error: any) {

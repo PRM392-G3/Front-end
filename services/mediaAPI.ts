@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { API_CONFIG } from '@/constants/api';
 
 // Media API interfaces
 export interface FileUploadResponse {
@@ -27,11 +28,9 @@ export interface FileListResponse {
 
 // Cấu hình axios instance cho media API
 const mediaApi = axios.create({
-  baseURL: 'https://1d1ad5815ae8.ngrok-free.app/api',
-  timeout: 30000, // Tăng timeout cho upload
-  headers: {
-    'ngrok-skip-browser-warning': 'true',
-  },
+  baseURL: API_CONFIG.BASE_URL,
+  timeout: API_CONFIG.MEDIA_TIMEOUT,
+  headers: API_CONFIG.HEADERS,
 });
 
 // Request interceptor để thêm token vào header

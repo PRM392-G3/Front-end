@@ -21,6 +21,7 @@
     "@react-navigation/bottom-tabs": "^7.2.0",
     "@react-navigation/native": "^7.0.14",
     "@supabase/supabase-js": "^2.58.0",
+    "@types/axios": "^0.9.36",
     "axios": "^1.12.2",
     "expo": "^54.0.10",
     "expo-auth-session": "~7.0.8",

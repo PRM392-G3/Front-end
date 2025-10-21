@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { API_CONFIG } from '@/constants/api';
 
 // User interface
 export interface User {
@@ -30,12 +31,9 @@ export interface AuthResponse {
 
 // Cấu hình axios instance
 const api = axios.create({
-  baseURL: 'https://1d1ad5815ae8.ngrok-free.app/api',
-  timeout: 15000, // Tăng timeout cho ngrok
-  headers: {
-    'Content-Type': 'application/json',
-    'ngrok-skip-browser-warning': 'true', // Bỏ qua warning của ngrok
-  },
+  baseURL: API_CONFIG.BASE_URL,
+  timeout: API_CONFIG.TIMEOUT,
+  headers: API_CONFIG.HEADERS,
 });
 
 // Request interceptor để thêm token vào header

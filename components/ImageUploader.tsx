@@ -96,7 +96,7 @@ export default function ImageUploader({
 
     try {
       for (const image of selectedImages) {
-        const result = await mediaAPI.uploadFile(image, folder, token);
+        const result = await mediaAPI.uploadFile(image, folder, token) as FileUploadResponse;
         uploadResults.push(result);
       }
 

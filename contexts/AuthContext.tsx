@@ -126,8 +126,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('AuthContext: API Response:', JSON.stringify(response, null, 2));
       
       // Backend trả về trực tiếp { token, user, expiresAt }
-      if (response.token && response.user) {
-        const { user: userData, token: accessToken, expiresAt } = response;
+      const authResponse = response as AuthResponse;
+      if (authResponse.token && authResponse.user) {
+        const { user: userData, token: accessToken, expiresAt } = authResponse;
 
         console.log('AuthContext: Login successful, saving data...');
 
@@ -182,8 +183,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
       
       // Backend trả về trực tiếp { token, user, expiresAt }
-      if (response.token && response.user) {
-        const { user: newUser, token: accessToken, expiresAt } = response;
+      const authResponse = response as AuthResponse;
+      if (authResponse.token && authResponse.user) {
+        const { user: newUser, token: accessToken, expiresAt } = authResponse;
 
         // Lưu token và user data
         await AsyncStorage.setItem('auth_token', accessToken);
@@ -226,8 +228,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         console.log('AuthContext: Google API Response:', JSON.stringify(response, null, 2));
         
-        if (response.token && response.user) {
-          const { user: userData, token: accessToken, expiresAt } = response;
+        const authResponse = response as AuthResponse;
+        if (authResponse.token && authResponse.user) {
+          const { user: userData, token: accessToken, expiresAt } = authResponse;
 
           // Lưu token và user data
           await AsyncStorage.setItem('auth_token', accessToken);
