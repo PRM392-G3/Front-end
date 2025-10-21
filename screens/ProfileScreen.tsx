@@ -22,7 +22,7 @@ export default function ProfileScreen() {
     fullName: user?.fullName || '',
     bio: user?.bio || '',
     avatarUrl: user?.avatarUrl || '',
-    coverImageUrl: '',
+    coverImageUrl: user?.coverImageUrl || '',
     phoneNumber: user?.phoneNumber || '',
     dateOfBirth: user?.dateOfBirth || '',
     location: user?.location || '',
@@ -101,7 +101,11 @@ export default function ProfileScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <View style={styles.coverPhoto} />
+          {displayUser?.coverImageUrl ? (
+            <Image source={{ uri: displayUser.coverImageUrl }} style={styles.coverPhoto} />
+          ) : (
+            <View style={styles.coverPhoto} />
+          )}
           <TouchableOpacity style={styles.settingsButton} onPress={handleLogout}>
             <LogOut size={24} color={COLORS.black} />
           </TouchableOpacity>
@@ -265,6 +269,11 @@ export default function ProfileScreen() {
                     console.log('ProfileScreen: Extracted URL:', res.publicUrl);
                     if (res.publicUrl) {
                       setForm({ ...form, avatarUrl: res.publicUrl });
+
+                    const url = Array.isArray(res) ? res[0]?.publicUrl : res?.publicUrl;
+                    console.log('ProfileScreen: Extracted URL:', url);
+                    if (url) {
+                      setForm({ ...form, avatarUrl: url });
                     } else {
                       console.error('ProfileScreen: No URL found in upload response');
                     }

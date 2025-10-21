@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
 import { authAPI, User, AuthResponse } from '@/services/api';
-// import { googleSignInService } from '@/services/googleSignIn'; // Disabled for Expo Go
+import { googleSignInService } from '@/services/googleSignIn'; // Disabled for Expo Go
 
 interface AuthContextType {
   user: User | null;
