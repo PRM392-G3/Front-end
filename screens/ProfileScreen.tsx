@@ -347,6 +347,58 @@ export default function ProfileScreen() {
                   keyboardType="numeric"
                   maxLength={2}
                 />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Ảnh đại diện</Text>
+                {form.avatarUrl ? (
+                  <Image source={{ uri: form.avatarUrl }} style={styles.previewImage} />
+                ) : null}
+                <SimpleImageUploader
+                  folder="avatars"
+                  onUploadComplete={(res: FileUploadResponse) => {
+                    console.log('ProfileScreen: Upload response:', res);
+                    console.log('ProfileScreen: Extracted URL:', res.publicUrl);
+                    const url = Array.isArray(res) ? res[0]?.publicUrl : res?.publicUrl;
+                    console.log('ProfileScreen: Extracted URL:', url);
+                    if (url) {
+                      setForm({ ...form, avatarUrl: url });
+                    } else {
+                      console.error('ProfileScreen: No URL found in upload response');
+                    }
+                  }}
+                  onUploadError={(error: any) => {
+                    console.error('ProfileScreen: Upload error:', error);
+                    Alert.alert('Lỗi', 'Không thể tải lên ảnh đại diện');
+                  }}
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Ảnh bìa</Text>
+                {form.coverImageUrl ? (
+                  <Image source={{ uri: form.coverImageUrl }} style={styles.previewCover} />
+                ) : null}
+                <SimpleImageUploader
+                  folder="covers"
+                  onUploadComplete={(res: FileUploadResponse) => {
+                    console.log('ProfileScreen: Cover upload response:', res);
+                    console.log('ProfileScreen: Extracted cover URL:', res.publicUrl);
+                    if (res.publicUrl) {
+                      setForm({ ...form, coverImageUrl: res.publicUrl });
+                    } else {
+                      console.error('ProfileScreen: No URL found in cover upload response');
+                    }
+                  }}
+                  onUploadError={(error: any) => {
+                    console.error('ProfileScreen: Cover upload error:', error);
+                    Alert.alert('Lỗi', 'Không thể tải lên ảnh bìa');
+                  }}
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Số điện thoại</Text>
                 <TextInput
                   style={[styles.input, styles.dobInputYear]}
                   value={dobYear}

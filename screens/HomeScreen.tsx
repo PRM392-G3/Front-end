@@ -181,7 +181,7 @@ export default function HomeScreen() {
 
   const handlePostDeleted = useCallback((postId: number) => {
     console.log('HomeScreen: Post deleted:', postId);
-    setPosts(posts.filter((post: PostResponse) => post.id !== postId));
+    setPosts(posts.filter(post => post.id !== postId));
   }, [posts, setPosts]);
 
   const handleLikeToggle = useCallback((postId: number, isLiked: boolean) => {
