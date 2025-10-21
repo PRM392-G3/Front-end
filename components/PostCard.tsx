@@ -22,6 +22,23 @@ export default function PostCard({
   onLikeToggle,
   showImage = true
 }: PostCardProps) {
+  console.log('PostCard: Component rendered with postData:', JSON.stringify(postData, null, 2));
+  console.log('PostCard: postData.id:', postData.id);
+  console.log('PostCard: postData.id type:', typeof postData.id);
+  console.log('PostCard: postData.id is undefined?', postData.id === undefined);
+  console.log('PostCard: postData.id is null?', postData.id === null);
+  console.log('PostCard: postData.id is NaN?', isNaN(Number(postData.id)));
+  console.log('PostCard: postData.id check:', {
+    id: postData.id,
+    idExists: 'id' in postData,
+    idValue: postData.id,
+    idType: typeof postData.id,
+    idIsNumber: typeof postData.id === 'number',
+    idIsString: typeof postData.id === 'string',
+    idIsUndefined: postData.id === undefined,
+    idIsNull: postData.id === null,
+    idIsNaN: isNaN(Number(postData.id))
+  });
   const [isLiked, setIsLiked] = useState(() => {
     // Check if current user has liked this post
     console.log('PostCard: Initializing isLiked state:', postData.isLiked);
@@ -73,23 +90,51 @@ export default function PostCard({
     console.log('PostCard: Is postData.id empty string?', String(postData.id) === '');
     console.log('PostCard: Converting to string:', postData.id?.toString());
     console.log('PostCard: Navigating to post detail...');
+    console.log('PostCard: postData.id check before navigation:', {
+      id: postData.id,
+      idExists: 'id' in postData,
+      idValue: postData.id,
+      idType: typeof postData.id,
+      idIsNumber: typeof postData.id === 'number',
+      idIsString: typeof postData.id === 'string',
+      idIsUndefined: postData.id === undefined,
+      idIsNull: postData.id === null,
+      idIsNaN: isNaN(Number(postData.id))
+    });
     
     // Validate postId before navigation
     if (!postData.id || isNaN(Number(postData.id))) {
       console.error('PostCard: Invalid postId for navigation:', postData.id);
       console.error('PostCard: postData.id is undefined/null/NaN');
+      console.error('PostCard: postData keys:', Object.keys(postData));
+      console.error('PostCard: postData.id exists?', 'id' in postData);
+      console.error('PostCard: postData structure:', {
+        hasId: 'id' in postData,
+        idValue: postData.id,
+        idType: typeof postData.id,
+        allKeys: Object.keys(postData)
+      });
+      console.error('PostCard: postData.id is NaN?', isNaN(Number(postData.id)));
+      console.error('PostCard: postData.id is 0?', postData.id === 0);
+      console.error('PostCard: postData.id is empty?', String(postData.id) === '');
       Alert.alert('Lỗi', 'Không thể mở bài viết. ID không hợp lệ.');
       return;
     }
     
     try {
+      const postIdString = postData.id.toString();
+      console.log('PostCard: PostId string for navigation:', postIdString);
+      console.log('PostCard: Navigation params object:', { id: postIdString });
+      console.log('PostCard: About to call router.push...');
+      
       router.push({
         pathname: '/post-detail',
-        params: { id: postData.id.toString() }
+        params: { id: postIdString }
       });
       console.log('PostCard: Navigation successful!');
     } catch (error) {
       console.error('PostCard: Navigation failed:', error);
+      console.error('PostCard: Navigation error details:', error);
     }
   };
 
@@ -212,6 +257,10 @@ export default function PostCard({
             }}
           ]
         );
+      } else if (error.response?.status === 400) {
+        console.log('PostCard: 400 Bad Request - likely already liked/unliked');
+        // Don't show error for 400 - just silently handle it
+        console.log('PostCard: Silently handling 400 error - post may already be in desired state');
       } else {
         Alert.alert('Lỗi', 'Không thể thực hiện thao tác. Vui lòng thử lại.');
       }

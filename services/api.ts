@@ -475,17 +475,10 @@ export const commentAPI = {
   // Create a new comment
   createComment: async (data: { postId: number; content: string; userId: number }) => {
     try {
-      console.log('CommentAPI: Creating comment with data:', data);
-      console.log('CommentAPI: Request URL:', '/Comment');
-      console.log('CommentAPI: Making POST request to /Comment...');
-      
       const response = await api.post('/Comment', data);
-      console.log('CommentAPI: Comment created successfully:', response.data);
       return response.data as Comment;
-    } catch (error: any) {
-      console.error('CommentAPI: Error creating comment:', error);
-      console.error('CommentAPI: Error details:', error.response?.data);
-      console.error('CommentAPI: Error status:', error.response?.status);
+    } catch (error) {
+      console.error('Error creating comment:', error);
       throw error;
     }
   },

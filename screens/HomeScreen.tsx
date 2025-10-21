@@ -148,10 +148,48 @@ export default function HomeScreen() {
         try {
           const fetchedPosts = await postAPI.getAllPosts();
           console.log('HomeScreen: Posts fetched successfully from API:', fetchedPosts.length);
+          console.log('HomeScreen: All posts from API:', JSON.stringify(fetchedPosts, null, 2));
           console.log('HomeScreen: First post from API:', JSON.stringify(fetchedPosts[0], null, 2));
           console.log('HomeScreen: First post ID:', fetchedPosts[0]?.id);
           console.log('HomeScreen: First post ID type:', typeof fetchedPosts[0]?.id);
-          setPosts(fetchedPosts);
+          console.log('HomeScreen: First post has id property?', 'id' in (fetchedPosts[0] || {}));
+          console.log('HomeScreen: First post keys:', Object.keys(fetchedPosts[0] || {}));
+          
+          // Debug each post individually
+          fetchedPosts.forEach((post, index) => {
+            console.log(`HomeScreen: Post ${index}:`, {
+              id: post.id,
+              idType: typeof post.id,
+              hasId: 'id' in post,
+              keys: Object.keys(post)
+            });
+            console.log(`HomeScreen: Post ${index} full data:`, JSON.stringify(post, null, 2));
+            console.log(`HomeScreen: Post ${index} id check:`, {
+              id: post.id,
+              idExists: 'id' in post,
+              idValue: post.id,
+              idType: typeof post.id,
+              idIsNumber: typeof post.id === 'number',
+              idIsString: typeof post.id === 'string',
+              idIsUndefined: post.id === undefined,
+              idIsNull: post.id === null,
+              idIsNaN: isNaN(Number(post.id))
+            });
+          });
+          
+          // Validate posts before setting
+          const validPosts = fetchedPosts.filter(post => post && post.id);
+          console.log('HomeScreen: Valid posts count:', validPosts.length);
+          console.log('HomeScreen: Invalid posts:', fetchedPosts.filter(post => !post || !post.id));
+          
+          if (validPosts.length === 0) {
+            console.error('HomeScreen: No valid posts found!');
+            console.log('HomeScreen: Using mock posts instead');
+            setPosts(mockPosts);
+            return;
+          }
+          
+          setPosts(validPosts);
           return;
         } catch (apiError) {
           console.log('HomeScreen: API failed, using mock data:', apiError);

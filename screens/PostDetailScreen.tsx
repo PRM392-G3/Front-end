@@ -27,6 +27,16 @@ interface PostDetailScreenProps {
 export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps = {}) {
   const { postId } = useLocalSearchParams();
   const router = useRouter();
+  
+  console.log('PostDetailScreen: Component mounted');
+  console.log('PostDetailScreen: Raw postId from params:', postId);
+  console.log('PostDetailScreen: postId type:', typeof postId);
+  console.log('PostDetailScreen: postId value:', postId);
+  console.log('PostDetailScreen: postId is undefined?', postId === undefined);
+  console.log('PostDetailScreen: postId is null?', postId === null);
+  console.log('PostDetailScreen: postId is empty string?', postId === '');
+  console.log('PostDetailScreen: postId length:', postId?.length);
+  console.log('PostDetailScreen: All params:', useLocalSearchParams());
   const [post, setPost] = useState<PostResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -46,11 +56,18 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
 
   const fetchPost = async () => {
     try {
-      console.log('PostDetailScreen: Starting to fetch post...');
-      console.log('PostDetailScreen: PostId from params:', postId);
+      console.log('PostDetailScreen: Fetching post with ID:', postId);
       console.log('PostDetailScreen: PostId type:', typeof postId);
+      console.log('PostDetailScreen: PostId value:', postId);
       
       // Validate postId
+      if (!postId) {
+        console.error('PostDetailScreen: postId is null/undefined:', postId);
+        Alert.alert('Lỗi', 'Không tìm thấy ID bài viết. Vui lòng thử lại.');
+        router.back();
+        return;
+      }
+      
       const numericPostId = Number(postId);
       console.log('PostDetailScreen: Converting to number:', numericPostId);
       
@@ -63,7 +80,6 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
       
       console.log('PostDetailScreen: Fetching post with valid ID:', numericPostId);
       const postData = await postAPI.getPost(numericPostId);
-      console.log('PostDetailScreen: Post data received:', postData);
       setPost(postData);
       
       // Initialize like state
@@ -128,20 +144,11 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
   };
 
   const handleSubmitComment = async () => {
-    if (!post || !user?.id || !commentText.trim() || isSubmittingComment) {
-      console.log('PostDetailScreen: Comment submission blocked:', {
-        hasPost: !!post,
-        hasUser: !!user?.id,
-        hasCommentText: !!commentText.trim(),
-        isSubmitting: isSubmittingComment
-      });
-      return;
-    }
+    if (!post || !user?.id || !commentText.trim() || isSubmittingComment) return;
 
     try {
       setIsSubmittingComment(true);
       
-      console.log('PostDetailScreen: Starting comment submission...');
       console.log('PostDetailScreen: Submitting comment:', {
         postId: post.id,
         userId: user.id,
@@ -155,7 +162,6 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
       };
 
       console.log('PostDetailScreen: Comment data to send:', commentData);
-      console.log('PostDetailScreen: Calling commentAPI.createComment...');
 
       const newComment = await commentAPI.createComment(commentData);
 
