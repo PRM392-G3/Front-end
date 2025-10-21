@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Alert } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES } from '@/constants/theme';
@@ -24,6 +24,9 @@ export default function PostCard({
 }: PostCardProps) {
   const [isLiked, setIsLiked] = useState(() => {
     // Check if current user has liked this post
+    console.log('PostCard: Initializing isLiked state:', postData.isLiked);
+    console.log('PostCard: Post ID:', postData.id);
+    console.log('PostCard: User ID:', user?.id);
     return postData.isLiked || false;
   });
   const [likesCount, setLikesCount] = useState(postData.likeCount);
@@ -32,6 +35,15 @@ export default function PostCard({
   const router = useRouter();
 
   const isOwnPost = user?.id === postData.userId;
+
+  // Sync state when postData changes
+  useEffect(() => {
+    console.log('PostCard: PostData changed, syncing state...');
+    console.log('PostCard: New isLiked from props:', postData.isLiked);
+    console.log('PostCard: New likeCount from props:', postData.likeCount);
+    setIsLiked(postData.isLiked || false);
+    setLikesCount(postData.likeCount);
+  }, [postData.isLiked, postData.likeCount]);
 
   const formatTimestamp = (timestamp: string) => {
     const now = new Date();
@@ -51,7 +63,34 @@ export default function PostCard({
   };
 
   const handleViewPost = () => {
-    router.push(`/(tabs)`);
+    console.log('PostCard: Comment button clicked!');
+    console.log('PostCard: Full postData:', JSON.stringify(postData, null, 2));
+    console.log('PostCard: Post ID:', postData.id);
+    console.log('PostCard: Post ID type:', typeof postData.id);
+    console.log('PostCard: Post ID value:', postData.id);
+    console.log('PostCard: Is postData.id undefined?', postData.id === undefined);
+    console.log('PostCard: Is postData.id null?', postData.id === null);
+    console.log('PostCard: Is postData.id empty string?', String(postData.id) === '');
+    console.log('PostCard: Converting to string:', postData.id?.toString());
+    console.log('PostCard: Navigating to post detail...');
+    
+    // Validate postId before navigation
+    if (!postData.id || isNaN(Number(postData.id))) {
+      console.error('PostCard: Invalid postId for navigation:', postData.id);
+      console.error('PostCard: postData.id is undefined/null/NaN');
+      Alert.alert('Lỗi', 'Không thể mở bài viết. ID không hợp lệ.');
+      return;
+    }
+    
+    try {
+      router.push({
+        pathname: '/post-detail',
+        params: { id: postData.id.toString() }
+      });
+      console.log('PostCard: Navigation successful!');
+    } catch (error) {
+      console.error('PostCard: Navigation failed:', error);
+    }
   };
 
   const handleMoreOptions = () => {
@@ -106,25 +145,42 @@ export default function PostCard({
   const handleLikeToggle = async () => {
     if (isLoading) return;
     
+    // Lưu trạng thái ban đầu trước khi thay đổi UI
+    const wasLiked = isLiked;
+    
+    console.log('PostCard: Starting like toggle...');
+    console.log('PostCard: Current isLiked state:', isLiked);
+    console.log('PostCard: wasLiked (original state):', wasLiked);
+    console.log('PostCard: Post ID:', postData.id);
+    console.log('PostCard: User ID:', user?.id);
+
     try {
       setIsLoading(true);
       
       // Optimistically update UI
       if (isLiked) {
+        console.log('PostCard: Currently liked, switching to unliked...');
         setIsLiked(false);
         setLikesCount(prev => Math.max(0, prev - 1));
         onLikeToggle?.(postData.id, false);
       } else {
+        console.log('PostCard: Currently unliked, switching to liked...');
         setIsLiked(true);
         setLikesCount(prev => prev + 1);
         onLikeToggle?.(postData.id, true);
       }
 
-      // Make API call
-      if (isLiked) {
+      // Make API call - sử dụng trạng thái ban đầu
+      if (wasLiked) {
+        // Đang liked, gọi unlike
+        console.log('PostCard: Calling unlikePost API...');
+        console.log('PostCard: API call - wasLiked = true, calling unlikePost');
         await postAPI.unlikePost(postData.id, user?.id || 0);
         console.log(`PostCard: Successfully unliked post ${postData.id}`);
       } else {
+        // Đang unliked, gọi like
+        console.log('PostCard: Calling likePost API...');
+        console.log('PostCard: API call - wasLiked = false, calling likePost');
         await postAPI.likePost(postData.id, user?.id || 0);
         console.log(`PostCard: Successfully liked post ${postData.id}`);
       }
@@ -133,8 +189,8 @@ export default function PostCard({
       console.error('PostCard: Error details:', error.response?.data);
       console.error('PostCard: Error status:', error.response?.status);
       
-      // Revert the UI state on error
-      if (isLiked) {
+      // Revert the UI state on error - sử dụng trạng thái ban đầu
+      if (wasLiked) {
         setLikesCount(prev => prev + 1);
         setIsLiked(true);
         onLikeToggle?.(postData.id, true);
@@ -144,7 +200,21 @@ export default function PostCard({
         onLikeToggle?.(postData.id, false);
       }
       
-      Alert.alert('Lỗi', 'Không thể thực hiện thao tác. Vui lòng thử lại.');
+      // Handle specific error cases
+      if (error.response?.status === 401) {
+        Alert.alert(
+          'Phiên đăng nhập hết hạn',
+          'Vui lòng đăng nhập lại để tiếp tục sử dụng.',
+          [
+            { text: 'Đăng nhập lại', onPress: () => {
+              console.log('PostCard: Redirecting to login due to 401 error');
+              router.push('/auth/login');
+            }}
+          ]
+        );
+      } else {
+        Alert.alert('Lỗi', 'Không thể thực hiện thao tác. Vui lòng thử lại.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -223,7 +293,7 @@ export default function PostCard({
           <Image source={{ uri: postData.imageUrl }} style={styles.image} />
         </View>
       )}
-
+      
       {showImage && postData.videoUrl && (
         <View style={styles.videoContainer}>
           <Video

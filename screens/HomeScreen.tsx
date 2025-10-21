@@ -148,6 +148,9 @@ export default function HomeScreen() {
         try {
           const fetchedPosts = await postAPI.getAllPosts();
           console.log('HomeScreen: Posts fetched successfully from API:', fetchedPosts.length);
+          console.log('HomeScreen: First post from API:', JSON.stringify(fetchedPosts[0], null, 2));
+          console.log('HomeScreen: First post ID:', fetchedPosts[0]?.id);
+          console.log('HomeScreen: First post ID type:', typeof fetchedPosts[0]?.id);
           setPosts(fetchedPosts);
           return;
         } catch (apiError) {

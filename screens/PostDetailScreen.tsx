@@ -46,8 +46,24 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
 
   const fetchPost = async () => {
     try {
-      console.log('PostDetailScreen: Fetching post with ID:', postId);
-      const postData = await postAPI.getPost(Number(postId));
+      console.log('PostDetailScreen: Starting to fetch post...');
+      console.log('PostDetailScreen: PostId from params:', postId);
+      console.log('PostDetailScreen: PostId type:', typeof postId);
+      
+      // Validate postId
+      const numericPostId = Number(postId);
+      console.log('PostDetailScreen: Converting to number:', numericPostId);
+      
+      if (isNaN(numericPostId) || numericPostId <= 0) {
+        console.error('PostDetailScreen: Invalid postId:', postId);
+        Alert.alert('Lỗi', 'ID bài viết không hợp lệ. Vui lòng thử lại.');
+        router.back();
+        return;
+      }
+      
+      console.log('PostDetailScreen: Fetching post with valid ID:', numericPostId);
+      const postData = await postAPI.getPost(numericPostId);
+      console.log('PostDetailScreen: Post data received:', postData);
       setPost(postData);
       
       // Initialize like state
@@ -112,11 +128,20 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
   };
 
   const handleSubmitComment = async () => {
-    if (!post || !user?.id || !commentText.trim() || isSubmittingComment) return;
+    if (!post || !user?.id || !commentText.trim() || isSubmittingComment) {
+      console.log('PostDetailScreen: Comment submission blocked:', {
+        hasPost: !!post,
+        hasUser: !!user?.id,
+        hasCommentText: !!commentText.trim(),
+        isSubmitting: isSubmittingComment
+      });
+      return;
+    }
 
     try {
       setIsSubmittingComment(true);
       
+      console.log('PostDetailScreen: Starting comment submission...');
       console.log('PostDetailScreen: Submitting comment:', {
         postId: post.id,
         userId: user.id,
@@ -130,6 +155,7 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
       };
 
       console.log('PostDetailScreen: Comment data to send:', commentData);
+      console.log('PostDetailScreen: Calling commentAPI.createComment...');
 
       const newComment = await commentAPI.createComment(commentData);
 

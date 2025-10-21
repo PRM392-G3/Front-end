@@ -36,28 +36,45 @@ export default function CreatePostScreen({ onPostCreated, onClose }: CreatePostS
       return;
     }
 
+    if (!user?.id) {
+      Alert.alert('Error', 'User not authenticated. Please login again.');
+      return;
+    }
+
     setIsPosting(true);
     
     try {
-      // TODO: Implement actual post creation API
-      console.log('Creating post:', {
+      console.log('CreatePostScreen: Creating post with data:', {
         content: content.trim(),
         imageUrl: uploadedImage?.publicUrl,
+        userId: user.id
       });
 
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Gọi API tạo post thật
+      const postData = {
+        content: content.trim(),
+        imageUrl: uploadedImage?.publicUrl || undefined,
+        videoUrl: undefined, // Chưa implement video upload
+        userId: user.id
+      };
 
-      Alert.alert('Success', 'Post created successfully!', [
+      const newPost = await postAPI.createPost(postData);
+      console.log('CreatePostScreen: Post created successfully:', newPost);
+
+      Alert.alert('Thành công', 'Bài viết đã được tạo thành công!', [
         { text: 'OK', onPress: () => {
           setContent('');
           setUploadedImage(null);
-          // Navigate back or refresh feed
+          // Gọi callback để refresh danh sách
+          onPostCreated?.(newPost);
         }}
       ]);
-    } catch (error) {
-      console.error('Create post error:', error);
-      Alert.alert('Error', 'Failed to create post. Please try again.');
+    } catch (error: any) {
+      console.error('CreatePostScreen: Error creating post:', error);
+      console.error('CreatePostScreen: Error details:', error.response?.data);
+      console.error('CreatePostScreen: Error status:', error.response?.status);
+      
+      Alert.alert('Lỗi', 'Không thể tạo bài viết. Vui lòng thử lại.');
     } finally {
       setIsPosting(false);
     }

@@ -62,7 +62,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('AuthContext: Stored user exists:', !!storedUser);
 
       // Trong development, có thể force clear auth data
-      if (__DEV__ && true) { // Set thành true để force clear
+      if (__DEV__ && false) { // Set thành false để không force clear
         console.log('AuthContext: Force clearing auth data in development');
         await clearAuthData();
         return;

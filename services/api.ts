@@ -101,28 +101,35 @@ const api = axios.create({
   headers: API_CONFIG.HEADERS,
 });
 
+// Function để lấy token từ AsyncStorage
+const getAuthToken = async (): Promise<string | null> => {
+  try {
+    const token = await AsyncStorage.getItem('auth_token');
+    console.log('MainAPI: Getting token from storage:', token ? 'Token exists' : 'No token');
+    console.log('MainAPI: Token length:', token ? token.length : 0);
+    return token;
+  } catch (error) {
+    console.error('Error getting token for main API:', error);
+    return null;
+  }
+};
+
 // Request interceptor để thêm token vào header
 api.interceptors.request.use(
-  async (config) => {
-    // Lấy token từ AsyncStorage
-    try {
-      const token = await AsyncStorage.getItem('auth_token');
-      console.log('MainAPI: Getting token from storage:', token ? 'Token exists' : 'No token');
-      console.log('MainAPI: Token length:', token ? token.length : 0);
-      
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-        console.log('MainAPI: Added Authorization header to request');
-        console.log('MainAPI: Request URL:', config.url);
-      } else {
-        console.log('MainAPI: No token found, request will be sent without Authorization header');
-      }
-    } catch (error) {
-      console.error('Error getting token for main API:', error);
+  async (config: any) => {
+    // Thêm token vào header nếu có
+    const token = await getAuthToken();
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`;
+      console.log('MainAPI: Added Authorization header to request');
+      console.log('MainAPI: Request URL:', config.url);
+      console.log('MainAPI: Token preview:', token.substring(0, 20) + '...');
+    } else {
+      console.log('MainAPI: No token found, request will be sent without Authorization header');
     }
     return config;
   },
-  (error) => {
+  (error: any) => {
     return Promise.reject(error);
   }
 );
@@ -132,15 +139,24 @@ api.interceptors.response.use(
   (response) => {
     return response;
   },
-  (error) => {
+  async (error) => {
     console.log('MainAPI: Response error:', error.response?.status);
     console.log('MainAPI: Error message:', error.message);
     console.log('MainAPI: Error data:', error.response?.data);
     
     if (error.response?.status === 401) {
-      console.log('MainAPI: Token expired or invalid');
+      console.log('MainAPI: Token expired or invalid - clearing auth data');
       console.log('MainAPI: Request URL:', error.config?.url);
       console.log('MainAPI: Request headers:', error.config?.headers);
+      
+      // Clear auth data when token is invalid
+      try {
+        await AsyncStorage.removeItem('auth_token');
+        await AsyncStorage.removeItem('user_data');
+        console.log('MainAPI: Cleared auth data due to 401 error');
+      } catch (clearError) {
+        console.error('MainAPI: Error clearing auth data:', clearError);
+      }
     }
     return Promise.reject(error);
   }
@@ -459,10 +475,17 @@ export const commentAPI = {
   // Create a new comment
   createComment: async (data: { postId: number; content: string; userId: number }) => {
     try {
+      console.log('CommentAPI: Creating comment with data:', data);
+      console.log('CommentAPI: Request URL:', '/Comment');
+      console.log('CommentAPI: Making POST request to /Comment...');
+      
       const response = await api.post('/Comment', data);
+      console.log('CommentAPI: Comment created successfully:', response.data);
       return response.data as Comment;
-    } catch (error) {
-      console.error('Error creating comment:', error);
+    } catch (error: any) {
+      console.error('CommentAPI: Error creating comment:', error);
+      console.error('CommentAPI: Error details:', error.response?.data);
+      console.error('CommentAPI: Error status:', error.response?.status);
       throw error;
     }
   },
@@ -519,9 +542,17 @@ export const tagAPI = {
         console.error('tagAPI: Invalid response format, expected array but got:', typeof response.data);
         return [];
       }
-    } catch (error) {
-      console.error('tagAPI: Error getting all tags:', error); 
-      throw error;
+    } catch (error: any) {
+      console.error('tagAPI: Error getting all tags:', error);
+      
+      // Handle 404 error gracefully - Tag API might not be implemented yet
+      if (error.response?.status === 404) {
+        console.warn('tagAPI: Tag endpoint not found (404) - returning empty array');
+        return [];
+      }
+      
+      // For other errors, still throw but with better error message
+      throw new Error(`Failed to fetch tags: ${error.response?.status || 'Network error'}`);
     }
   },
 
@@ -530,9 +561,17 @@ export const tagAPI = {
     try {
       const response = await api.get(`/Tag/search?term=${encodeURIComponent(searchTerm)}`);
       return response.data as Tag[];
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error searching tags:', error);
-      throw error;
+      
+      // Handle 404 error gracefully - Tag search might not be implemented yet
+      if (error.response?.status === 404) {
+        console.warn('tagAPI: Tag search endpoint not found (404) - returning empty array');
+        return [];
+      }
+      
+      // For other errors, still throw but with better error message
+      throw new Error(`Failed to search tags: ${error.response?.status || 'Network error'}`);
     }
   },
 };
