@@ -30,7 +30,7 @@ export interface FileListResponse {
 
 // Cấu hình axios instance cho media API
 const mediaApi = axios.create({
-  baseURL: 'https://selenographical-ashlynn-moonily.ngrok-free.dev/api',
+  baseURL: 'https://elane-unsweating-continuately.ngrok-free.dev/api',
   timeout: 30000, // Tăng timeout cho upload
   headers: {
     'ngrok-skip-browser-warning': 'true',

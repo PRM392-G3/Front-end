@@ -93,9 +93,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: COLORS.white,
     letterSpacing: 2,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 3 },
-    textShadowRadius: 6,
+    textShadow: '0px 3px 6px rgba(0, 0, 0, 0.3)',
     marginBottom: SPACING.xs,
   },
   logoSubtext: {
