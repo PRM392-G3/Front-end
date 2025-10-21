@@ -16,6 +16,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   checkAuthStatus: () => Promise<void>;
   clearAuthData: () => Promise<void>;
+  refreshTokenFromStorage: () => Promise<void>;
 }
 
 interface RegisterData {
@@ -106,12 +107,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Xóa tất cả dữ liệu authentication
   const clearAuthData = async () => {
     try {
-      await AsyncStorage.multiRemove(['auth_token', 'refresh_token', 'user_data']);
+      console.log('AuthContext: Clearing all auth data...');
+      await AsyncStorage.multiRemove(['auth_token', 'refresh_token', 'user_data', 'token_expires_at']);
       setToken(null);
       setRefreshToken(null);
       setUser(null);
+      console.log('AuthContext: Auth data cleared successfully');
     } catch (error) {
-      console.error('Error clearing auth data:', error);
+      console.error('AuthContext: Error clearing auth data:', error);
     }
   };
 
@@ -293,6 +296,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // Refresh token từ AsyncStorage
+  const refreshTokenFromStorage = async () => {
+    try {
+      console.log('AuthContext: Refreshing token from storage...');
+      const storedToken = await AsyncStorage.getItem('auth_token');
+      const storedUser = await AsyncStorage.getItem('user_data');
+      
+      if (storedToken && storedUser) {
+        const userData = JSON.parse(storedUser);
+        setToken(storedToken);
+        setUser(userData);
+        console.log('AuthContext: Token refreshed from storage successfully');
+      } else {
+        console.log('AuthContext: No token or user data found in storage');
+      }
+    } catch (error) {
+      console.error('AuthContext: Error refreshing token from storage:', error);
+    }
+  };
+
   // Kiểm tra auth status khi component mount
   useEffect(() => {
     checkAuthStatus();
@@ -310,6 +333,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     logout,
     checkAuthStatus,
     clearAuthData,
+    refreshTokenFromStorage,
   };
 
   return (

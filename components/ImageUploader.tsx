@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 interface ImageUploaderProps {
   onUploadComplete?: (result: FileUploadResponse) => void;
   onUploadError?: (error: any) => void;
+  onUploadStart?: () => void;
   folder?: string;
   maxImages?: number;
   disabled?: boolean;
@@ -17,6 +18,7 @@ interface ImageUploaderProps {
 export default function ImageUploader({
   onUploadComplete,
   onUploadError,
+  onUploadStart,
   folder = 'posts',
   maxImages = 5,
   disabled = false,
@@ -95,25 +97,44 @@ export default function ImageUploader({
     if (selectedImages.length === 0) return;
 
     setUploading(true);
+    onUploadStart?.(); // Call onUploadStart callback
     const uploadResults: FileUploadResponse[] = [];
 
     try {
-      // Test token trước khi upload
-      console.log('ImageUploader: Testing token before upload...');
-      await testToken();
+      console.log('ImageUploader: Starting upload process...');
+      console.log('ImageUploader: Selected images count:', selectedImages.length);
+      console.log('ImageUploader: Target folder:', folder);
       
       for (const image of selectedImages) {
-        // Token sẽ được thêm tự động bởi request interceptor
+        console.log('ImageUploader: Uploading image:', {
+          uri: image.uri,
+          type: image.type,
+          fileName: image.fileName,
+          size: image.fileSize || 'unknown'
+        });
+        
         const result = await mediaAPI.uploadFile(image, folder);
+        console.log('ImageUploader: Upload result:', result);
+        
+        // Verify the response has the required fields
+        if (!result.publicUrl) {
+          throw new Error('Upload thành công nhưng không có URL ảnh');
+        }
+        
         uploadResults.push(result);
+        console.log('ImageUploader: Image uploaded successfully, URL:', result.publicUrl);
       }
 
       setSelectedImages([]);
-      onUploadComplete?.(uploadResults[0]); // Return first result for single image
+      
+      // Return the first result (for single image upload)
+      const firstResult = uploadResults[0];
+      console.log('ImageUploader: Calling onUploadComplete with result:', firstResult);
+      onUploadComplete?.(firstResult);
       
       Alert.alert('Thành công', 'Ảnh đã được tải lên thành công!');
     } catch (error) {
-      console.error('Upload error:', error);
+      console.error('ImageUploader: Upload error:', error);
       onUploadError?.(error);
       Alert.alert('Tải lên thất bại', 'Không thể tải lên ảnh. Vui lòng thử lại.');
     } finally {
