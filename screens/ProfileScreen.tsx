@@ -1,15 +1,86 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES, SAFE_AREA, DIMENSIONS } from '@/constants/theme';
 import { Settings, MapPin, Calendar, Link as LinkIcon, Users, Grid2x2 as Grid, LogOut, Mail, Phone } from 'lucide-react-native';
 import PostCard from '@/components/PostCard';
-import { useState } from 'react';
+import { userAPI, UpdateUserPayload, postAPI, PostResponse } from '@/services/api';
+import { FileUploadResponse } from '@/services/mediaAPI';
+import ImageUploader from '@/components/ImageUploader';
+import SimpleImageUploader from '@/components/SimpleImageUploader';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ProfileScreen() {
   const [activeTab, setActiveTab] = useState<'posts' | 'friends'>('posts');
-  const { user, logout } = useAuth();
+  const { user, logout, token } = useAuth();
+  const [displayUser, setDisplayUser] = useState(user);
+  const [editVisible, setEditVisible] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [userPosts, setUserPosts] = useState<PostResponse[]>([]);
+  const [isLoadingPosts, setIsLoadingPosts] = useState(false);
+  const [form, setForm] = useState<UpdateUserPayload>({
+    fullName: user?.fullName || '',
+    bio: user?.bio || '',
+    avatarUrl: user?.avatarUrl || '',
+    coverImageUrl: user?.coverImageUrl || '',
+    phoneNumber: user?.phoneNumber || '',
+    dateOfBirth: user?.dateOfBirth || '',
+    location: user?.location || '',
+  });
+  const [dobDay, setDobDay] = useState<string>(() => {
+    if (!user?.dateOfBirth) return '';
+    const d = new Date(user.dateOfBirth);
+    return d.getDate() ? String(d.getDate()) : '';
+  });
+  const [dobMonth, setDobMonth] = useState<string>(() => {
+    if (!user?.dateOfBirth) return '';
+    const d = new Date(user.dateOfBirth);
+    return d.getMonth() + 1 ? String(d.getMonth() + 1) : '';
+  });
+  const [dobYear, setDobYear] = useState<string>(() => {
+    if (!user?.dateOfBirth) return '';
+    const d = new Date(user.dateOfBirth);
+    return d.getFullYear() ? String(d.getFullYear()) : '';
+  });
   const insets = useSafeAreaInsets();
+
+  const fetchUserPosts = useCallback(async () => {
+    if (!user?.id) return;
+    
+    try {
+      setIsLoadingPosts(true);
+      const posts = await postAPI.getPostsByUser(user.id);
+      setUserPosts(posts);
+    } catch (error) {
+      console.error('Error fetching user posts:', error);
+    } finally {
+      setIsLoadingPosts(false);
+    }
+  }, [user?.id]);
+
+  const handlePostDeleted = useCallback((postId: number) => {
+    setUserPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
+  }, []);
+
+  const handleLikeToggle = useCallback((postId: number, isLiked: boolean) => {
+    setUserPosts(prevPosts => 
+      prevPosts.map(post => 
+        post.id === postId 
+          ? { 
+              ...post, 
+              isLiked, 
+              likeCount: isLiked ? post.likeCount + 1 : Math.max(0, post.likeCount - 1)
+            }
+          : post
+      )
+    );
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'posts') {
+      fetchUserPosts();
+    }
+  }, [activeTab, fetchUserPosts]);
 
   const handleLogout = () => {
     Alert.alert(
@@ -17,20 +88,49 @@ export default function ProfileScreen() {
       'Bạn có chắc chắn muốn đăng xuất?',
       [
         { text: 'Hủy', style: 'cancel' },
-        { 
-          text: 'Đăng xuất', 
-          style: 'destructive',
-          onPress: logout
-        }
+        { text: 'Đăng xuất', style: 'destructive', onPress: logout },
       ]
     );
+  };
+
+  const handleSaveProfile = async () => {
+    if (!user?.id) return;
+    
+    try {
+      setSaving(true);
+      
+      // Combine date of birth
+      const dateOfBirth = dobYear && dobMonth && dobDay 
+        ? new Date(parseInt(dobYear), parseInt(dobMonth) - 1, parseInt(dobDay)).toISOString()
+        : form.dateOfBirth;
+      
+      const updateData = {
+        ...form,
+        dateOfBirth,
+      };
+      
+      const updatedUser = await userAPI.updateUser(user.id, updateData);
+      setDisplayUser(updatedUser);
+      setEditVisible(false);
+      
+      Alert.alert('Thành công', 'Cập nhật hồ sơ thành công!');
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      Alert.alert('Lỗi', 'Không thể cập nhật hồ sơ. Vui lòng thử lại.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <View style={styles.coverPhoto} />
+          {displayUser?.coverImageUrl ? (
+            <Image source={{ uri: displayUser.coverImageUrl }} style={styles.coverPhoto} />
+          ) : (
+            <View style={styles.coverPhoto} />
+          )}
           <TouchableOpacity style={styles.settingsButton} onPress={handleLogout}>
             <LogOut size={24} color={COLORS.black} />
           </TouchableOpacity>
@@ -38,62 +138,62 @@ export default function ProfileScreen() {
 
         <View style={styles.profileInfo}>
           <View style={styles.avatarContainer}>
-            {user?.avatarUrl ? (
-              <Image source={{ uri: user.avatarUrl }} style={styles.avatar} />
+            {displayUser?.avatarUrl ? (
+              <Image source={{ uri: displayUser.avatarUrl }} style={styles.avatar} />
             ) : (
               <View style={styles.avatar} />
             )}
           </View>
 
-          <Text style={styles.name}>{user?.fullName || 'Người dùng'}</Text>
+          <Text style={styles.name}>{displayUser?.fullName || 'Người dùng'}</Text>
           <Text style={styles.bio}>
-            {user?.bio || 'Chưa có tiểu sử'}
+            {displayUser?.bio || 'Chưa có tiểu sử'}
           </Text>
 
           <View style={styles.infoRow}>
             <Mail size={16} color={COLORS.darkGray} />
-            <Text style={styles.infoText}>{user?.email || 'Chưa có email'}</Text>
+            <Text style={styles.infoText}>{displayUser?.email || 'Chưa có email'}</Text>
           </View>
 
-          {user?.phoneNumber && (
+          {displayUser?.phoneNumber && (
             <View style={styles.infoRow}>
               <Phone size={16} color={COLORS.darkGray} />
-              <Text style={styles.infoText}>{user.phoneNumber}</Text>
+              <Text style={styles.infoText}>{displayUser.phoneNumber}</Text>
             </View>
           )}
 
-          {user?.location && (
+          {displayUser?.location && (
             <View style={styles.infoRow}>
               <MapPin size={16} color={COLORS.darkGray} />
-              <Text style={styles.infoText}>{user.location}</Text>
+              <Text style={styles.infoText}>{displayUser.location}</Text>
             </View>
           )}
 
           <View style={styles.infoRow}>
             <Calendar size={16} color={COLORS.darkGray} />
             <Text style={styles.infoText}>
-              Tham gia {user?.createdAt ? new Date(user.createdAt).toLocaleDateString('vi-VN') : 'Chưa xác định'}
+              Tham gia {displayUser?.createdAt ? new Date(displayUser.createdAt).toLocaleDateString('vi-VN') : 'Chưa xác định'}
             </Text>
           </View>
 
           <View style={styles.stats}>
             <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{user?.postsCount || 0}</Text>
+              <Text style={styles.statNumber}>{displayUser?.postsCount || 0}</Text>
               <Text style={styles.statLabel}>Bài viết</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{user?.followersCount || 0}</Text>
+              <Text style={styles.statNumber}>{displayUser?.followersCount || 0}</Text>
               <Text style={styles.statLabel}>Người theo dõi</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{user?.followingCount || 0}</Text>
+              <Text style={styles.statNumber}>{displayUser?.followingCount || 0}</Text>
               <Text style={styles.statLabel}>Đang theo dõi</Text>
             </View>
           </View>
 
-          <TouchableOpacity style={styles.editButton}>
+          <TouchableOpacity style={styles.editButton} onPress={() => setEditVisible(true)}>
             <Text style={styles.editButtonText}>Chỉnh sửa hồ sơ</Text>
           </TouchableOpacity>
         </View>
@@ -121,21 +221,176 @@ export default function ProfileScreen() {
 
         {activeTab === 'posts' ? (
           <View>
-            <PostCard showImage={true} />
-            <PostCard showImage={false} />
-            <PostCard showImage={true} />
+            {isLoadingPosts ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={COLORS.primary} />
+                <Text style={styles.loadingText}>Đang tải bài viết...</Text>
+              </View>
+            ) : userPosts.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>Bạn chưa có bài viết nào</Text>
+                <Text style={styles.emptySubtext}>Hãy tạo bài viết đầu tiên của bạn!</Text>
+              </View>
+            ) : (
+              userPosts.map((post) => (
+                <PostCard
+                  key={post.id}
+                  postData={post}
+                  onPostDeleted={handlePostDeleted}
+                  onLikeToggle={handleLikeToggle}
+                  showImage={!!post.imageUrl || !!post.videoUrl}
+                />
+              ))
+            )}
           </View>
         ) : (
-          <View style={styles.friendsGrid}>
-            {[1, 2, 3, 4, 5, 6].map((item) => (
-              <View key={item} style={styles.friendCard}>
-                <View style={styles.friendAvatar} />
-                <Text style={styles.friendName}>Bạn bè {item}</Text>
-              </View>
-            ))}
+          <View style={styles.friendsContainer}>
+            <Text style={styles.friendsText}>Danh sách bạn bè sẽ được hiển thị ở đây</Text>
           </View>
         )}
       </ScrollView>
+
+      <Modal visible={editVisible} transparent animationType="slide" onRequestClose={() => setEditVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Chỉnh sửa hồ sơ</Text>
+            
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Họ và tên</Text>
+              <TextInput
+                style={styles.input}
+                value={form.fullName}
+                onChangeText={(text) => setForm({ ...form, fullName: text })}
+                placeholder="Nhập họ và tên"
+              />
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Tiểu sử</Text>
+              <TextInput
+                style={styles.input}
+                value={form.bio}
+                onChangeText={(text) => setForm({ ...form, bio: text })}
+                placeholder="Nhập tiểu sử"
+                multiline
+                numberOfLines={3}
+              />
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Ảnh đại diện</Text>
+              <SimpleImageUploader
+                folder="avatars"
+                onUploadComplete={(res: FileUploadResponse) => {
+                  console.log('ProfileScreen: Upload response:', res);
+                  console.log('ProfileScreen: Extracted URL:', res.publicUrl);
+                  const url = Array.isArray(res) ? res[0]?.publicUrl : res?.publicUrl;
+                  console.log('ProfileScreen: Extracted URL:', url);
+                  if (url) {
+                    setForm({ ...form, avatarUrl: url });
+                  } else {
+                    console.error('ProfileScreen: No URL found in upload response');
+                  }
+                }}
+                onUploadError={(error: any) => {
+                  console.error('ProfileScreen: Upload error:', error);
+                  Alert.alert('Lỗi', 'Không thể tải lên ảnh đại diện');
+                }}
+              />
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Ảnh bìa</Text>
+              <SimpleImageUploader
+                folder="covers"
+                onUploadComplete={(res: FileUploadResponse) => {
+                  console.log('ProfileScreen: Cover upload response:', res);
+                  const url = Array.isArray(res) ? res[0]?.publicUrl : res?.publicUrl;
+                  if (url) {
+                    setForm({ ...form, coverImageUrl: url });
+                  }
+                }}
+                onUploadError={(error: any) => {
+                  console.error('ProfileScreen: Cover upload error:', error);
+                  Alert.alert('Lỗi', 'Không thể tải lên ảnh bìa');
+                }}
+              />
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Số điện thoại</Text>
+              <TextInput
+                style={styles.input}
+                value={form.phoneNumber}
+                onChangeText={(text) => setForm({ ...form, phoneNumber: text })}
+                placeholder="Nhập số điện thoại"
+                keyboardType="phone-pad"
+              />
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Ngày sinh</Text>
+              <View style={styles.dobRow}>
+                <TextInput
+                  style={[styles.input, styles.dobInput]}
+                  value={dobDay}
+                  onChangeText={setDobDay}
+                  placeholder="Ngày"
+                  keyboardType="numeric"
+                  maxLength={2}
+                />
+                <TextInput
+                  style={[styles.input, styles.dobInput]}
+                  value={dobMonth}
+                  onChangeText={setDobMonth}
+                  placeholder="Tháng"
+                  keyboardType="numeric"
+                  maxLength={2}
+                />
+                <TextInput
+                  style={[styles.input, styles.dobInputYear]}
+                  value={dobYear}
+                  onChangeText={setDobYear}
+                  placeholder="Năm"
+                  keyboardType="numeric"
+                  maxLength={4}
+                />
+              </View>
+              <Text style={styles.helperText}>Định dạng: Ngày/Tháng/Năm</Text>
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Địa chỉ</Text>
+              <TextInput
+                style={styles.input}
+                value={form.location}
+                onChangeText={(text) => setForm({ ...form, location: text })}
+                placeholder="Nhập địa chỉ"
+              />
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.cancelBtn]}
+                onPress={() => setEditVisible(false)}
+              >
+                <Text style={styles.cancelText}>Hủy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.saveBtn]}
+                onPress={handleSaveProfile}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color={COLORS.white} />
+                ) : (
+                  <Text style={styles.saveText}>Lưu</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -143,41 +398,43 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.lightGray,
+    backgroundColor: COLORS.background,
   },
   header: {
     position: 'relative',
+    height: 200,
   },
   coverPhoto: {
     width: '100%',
-    height: 200,
-    backgroundColor: COLORS.primary + '40',
+    height: '100%',
+    backgroundColor: COLORS.lightGray,
   },
   settingsButton: {
     position: 'absolute',
-    top: 60,
+    top: RESPONSIVE_SPACING.md,
     right: RESPONSIVE_SPACING.md,
-    width: 40,
-    height: 40,
-    borderRadius: BORDER_RADIUS.full,
     backgroundColor: COLORS.white,
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderRadius: BORDER_RADIUS.full,
+    padding: RESPONSIVE_SPACING.sm,
+    shadowColor: COLORS.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   profileInfo: {
-    backgroundColor: COLORS.white,
+    alignItems: 'center',
     paddingHorizontal: RESPONSIVE_SPACING.md,
     paddingBottom: RESPONSIVE_SPACING.md,
-    marginBottom: RESPONSIVE_SPACING.sm,
+    backgroundColor: COLORS.white,
   },
   avatarContainer: {
-    alignItems: 'center',
-    marginTop: -48,
-    marginBottom: RESPONSIVE_SPACING.sm,
+    marginTop: -50,
+    marginBottom: RESPONSIVE_SPACING.md,
   },
   avatar: {
-    width: 120,
-    height: 120,
+    width: 100,
+    height: 100,
     borderRadius: BORDER_RADIUS.full,
     backgroundColor: COLORS.lightGray,
     borderWidth: 4,
@@ -187,35 +444,36 @@ const styles = StyleSheet.create({
     fontSize: RESPONSIVE_FONT_SIZES.xl,
     fontWeight: '700',
     color: COLORS.black,
-    textAlign: 'center',
     marginBottom: RESPONSIVE_SPACING.xs,
+    textAlign: 'center',
   },
   bio: {
     fontSize: RESPONSIVE_FONT_SIZES.md,
-    color: COLORS.darkGray,
+    color: COLORS.gray,
     textAlign: 'center',
     marginBottom: RESPONSIVE_SPACING.md,
+    lineHeight: 22,
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: RESPONSIVE_SPACING.xs,
-    gap: RESPONSIVE_SPACING.xs,
+    marginBottom: RESPONSIVE_SPACING.sm,
+    width: '100%',
   },
   infoText: {
     fontSize: RESPONSIVE_FONT_SIZES.sm,
     color: COLORS.darkGray,
-  },
-  link: {
-    color: COLORS.primary,
+    marginLeft: RESPONSIVE_SPACING.sm,
+    flex: 1,
   },
   stats: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: RESPONSIVE_SPACING.md,
-    marginBottom: RESPONSIVE_SPACING.md,
+    alignItems: 'center',
+    marginVertical: RESPONSIVE_SPACING.md,
+    width: '100%',
   },
   statItem: {
+    flex: 1,
     alignItems: 'center',
   },
   statNumber: {
@@ -225,74 +483,175 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   statLabel: {
-    fontSize: RESPONSIVE_FONT_SIZES.xs,
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
     color: COLORS.gray,
   },
   statDivider: {
     width: 1,
-    backgroundColor: COLORS.border,
+    height: 40,
+    backgroundColor: COLORS.borderLight,
+    marginHorizontal: RESPONSIVE_SPACING.md,
   },
   editButton: {
     backgroundColor: COLORS.primary,
-    height: 44,
+    paddingHorizontal: RESPONSIVE_SPACING.lg,
+    paddingVertical: RESPONSIVE_SPACING.sm,
     borderRadius: BORDER_RADIUS.md,
-    justifyContent: 'center',
-    alignItems: 'center',
+    marginTop: RESPONSIVE_SPACING.sm,
   },
   editButtonText: {
-    fontSize: RESPONSIVE_FONT_SIZES.md,
-    fontWeight: '600',
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
     color: COLORS.white,
+    fontWeight: '600',
   },
   tabs: {
     flexDirection: 'row',
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    marginBottom: RESPONSIVE_SPACING.sm,
+    borderBottomColor: COLORS.borderLight,
   },
   tab: {
     flex: 1,
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: RESPONSIVE_SPACING.md,
-    gap: RESPONSIVE_SPACING.xs,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
   },
   activeTab: {
-    borderBottomWidth: 2,
     borderBottomColor: COLORS.primary,
   },
   tabText: {
     fontSize: RESPONSIVE_FONT_SIZES.sm,
     color: COLORS.gray,
+    marginLeft: RESPONSIVE_SPACING.xs,
     fontWeight: '500',
   },
   activeTabText: {
     color: COLORS.primary,
     fontWeight: '600',
   },
-  friendsGrid: {
-    backgroundColor: COLORS.white,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    padding: RESPONSIVE_SPACING.xs,
-  },
-  friendCard: {
-    width: '33.33%',
-    padding: RESPONSIVE_SPACING.xs,
+  friendsContainer: {
+    padding: RESPONSIVE_SPACING.xl,
     alignItems: 'center',
   },
-  friendAvatar: {
+  friendsText: {
+    fontSize: RESPONSIVE_FONT_SIZES.md,
+    color: COLORS.gray,
+    textAlign: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    padding: RESPONSIVE_SPACING.md,
+  },
+  modalContent: {
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.md,
+    padding: RESPONSIVE_SPACING.md,
+  },
+  modalTitle: {
+    fontSize: RESPONSIVE_FONT_SIZES.lg,
+    fontWeight: '700',
+    color: COLORS.black,
+    marginBottom: RESPONSIVE_SPACING.sm,
+    textAlign: 'center',
+  },
+  formGroup: {
+    marginBottom: RESPONSIVE_SPACING.sm,
+  },
+  label: {
+    fontSize: RESPONSIVE_FONT_SIZES.xs,
+    color: COLORS.gray,
+    marginBottom: 6,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: BORDER_RADIUS.sm,
+    paddingHorizontal: RESPONSIVE_SPACING.sm,
+    paddingVertical: 10,
+    backgroundColor: COLORS.white,
+    color: COLORS.black,
+  },
+  previewImage: {
     width: 80,
     height: 80,
     borderRadius: BORDER_RADIUS.md,
-    backgroundColor: COLORS.lightGray,
     marginBottom: RESPONSIVE_SPACING.xs,
   },
-  friendName: {
+  previewCover: {
+    width: '100%',
+    height: 120,
+    borderRadius: BORDER_RADIUS.md,
+    marginBottom: RESPONSIVE_SPACING.xs,
+    backgroundColor: COLORS.lightGray,
+  },
+  dobRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: RESPONSIVE_SPACING.xs,
+  },
+  dobInput: {
+    flex: 1,
+  },
+  dobInputYear: {
+    flex: 2,
+  },
+  helperText: {
+    marginTop: 6,
     fontSize: RESPONSIVE_FONT_SIZES.xs,
+    color: COLORS.gray,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: RESPONSIVE_SPACING.sm,
+    marginTop: RESPONSIVE_SPACING.sm,
+  },
+  actionBtn: {
+    height: 44,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    borderRadius: BORDER_RADIUS.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelBtn: {
+    backgroundColor: COLORS.lightGray,
+  },
+  saveBtn: {
+    backgroundColor: COLORS.primary,
+  },
+  cancelText: {
     color: COLORS.black,
-    textAlign: 'center',
+    fontWeight: '600',
+  },
+  saveText: {
+    color: COLORS.white,
+    fontWeight: '700',
+  },
+  loadingContainer: {
+    paddingVertical: RESPONSIVE_SPACING.xl,
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: RESPONSIVE_FONT_SIZES.md,
+    color: COLORS.gray,
+    marginTop: RESPONSIVE_SPACING.sm,
+  },
+  emptyContainer: {
+    paddingVertical: RESPONSIVE_SPACING.xl,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: RESPONSIVE_FONT_SIZES.md,
+    color: COLORS.gray,
+    marginBottom: RESPONSIVE_SPACING.xs,
+  },
+  emptySubtext: {
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    color: COLORS.gray,
   },
 });

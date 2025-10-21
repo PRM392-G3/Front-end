@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { Platform } from 'react-native';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { PostProvider } from '@/contexts/PostContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 export default function RootLayout() {
@@ -41,13 +42,15 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="auth" />
-          <Stack.Screen name="+not-found" />
-        </Stack>
-        <StatusBar style="auto" />
+        <PostProvider>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="auth" />
+            <Stack.Screen name="+not-found" />
+          </Stack>
+          <StatusBar style="auto" />
+        </PostProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );

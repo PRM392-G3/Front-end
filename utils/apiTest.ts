@@ -31,7 +31,7 @@ export const testAPIConnection = async () => {
 
 // Test auth endpoints
 export const testAuthEndpoints = async () => {
-  const baseURL = API_CONFIG.BASE_URL;
+  const baseURL = 'https://bobby-unpargeted-nicole.ngrok-free.dev/api';
   
   try {
     console.log('Testing auth endpoints...');

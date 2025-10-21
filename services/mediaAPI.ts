@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // API Configuration - Manual configuration
 const API_CONFIG = {
-  BASE_URL: 'https://bobby-unpargeted-nicole.ngrok-free.dev/api', // Test với localhost trước
+  BASE_URL: 'https://bobby-unpargeted-nicole.ngrok-free.dev/api', // Updated ngrok endpoint
   TIMEOUT: 30000,
   MEDIA_TIMEOUT: 120000, // Tăng lên 2 phút cho video
   HEADERS: {
@@ -49,12 +49,14 @@ const testApiConnection = async (): Promise<boolean> => {
 
 // Media API interfaces
 export interface FileUploadResponse {
-  success: boolean;
-  filePath: string;
   fileName: string;
+  filePath: string;
+  publicUrl: string;
   fileSize: number;
   contentType: string;
-  url: string;
+  uploadedAt: string;
+  userId: string;
+  fileType: string;
 }
 
 export interface FileUrlResponse {

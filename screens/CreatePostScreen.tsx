@@ -4,12 +4,20 @@ import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES, SAFE_
 import { ArrowLeft, Send } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ImageUploader from '@/components/ImageUploader';
+import { PostResponse, postAPI } from '@/services/api';
 import { FileUploadResponse } from '@/services/mediaAPI';
+import { useAuth } from '@/contexts/AuthContext';
 
-export default function CreatePostScreen() {
+interface CreatePostScreenProps {
+  onPostCreated?: (post: PostResponse) => void;
+  onClose?: () => void;
+}
+
+export default function CreatePostScreen({ onPostCreated, onClose }: CreatePostScreenProps) {
   const [content, setContent] = useState('');
   const [uploadedImage, setUploadedImage] = useState<FileUploadResponse | null>(null);
   const [isPosting, setIsPosting] = useState(false);
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
 
   const handleImageUpload = (result: FileUploadResponse) => {
@@ -34,7 +42,7 @@ export default function CreatePostScreen() {
       // TODO: Implement actual post creation API
       console.log('Creating post:', {
         content: content.trim(),
-        imageUrl: uploadedImage?.url,
+        imageUrl: uploadedImage?.publicUrl,
       });
 
       // Simulate API call
@@ -59,7 +67,7 @@ export default function CreatePostScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton}>
+        <TouchableOpacity style={styles.backButton} onPress={onClose}>
           <ArrowLeft size={24} color={COLORS.black} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Tạo bài viết</Text>
