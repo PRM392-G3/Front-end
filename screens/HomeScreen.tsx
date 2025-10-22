@@ -16,7 +16,7 @@ export default function HomeScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const { user } = useAuth();
-  const { posts, setPosts, updatePostLike } = usePostContext();
+  const { posts, setPosts, updatePostLike, updatePost } = usePostContext();
   const insets = useSafeAreaInsets();
 
   // Dữ liệu mẫu cho demo
@@ -55,6 +55,7 @@ export default function HomeScreen() {
       },
       comments: [],
       likes: [],
+      shares: [],
       tags: [
         { id: 1, name: "nexora", description: "Nexora platform", usageCount: 10, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
         { id: 2, name: "happiness", description: "Happy moments", usageCount: 5, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
@@ -94,6 +95,7 @@ export default function HomeScreen() {
       },
       comments: [],
       likes: [],
+      shares: [],
       tags: [],
       isLiked: true
     },
@@ -131,6 +133,7 @@ export default function HomeScreen() {
       },
       comments: [],
       likes: [],
+      shares: [],
       tags: [
         { id: 3, name: "food", description: "Food related", usageCount: 20, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
         { id: 4, name: "delicious", description: "Delicious food", usageCount: 15, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
@@ -205,9 +208,25 @@ export default function HomeScreen() {
     );
   }, []);
 
-  const handleRefresh = useCallback(() => {
-    fetchPosts();
-  }, [fetchPosts]);
+  const handleCommentCountUpdate = useCallback((postId: number, commentCount: number) => {
+    // Update the post's comment count in both local state and global context
+    setPosts(prevPosts => 
+      prevPosts.map(post => 
+        post.id === postId 
+          ? { 
+              ...post, 
+              commentCount: commentCount
+            }
+          : post
+      )
+    );
+    
+    // Also update in global context
+    updatePost(postId, {
+      commentCount: commentCount
+    });
+  }, [updatePost]);
+
 
   // Fetch posts when component mounts
   useEffect(() => {
@@ -312,6 +331,7 @@ export default function HomeScreen() {
                 onPostDeleted={handlePostDeleted}
                 onLikeToggle={handleLikeToggle}
                 onShareToggle={handleShareToggle}
+                onCommentCountUpdate={handleCommentCountUpdate}
                 onRefresh={handleRefresh}
                 showImage={!!post.imageUrl || !!post.videoUrl}
               />

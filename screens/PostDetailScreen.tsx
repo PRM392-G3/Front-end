@@ -24,10 +24,11 @@ import ShareButton from '@/components/ShareButton';
 interface PostDetailScreenProps {
   onLikeToggle?: (postId: number, isLiked: boolean) => void;
   onShareToggle?: (postId: number, isShared: boolean) => void;
+  onCommentCountUpdate?: (postId: number, commentCount: number) => void;
   onRefresh?: () => void;
 }
 
-export default function PostDetailScreen({ onLikeToggle, onShareToggle, onRefresh }: PostDetailScreenProps = {}) {
+export default function PostDetailScreen({ onLikeToggle, onShareToggle, onCommentCountUpdate, onRefresh }: PostDetailScreenProps = {}) {
   const params = useLocalSearchParams();
   const postId = params.id;
   const router = useRouter();
@@ -85,13 +86,24 @@ export default function PostDetailScreen({ onLikeToggle, onShareToggle, onRefres
       }
       
       // Combine post data with comments
+      const actualCommentCount = comments?.length || 0;
       const postWithComments = {
         ...postData,
         comments: comments || [],
-        commentCount: comments?.length || postData.commentCount || 0
+        commentCount: actualCommentCount
       };
       
       setPost(postWithComments);
+      
+      // Sync comment count with global context if there's a discrepancy
+      if (actualCommentCount !== postData.commentCount) {
+        updatePost(numericPostId, {
+          commentCount: actualCommentCount
+        });
+        
+        // Notify parent component about comment count change
+        onCommentCountUpdate?.(numericPostId, actualCommentCount);
+      }
       
       // Initialize like state - CRITICAL: Check if current user has liked this post
       const globalLikeState = getPostLikeState(postData.id);
@@ -203,12 +215,23 @@ export default function PostDetailScreen({ onLikeToggle, onShareToggle, onRefres
 
       const newComment = await commentAPI.createComment(commentData);
 
+      // Calculate new comment count
+      const newCommentCount = (post?.commentCount || 0) + 1;
+
       // Update post with new comment
       setPost(prev => prev ? {
         ...prev,
         comments: [...(prev.comments || []), newComment],
-        commentCount: prev.commentCount + 1
+        commentCount: newCommentCount
       } : null);
+
+      // Update the post in global context to sync with HomeScreen
+      updatePost(post.id, {
+        commentCount: newCommentCount
+      });
+
+      // Notify parent component about comment count change
+      onCommentCountUpdate?.(post.id, newCommentCount);
 
       // Clear comment input
       setCommentText('');
@@ -314,12 +337,23 @@ export default function PostDetailScreen({ onLikeToggle, onShareToggle, onRefres
               setIsDeletingComment(true);
               await commentAPI.deleteComment(commentId);
               
+              // Calculate new comment count
+              const newCommentCount = Math.max(0, (post?.commentCount || 0) - 1);
+
               // Update post by removing the deleted comment
               setPost(prev => prev ? {
                 ...prev,
                 comments: prev.comments.filter(comment => comment.id !== commentId),
-                commentCount: prev.commentCount - 1
+                commentCount: newCommentCount
               } : null);
+
+              // Update the post in global context to sync with HomeScreen
+              updatePost(post.id, {
+                commentCount: newCommentCount
+              });
+
+              // Notify parent component about comment count change
+              onCommentCountUpdate?.(post.id, newCommentCount);
               
               Alert.alert('Thành công', 'Bình luận đã được xóa.');
             } catch (error) {

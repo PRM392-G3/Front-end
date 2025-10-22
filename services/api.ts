@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // API Configuration
 export const API_CONFIG = {
   // Update this URL to your current backend server URL
-  BASE_URL: 'https://0eb536398401.ngrok-free.app/api',
+  BASE_URL: 'https://bobby-unpargeted-nicole.ngrok-free.dev/api',
   
   // Alternative URLs for testing (uncomment and use if needed)
   // BASE_URL: 'http://localhost:5000/api', // Local development

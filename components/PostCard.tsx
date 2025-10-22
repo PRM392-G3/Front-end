@@ -15,6 +15,7 @@ interface PostCardProps {
   onPostDeleted?: (postId: number) => void;
   onLikeToggle?: (postId: number, isLiked: boolean) => void;
   onShareToggle?: (postId: number, isShared: boolean) => void;
+  onCommentCountUpdate?: (postId: number, commentCount: number) => void;
   onRefresh?: () => void;
   showImage?: boolean;
   isSharedPost?: boolean;
@@ -26,6 +27,7 @@ export default function PostCard({
   onPostDeleted,
   onLikeToggle,
   onShareToggle,
+  onCommentCountUpdate,
   onRefresh,
   showImage = true,
   isSharedPost = false
@@ -54,6 +56,7 @@ export default function PostCard({
     return postData.shares?.some(share => share.userId === user?.id) || false;
   });
   const [sharesCount, setSharesCount] = useState(postData.shareCount);
+  const [commentCount, setCommentCount] = useState(postData.commentCount);
   const [isLoading, setIsLoading] = useState(false);
   const [isApiCalling, setIsApiCalling] = useState(false);
 
@@ -74,7 +77,15 @@ export default function PostCard({
     // Update share state
     setIsShared(postData.shares?.some(share => share.userId === user?.id) || false);
     setSharesCount(postData.shareCount);
-  }, [postData.isLiked, postData.likeCount, postData.shares, postData.shareCount, getPostLikeState, user?.id]);
+    
+    // Update comment count
+    setCommentCount(postData.commentCount);
+    
+    // Notify parent component about comment count change if needed
+    if (onCommentCountUpdate && postData.commentCount !== commentCount) {
+      onCommentCountUpdate(postData.id, postData.commentCount);
+    }
+  }, [postData.isLiked, postData.likeCount, postData.shares, postData.shareCount, postData.commentCount, getPostLikeState, user?.id, onCommentCountUpdate, commentCount]);
 
   const formatTimestamp = (timestamp: string) => {
     const now = new Date();
@@ -382,7 +393,7 @@ export default function PostCard({
           onPress={handleViewPost}
         >
           <MessageCircle size={20} color={COLORS.gray} />
-          <Text style={styles.actionText}>{postData.commentCount}</Text>
+          <Text style={styles.actionText}>{commentCount}</Text>
         </TouchableOpacity>
         <ShareButton
           postId={postData.id}
