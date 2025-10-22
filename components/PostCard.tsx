@@ -1,18 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Alert } from 'react-native';
-import { Video } from 'expo-av';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES } from '@/constants/theme';
 import { Heart, MessageCircle, Share2, MoveHorizontal as MoreHorizontal, Trash2, Edit } from 'lucide-react-native';
-import { PostResponse, postAPI } from '@/services/api';
+import { PostResponse, postAPI, shareAPI } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePostContext } from '@/contexts/PostContext';
 import { useRouter } from 'expo-router';
+import ShareButton from './ShareButton';
 
 interface PostCardProps {
   postData: PostResponse;
   onPostUpdated?: (post: PostResponse) => void;
   onPostDeleted?: (postId: number) => void;
   onLikeToggle?: (postId: number, isLiked: boolean) => void;
+  onShareToggle?: (postId: number, isShared: boolean) => void;
+  onCommentCountUpdate?: (postId: number, commentCount: number) => void;
+  onRefresh?: () => void;
   showImage?: boolean;
+  isSharedPost?: boolean;
 }
 
 export default function PostCard({ 
@@ -20,8 +26,16 @@ export default function PostCard({
   onPostUpdated,
   onPostDeleted,
   onLikeToggle,
-  showImage = true
+  onShareToggle,
+  onCommentCountUpdate,
+  onRefresh,
+  showImage = true,
+  isSharedPost = false
 }: PostCardProps) {
+  const { user } = useAuth();
+  const { refreshPosts } = usePostContext();
+  const router = useRouter();
+  
   const [isLiked, setIsLiked] = useState(() => {
     // Check if current user has liked this post
     if (user?.id && postData.likes && Array.isArray(postData.likes)) {
@@ -29,112 +43,69 @@ export default function PostCard({
     }
     return postData.isLiked || false;
   });
-  const [likesCount, setLikesCount] = useState(postData.likeCount);
-  const [isLoading, setIsLoading] = useState(false);
-  const { user } = useAuth();
-  const router = useRouter();
 
-  const isOwnPost = user?.id === postData.userId;
+  const [isShared, setIsShared] = useState(() => {
+    return postData.isShared || false;
+  });
 
-  // Tags are already provided by backend in postData.tags
-  // No need to fetch them separately
+  const [isLiking, setIsLiking] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showFullContent, setShowFullContent] = useState(false);
 
-  const handleViewPost = () => {
-    router.push(`/post-detail?postId=${postData.id}`);
-  };
-
-  const handleEditPost = () => {
-    router.push({
-      pathname: '/edit-post',
-      params: { post: JSON.stringify(postData) }
-    });
-  };
-
-  const formatTimestamp = (dateString: string) => {
-    try {
-      console.log('PostCard: Raw date string from backend:', dateString);
-      
-      // Parse the date string
-      let date = new Date(dateString);
-      
-      // Check if date is valid
-      if (isNaN(date.getTime())) {
-        console.error('PostCard: Invalid date string:', dateString);
-        return 'Thời gian không hợp lệ';
-      }
-      
-      console.log('PostCard: Parsed date (UTC):', date.toISOString());
-      console.log('PostCard: Parsed date (Local):', date.toLocaleString('vi-VN'));
-      
-      // Based on the format "2025-10-15 13:40:29.414779", this appears to be UTC time
-      // without timezone indicator, so we need to add 7 hours to get Vietnam time
-      console.log('PostCard: Backend time appears to be UTC without timezone indicator');
-      console.log('PostCard: Converting to Vietnam time (UTC+7)');
-      
-      // Add 7 hours to get Vietnam time
-      const vietnamTime = new Date(date.getTime() + (7 * 60 * 60 * 1000));
-      date = vietnamTime;
-      
-      console.log('PostCard: Final date (Vietnam time):', date.toLocaleString('vi-VN'));
-      console.log('PostCard: Current time (Vietnam):', new Date().toLocaleString('vi-VN'));
-      
-      // Show actual time in Vietnamese format
-      return date.toLocaleString('vi-VN', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false // Use 24-hour format
-      });
-    } catch (error) {
-      console.error('PostCard: Error formatting timestamp:', error);
-      return 'Thời gian không hợp lệ';
-    }
-  };
+  // Video player setup
+  const player = useVideoPlayer(postData.videoUrl || '', (player) => {
+    player.loop = true;
+    player.muted = true;
+  });
 
   const handleLikeToggle = async () => {
-    if (!user?.id || isLoading) return;
+    if (!user || isLiking) return;
 
+    setIsLiking(true);
     try {
-      setIsLoading(true);
-      
       if (isLiked) {
-        console.log(`PostCard: Unliking post ${postData.id} for user ${user.id}`);
         await postAPI.unlikePost(postData.id, user.id);
         setIsLiked(false);
-        setLikesCount(prev => Math.max(0, prev - 1));
         onLikeToggle?.(postData.id, false);
-        console.log(`PostCard: Successfully unliked post ${postData.id}`);
       } else {
-        console.log(`PostCard: Liking post ${postData.id} for user ${user.id}`);
         await postAPI.likePost(postData.id, user.id);
         setIsLiked(true);
-        setLikesCount(prev => prev + 1);
         onLikeToggle?.(postData.id, true);
-        console.log(`PostCard: Successfully liked post ${postData.id}`);
       }
     } catch (error) {
-      console.error('PostCard: Error toggling like:', error);
-      console.error('PostCard: Error details:', error.response?.data);
-      console.error('PostCard: Error status:', error.response?.status);
-      
-      // Revert the UI state on error
-      if (isLiked) {
-        setLikesCount(prev => prev + 1);
-        setIsLiked(true);
-      } else {
-        setLikesCount(prev => Math.max(0, prev - 1));
-        setIsLiked(false);
-      }
-      
-      Alert.alert('Lỗi', 'Không thể thực hiện hành động này. Vui lòng thử lại.');
+      console.error('Error toggling like:', error);
+      Alert.alert('Lỗi', 'Không thể thực hiện thao tác này');
     } finally {
-      setIsLoading(false);
+      setIsLiking(false);
     }
   };
 
-  const handleDeletePost = () => {
+  const handleShareToggle = async () => {
+    if (!user || isSharing) return;
+
+    setIsSharing(true);
+    try {
+      if (isShared) {
+        await shareAPI.unsharePost(user.id, postData.id);
+        setIsShared(false);
+        onShareToggle?.(postData.id, false);
+      } else {
+        await shareAPI.sharePost(user.id, postData.id);
+        setIsShared(true);
+        onShareToggle?.(postData.id, true);
+      }
+    } catch (error) {
+      console.error('Error toggling share:', error);
+      Alert.alert('Lỗi', 'Không thể thực hiện thao tác này');
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  const handleDeletePost = async () => {
+    if (!user || isDeleting) return;
+
     Alert.alert(
       'Xóa bài viết',
       'Bạn có chắc chắn muốn xóa bài viết này?',
@@ -144,305 +115,314 @@ export default function PostCard({
           text: 'Xóa',
           style: 'destructive',
           onPress: async () => {
+            setIsDeleting(true);
             try {
-              setIsLoading(true);
               await postAPI.deletePost(postData.id);
               onPostDeleted?.(postData.id);
-              Alert.alert('Thành công', 'Bài viết đã được xóa.', [
-                {
-                  text: 'OK',
-                  onPress: () => {
-                    // Post will be removed from HomePage via onPostDeleted callback
-                  }
-                }
-              ]);
+              Alert.alert('Thành công', 'Bài viết đã được xóa');
             } catch (error) {
               console.error('Error deleting post:', error);
-              Alert.alert('Lỗi', 'Không thể xóa bài viết. Vui lòng thử lại.');
+              Alert.alert('Lỗi', 'Không thể xóa bài viết');
             } finally {
-              setIsLoading(false);
+              setIsDeleting(false);
             }
-          }
-        }
+          },
+        },
       ]
     );
   };
 
-  const handleMoreOptions = () => {
-    if (isOwnPost) {
-      Alert.alert(
-        'Tùy chọn',
-        'Chọn hành động cho bài viết của bạn',
-        [
-          { text: 'Hủy', style: 'cancel' },
-          { text: 'Xem chi tiết', onPress: handleViewPost },
-          { text: 'Chỉnh sửa', onPress: handleEditPost },
-          { text: 'Xóa bài viết', style: 'destructive', onPress: handleDeletePost }
-        ]
-      );
+  const handleEditPost = () => {
+    router.push(`/edit-post/${postData.id}`);
+  };
+
+  const handleCommentPress = () => {
+    router.push(`/post-detail/${postData.id}`);
+  };
+
+  const handleUserPress = () => {
+    router.push(`/profile/${postData.userId}`);
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
+    
+    if (diffInHours < 1) {
+      return 'Vừa xong';
+    } else if (diffInHours < 24) {
+      return `${diffInHours} giờ trước`;
     } else {
-      Alert.alert(
-        'Tùy chọn',
-        'Chọn hành động',
-        [
-          { text: 'Hủy', style: 'cancel' },
-          { text: 'Xem chi tiết', onPress: handleViewPost }
-        ]
-      );
+      const diffInDays = Math.floor(diffInHours / 24);
+      return `${diffInDays} ngày trước`;
     }
   };
 
+  const truncateContent = (content: string, maxLength: number = 150) => {
+    if (content.length <= maxLength) return content;
+    return content.substring(0, maxLength) + '...';
+  };
+
+  const isOwner = user?.id === postData.userId;
+
   return (
-    <TouchableOpacity 
-      style={styles.container}
-      onPress={handleViewPost}
-      activeOpacity={0.95}
-    >
+    <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <View style={styles.userInfo}>
-          <View style={styles.avatar}>
-            {postData.user.avatarUrl && (
-              <Image source={{ uri: postData.user.avatarUrl }} style={styles.avatarImage} />
-            )}
-          </View>
-          <View style={styles.userText}>
+        <TouchableOpacity style={styles.userInfo} onPress={handleUserPress}>
+          <Image
+            source={{
+              uri: postData.user.avatarUrl || 'https://via.placeholder.com/40'
+            }}
+            style={styles.avatar}
+          />
+          <View style={styles.userDetails}>
             <Text style={styles.userName}>{postData.user.fullName}</Text>
-            <Text style={styles.timestamp}>{formatTimestamp(postData.createdAt)}</Text>
+            <Text style={styles.timestamp}>{formatDate(postData.createdAt)}</Text>
           </View>
-        </View>
-        {isOwnPost && (
-          <TouchableOpacity 
-            style={styles.moreButton} 
-            onPress={handleMoreOptions}
-            disabled={isLoading}
-          >
-            <MoreHorizontal size={20} color={COLORS.gray} />
+        </TouchableOpacity>
+        
+        {isOwner && (
+          <TouchableOpacity style={styles.moreButton} onPress={() => {}}>
+            <MoreHorizontal size={20} color={COLORS.text.secondary} />
           </TouchableOpacity>
         )}
       </View>
 
-      <Text style={styles.content}>{postData.content}</Text>
+      {/* Content */}
+      <View style={styles.content}>
+        <Text style={styles.postText}>
+          {showFullContent ? postData.content : truncateContent(postData.content)}
+        </Text>
+        
+        {postData.content.length > 150 && (
+          <TouchableOpacity onPress={() => setShowFullContent(!showFullContent)}>
+            <Text style={styles.readMore}>
+              {showFullContent ? 'Thu gọn' : 'Đọc thêm'}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
 
-      {/* Display tags if available */}
-      {(() => {
-        console.log('PostCard: Full postData:', JSON.stringify(postData, null, 2));
-        console.log('PostCard: tags from backend:', postData.tags);
-        console.log('PostCard: tags length:', postData.tags?.length);
-        console.log('PostCard: tags type:', typeof postData.tags);
-        
-        if (postData.tags && Array.isArray(postData.tags) && postData.tags.length > 0) {
-          return (
-            <View style={styles.tagsContainer}>
-              {postData.tags.map((tag, index) => (
-                <Text key={index} style={styles.tag}>
-                  #{tag?.name || 'Unknown Tag'}
-                </Text>
-              ))}
-            </View>
-          );
-        }
-        
-        // Fallback: try to extract tags from content
-        const tagMatches = postData.content?.match(/#\w+/g);
-        if (tagMatches && tagMatches.length > 0) {
-          return (
-            <View style={styles.tagsContainer}>
-              {tagMatches.map((tag, index) => (
-                <Text key={index} style={styles.tag}>
-                  {tag}
-                </Text>
-              ))}
-            </View>
-          );
-        }
-        
-        return null;
-      })()}
-
-      {/* Display image or video */}
+      {/* Media */}
       {showImage && postData.imageUrl && (
-        <View style={styles.imageContainer}>
-          <Image source={{ uri: postData.imageUrl }} style={styles.image} />
-        </View>
+        <Image source={{ uri: postData.imageUrl }} style={styles.postImage} />
       )}
       
       {showImage && postData.videoUrl && (
         <View style={styles.videoContainer}>
-          <Video
-            source={{ uri: postData.videoUrl }}
+          <VideoView
             style={styles.video}
-            useNativeControls
-            resizeMode="contain"
-            isLooping={false}
-            shouldPlay={false}
+            player={player}
+            allowsFullscreen
+            allowsPictureInPicture
           />
         </View>
       )}
 
+      {/* Tags */}
+      {postData.tags && postData.tags.length > 0 && (
+        <View style={styles.tagsContainer}>
+          {postData.tags.map((tag, index) => (
+            <TouchableOpacity key={index} style={styles.tag}>
+              <Text style={styles.tagText}>#{tag.name}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {/* Actions */}
       <View style={styles.actions}>
         <TouchableOpacity 
           style={styles.actionButton} 
           onPress={handleLikeToggle}
-          disabled={isLoading}
+          disabled={isLiking}
         >
           <Heart 
             size={20} 
-            color={isLiked ? COLORS.error : COLORS.gray} 
-            fill={isLiked ? COLORS.error : 'transparent'}
+            color={isLiked ? COLORS.accent.primary : COLORS.text.secondary}
+            fill={isLiked ? COLORS.accent.primary : 'none'}
           />
-          <Text style={[styles.actionText, isLiked && styles.likedText]}>
-            {likesCount}
+          <Text style={[styles.actionText, isLiked && styles.actionTextActive]}>
+            {postData.likeCount}
           </Text>
         </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.actionButton}
-          onPress={handleViewPost}
-        >
-          <MessageCircle size={20} color={COLORS.gray} />
+
+        <TouchableOpacity style={styles.actionButton} onPress={handleCommentPress}>
+          <MessageCircle size={20} color={COLORS.text.secondary} />
           <Text style={styles.actionText}>{postData.commentCount}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton}>
-          <Share2 size={20} color={COLORS.gray} />
-          <Text style={styles.actionText}>{postData.shareCount}</Text>
-        </TouchableOpacity>
+
+        <ShareButton
+          postId={postData.id}
+          userId={user?.id || 0}
+          isShared={isShared}
+          onShareToggle={onShareToggle}
+          disabled={isSharing}
+        />
       </View>
-    </TouchableOpacity>
+
+      {/* Owner Actions */}
+      {isOwner && (
+        <View style={styles.ownerActions}>
+          <TouchableOpacity 
+            style={styles.ownerActionButton} 
+            onPress={handleEditPost}
+          >
+            <Edit size={16} color={COLORS.accent.primary} />
+            <Text style={styles.ownerActionText}>Chỉnh sửa</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.ownerActionButton} 
+            onPress={handleDeletePost}
+            disabled={isDeleting}
+          >
+            <Trash2 size={16} color={COLORS.accent.danger} />
+            <Text style={[styles.ownerActionText, { color: COLORS.accent.danger }]}>
+              {isDeleting ? 'Đang xóa...' : 'Xóa'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: COLORS.surface,
-    marginBottom: RESPONSIVE_SPACING.md,
+    backgroundColor: COLORS.background.primary,
+    marginVertical: RESPONSIVE_SPACING.sm,
     borderRadius: BORDER_RADIUS.lg,
-    paddingVertical: RESPONSIVE_SPACING.md,
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
+    padding: RESPONSIVE_SPACING.md,
+    shadowColor: COLORS.shadow.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
     elevation: 3,
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: RESPONSIVE_SPACING.md,
+    justifyContent: 'space-between',
     marginBottom: RESPONSIVE_SPACING.sm,
   },
   userInfo: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
   },
   avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: BORDER_RADIUS.full,
-    backgroundColor: COLORS.primaryLight,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     marginRight: RESPONSIVE_SPACING.sm,
-    borderWidth: 2,
-    borderColor: COLORS.primary,
   },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: BORDER_RADIUS.full,
-  },
-  userText: {
-    justifyContent: 'center',
+  userDetails: {
+    flex: 1,
   },
   userName: {
     fontSize: RESPONSIVE_FONT_SIZES.md,
     fontWeight: '600',
-    color: COLORS.black,
-    marginBottom: 2,
+    color: COLORS.text.primary,
   },
   timestamp: {
     fontSize: RESPONSIVE_FONT_SIZES.xs,
-    color: COLORS.gray,
-    fontWeight: '500',
+    color: COLORS.text.secondary,
+    marginTop: 2,
   },
   moreButton: {
     padding: RESPONSIVE_SPACING.xs,
-    borderRadius: BORDER_RADIUS.sm,
   },
   content: {
+    marginBottom: RESPONSIVE_SPACING.sm,
+  },
+  postText: {
     fontSize: RESPONSIVE_FONT_SIZES.md,
-    color: COLORS.black,
-    lineHeight: 24,
-    paddingHorizontal: RESPONSIVE_SPACING.md,
-    marginBottom: RESPONSIVE_SPACING.sm,
-    fontWeight: '400',
+    color: COLORS.text.primary,
+    lineHeight: 22,
   },
-  imageContainer: {
-    marginHorizontal: RESPONSIVE_SPACING.md,
-    marginBottom: RESPONSIVE_SPACING.sm,
-    borderRadius: BORDER_RADIUS.md,
-    overflow: 'hidden',
-  },
-  image: {
-    width: '100%',
-    height: 200,
-    borderRadius: BORDER_RADIUS.md,
-  },
-  imagePlaceholder: {
-    width: '100%',
-    height: 200,
-    backgroundColor: COLORS.surfaceSecondary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: BORDER_RADIUS.md,
-  },
-  imageText: {
+  readMore: {
     fontSize: RESPONSIVE_FONT_SIZES.sm,
-    color: COLORS.gray,
+    color: COLORS.accent.primary,
     fontWeight: '500',
+    marginTop: RESPONSIVE_SPACING.xs,
+  },
+  postImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: BORDER_RADIUS.md,
+    marginBottom: RESPONSIVE_SPACING.sm,
   },
   videoContainer: {
-    marginHorizontal: RESPONSIVE_SPACING.md,
-    marginBottom: RESPONSIVE_SPACING.sm,
+    width: '100%',
+    height: 200,
     borderRadius: BORDER_RADIUS.md,
+    marginBottom: RESPONSIVE_SPACING.sm,
     overflow: 'hidden',
   },
   video: {
     width: '100%',
-    height: 200,
-    borderRadius: BORDER_RADIUS.md,
-  },
-  actions: {
-    flexDirection: 'row',
-    paddingHorizontal: RESPONSIVE_SPACING.md,
-    gap: RESPONSIVE_SPACING.lg,
-    paddingTop: RESPONSIVE_SPACING.sm,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.borderLight,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: RESPONSIVE_SPACING.xs,
-    paddingVertical: RESPONSIVE_SPACING.xs,
-    paddingHorizontal: RESPONSIVE_SPACING.sm,
-    borderRadius: BORDER_RADIUS.sm,
-  },
-  actionText: {
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
-    color: COLORS.gray,
-    fontWeight: '500',
-  },
-  likedText: {
-    color: COLORS.error,
+    height: '100%',
   },
   tagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: RESPONSIVE_SPACING.md,
     marginBottom: RESPONSIVE_SPACING.sm,
-    gap: RESPONSIVE_SPACING.xs,
   },
   tag: {
-    fontSize: RESPONSIVE_FONT_SIZES.xs,
-    color: COLORS.primary,
-    fontWeight: '500',
-    backgroundColor: COLORS.primary + '20',
+    backgroundColor: COLORS.accent.primary + '20',
     paddingHorizontal: RESPONSIVE_SPACING.sm,
     paddingVertical: RESPONSIVE_SPACING.xs,
     borderRadius: BORDER_RADIUS.sm,
+    marginRight: RESPONSIVE_SPACING.xs,
+    marginBottom: RESPONSIVE_SPACING.xs,
+  },
+  tagText: {
+    fontSize: RESPONSIVE_FONT_SIZES.xs,
+    color: COLORS.accent.primary,
+    fontWeight: '500',
+  },
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingTop: RESPONSIVE_SPACING.sm,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border.primary,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: RESPONSIVE_SPACING.sm,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+  },
+  actionText: {
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    color: COLORS.text.secondary,
+    marginLeft: RESPONSIVE_SPACING.xs,
+  },
+  actionTextActive: {
+    color: COLORS.accent.primary,
+  },
+  ownerActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingTop: RESPONSIVE_SPACING.sm,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border.secondary,
+    marginTop: RESPONSIVE_SPACING.sm,
+  },
+  ownerActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: RESPONSIVE_SPACING.sm,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+  },
+  ownerActionText: {
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    color: COLORS.accent.primary,
+    marginLeft: RESPONSIVE_SPACING.xs,
   },
 });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, RefreshControl, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, RefreshControl, Alert, FlatList } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, FONT_SIZES, BORDER_RADIUS, SAFE_AREA, DIMENSIONS } from '@/constants/theme';
 import PostCard from '@/components/PostCard';
 import CreatePostScreen from '@/screens/CreatePostScreen';
@@ -15,7 +15,7 @@ export default function HomeScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const { user } = useAuth();
-  const { posts, setPosts, updatePostLike } = usePostContext();
+  const { posts, setPosts, updatePostLike, updatePostShare, updatePost, getPostShareState } = usePostContext();
   const insets = useSafeAreaInsets();
 
   const fetchPosts = useCallback(async () => {
@@ -31,126 +31,138 @@ export default function HomeScreen() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, []);
+  }, [setPosts]);
+
+  // Load posts when screen focuses
+  useFocusEffect(
+    useCallback(() => {
+      if (user) {
+        fetchPosts();
+      }
+    }, [user, fetchPosts])
+  );
+
+  // Initial load
+  useEffect(() => {
+    if (user) {
+      fetchPosts();
+    }
+  }, [user, fetchPosts]);
 
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
     fetchPosts();
   }, [fetchPosts]);
 
-  const handlePostCreated = useCallback((newPost: PostResponse) => {
-    console.log('HomeScreen: New post created:', newPost);
-    setPosts(prevPosts => [newPost, ...prevPosts]);
-    setShowCreatePost(false);
-  }, []);
-
-  const handlePostDeleted = useCallback((postId: number) => {
-    console.log('HomeScreen: Post deleted:', postId);
-    setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
-  }, []);
-
-  const handleLikeToggle = useCallback((postId: number, isLiked: boolean) => {
-    console.log('HomeScreen: Like toggled:', postId, isLiked);
+  const handlePostLike = useCallback((postId: number, isLiked: boolean) => {
     updatePostLike(postId, isLiked);
   }, [updatePostLike]);
 
-  // Fetch posts when screen focuses
-  useFocusEffect(
-    useCallback(() => {
-      fetchPosts();
-    }, [fetchPosts])
+  const handlePostShare = useCallback((postId: number, isShared: boolean) => {
+    updatePostShare(postId, isShared);
+  }, [updatePostShare]);
+
+  const handlePostUpdated = useCallback((updatedPost: PostResponse) => {
+    updatePost(updatedPost.id, updatedPost);
+  }, [updatePost]);
+
+  const handlePostDeleted = useCallback((postId: number) => {
+    setPosts(posts.filter(post => post.id !== postId));
+  }, [posts, setPosts]);
+
+  const handleCommentCountUpdate = useCallback((postId: number, commentCount: number) => {
+    updatePost(postId, { commentCount });
+  }, [updatePost]);
+
+  const renderPost = useCallback(({ item }: { item: PostResponse }) => (
+    <PostCard
+      postData={item}
+      onPostUpdated={handlePostUpdated}
+      onPostDeleted={handlePostDeleted}
+      onLikeToggle={handlePostLike}
+      onShareToggle={handlePostShare}
+      onCommentCountUpdate={handleCommentCountUpdate}
+      showImage={true}
+    />
+  ), [handlePostUpdated, handlePostDeleted, handlePostLike, handlePostShare, handleCommentCountUpdate]);
+
+  const renderEmptyState = () => (
+    <View style={styles.emptyState}>
+      <Text style={styles.emptyStateTitle}>Chưa có bài viết nào</Text>
+      <Text style={styles.emptyStateSubtitle}>
+        Hãy tạo bài viết đầu tiên của bạn!
+      </Text>
+      <TouchableOpacity
+        style={styles.createFirstPostButton}
+        onPress={() => setShowCreatePost(true)}
+      >
+        <Text style={styles.createFirstPostButtonText}>Tạo bài viết</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderHeader = () => (
+    <View style={[styles.header, { paddingTop: insets.top + RESPONSIVE_SPACING.sm }]}>
+      <Text style={styles.headerTitle}>Trang chủ</Text>
+      <TouchableOpacity
+        style={styles.createPostButton}
+        onPress={() => setShowCreatePost(true)}
+      >
+        <Plus size={20} color={COLORS.text.primary} />
+      </TouchableOpacity>
+    </View>
   );
 
   if (showCreatePost) {
     return (
       <CreatePostScreen
-        navigation={{ goBack: () => setShowCreatePost(false) }}
-        onPostCreated={handlePostCreated}
+        onClose={() => setShowCreatePost(false)}
+        onPostCreated={(newPost) => {
+          setPosts([newPost, ...posts]);
+          setShowCreatePost(false);
+        }}
       />
     );
   }
-  return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
-      
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Trang chủ</Text>
-        <TouchableOpacity 
-          style={styles.createButton}
-          onPress={() => setShowCreatePost(true)}
-        >
-          <Plus size={20} color={COLORS.white} />
-        </TouchableOpacity>
+
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Đang tải...</Text>
       </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.background.primary} />
+      {renderHeader()}
       
-      {/* Content Feed */}
-      <ScrollView
-        style={styles.feed}
+      <FlatList
+        data={posts}
+        renderItem={renderPost}
+        keyExtractor={(item) => item.id.toString()}
+        contentContainerStyle={styles.postsList}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.feedContent}
-        contentInsetAdjustmentBehavior="automatic"
-        bounces={true}
-        alwaysBounceVertical={false}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={handleRefresh}
-            colors={[COLORS.primary]}
-            tintColor={COLORS.primary}
+            colors={[COLORS.accent.primary]}
+            tintColor={COLORS.accent.primary}
           />
         }
-      >
-        <View style={styles.storiesSection}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.storiesScroll}>
-            {[1, 2, 3, 4, 5].map((item) => (
-              <TouchableOpacity key={item} style={styles.storyItem}>
-                <View style={styles.storyAvatar} />
-                <Text style={styles.storyText}>Story {item}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        <View style={styles.postsSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Bài viết mới nhất</Text>
-            <TouchableOpacity onPress={handleRefresh} disabled={isRefreshing}>
-              <RefreshCw 
-                size={16} 
-                color={COLORS.gray} 
-                style={isRefreshing ? styles.refreshingIcon : undefined}
-              />
-            </TouchableOpacity>
-          </View>
-          
-          {isLoading ? (
-            <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Đang tải bài viết...</Text>
+        ListEmptyComponent={renderEmptyState}
+        ListHeaderComponent={
+          posts.length > 0 ? (
+            <View style={styles.listHeader}>
+              <Text style={styles.postsCount}>
+                {posts.length} bài viết
+              </Text>
             </View>
-          ) : posts.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>Chưa có bài viết nào</Text>
-              <TouchableOpacity 
-                style={styles.emptyButton}
-                onPress={() => setShowCreatePost(true)}
-              >
-                <Text style={styles.emptyButtonText}>Tạo bài viết đầu tiên</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            posts.map((post) => (
-              <PostCard
-                key={post.id}
-                postData={post}
-                onPostDeleted={handlePostDeleted}
-                onLikeToggle={handleLikeToggle}
-                showImage={!!post.imageUrl || !!post.videoUrl}
-              />
-            ))
-          )}
-        </View>
-      </ScrollView>
+          ) : null
+        }
+      />
     </View>
   );
 }
@@ -158,111 +170,86 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.background.primary,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: RESPONSIVE_SPACING.md,
-    paddingVertical: RESPONSIVE_SPACING.sm,
-    backgroundColor: COLORS.white,
+    paddingBottom: RESPONSIVE_SPACING.sm,
+    backgroundColor: COLORS.background.primary,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.borderLight,
+    borderBottomColor: COLORS.border.primary,
   },
   headerTitle: {
     fontSize: FONT_SIZES.xl,
     fontWeight: '700',
-    color: COLORS.black,
+    color: COLORS.text.primary,
   },
-  createButton: {
-    backgroundColor: COLORS.primary,
+  createPostButton: {
     width: 40,
     height: 40,
-    borderRadius: BORDER_RADIUS.full,
+    borderRadius: 20,
+    backgroundColor: COLORS.accent.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  feed: {
-    flex: 1,
+  postsList: {
+    paddingHorizontal: RESPONSIVE_SPACING.sm,
+    paddingBottom: RESPONSIVE_SPACING.lg,
   },
-  feedContent: {
-    paddingBottom: RESPONSIVE_SPACING.xl,
-  },
-  storiesSection: {
-    backgroundColor: COLORS.white,
+  listHeader: {
     paddingVertical: RESPONSIVE_SPACING.sm,
-    marginBottom: RESPONSIVE_SPACING.sm,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.borderLight,
+    borderBottomColor: COLORS.border.secondary,
+    marginBottom: RESPONSIVE_SPACING.sm,
   },
-  storiesScroll: {
-    paddingHorizontal: RESPONSIVE_SPACING.md,
-  },
-  storyItem: {
-    alignItems: 'center',
-    marginRight: RESPONSIVE_SPACING.md,
-    width: DIMENSIONS.isLargeDevice ? 80 : 70,
-  },
-  storyAvatar: {
-    width: DIMENSIONS.isLargeDevice ? 70 : 60,
-    height: DIMENSIONS.isLargeDevice ? 70 : 60,
-    borderRadius: BORDER_RADIUS.full,
-    backgroundColor: COLORS.primaryLight,
-    marginBottom: RESPONSIVE_SPACING.xs,
-    borderWidth: 2,
-    borderColor: COLORS.primary,
-  },
-  storyText: {
-    fontSize: FONT_SIZES.xs,
-    color: COLORS.gray,
+  postsCount: {
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.text.secondary,
     textAlign: 'center',
-    fontWeight: '500',
   },
-  postsSection: {
-    paddingHorizontal: RESPONSIVE_SPACING.md,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: RESPONSIVE_SPACING.md,
-    marginTop: RESPONSIVE_SPACING.sm,
+    paddingHorizontal: RESPONSIVE_SPACING.lg,
+    paddingVertical: RESPONSIVE_SPACING.xl,
   },
-  sectionTitle: {
+  emptyStateTitle: {
     fontSize: FONT_SIZES.lg,
-    fontWeight: '700',
-    color: COLORS.black,
+    fontWeight: '600',
+    color: COLORS.text.primary,
+    marginBottom: RESPONSIVE_SPACING.sm,
+    textAlign: 'center',
   },
-  refreshingIcon: {
-    transform: [{ rotate: '360deg' }],
+  emptyStateSubtitle: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.text.secondary,
+    textAlign: 'center',
+    marginBottom: RESPONSIVE_SPACING.lg,
+    lineHeight: 22,
+  },
+  createFirstPostButton: {
+    backgroundColor: COLORS.accent.primary,
+    paddingHorizontal: RESPONSIVE_SPACING.lg,
+    paddingVertical: RESPONSIVE_SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+  },
+  createFirstPostButtonText: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+    color: COLORS.text.primary,
   },
   loadingContainer: {
-    paddingVertical: RESPONSIVE_SPACING.xl,
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: COLORS.background.primary,
   },
   loadingText: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.gray,
-  },
-  emptyContainer: {
-    paddingVertical: RESPONSIVE_SPACING.xl,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: FONT_SIZES.md,
-    color: COLORS.gray,
-    marginBottom: RESPONSIVE_SPACING.md,
-  },
-  emptyButton: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: RESPONSIVE_SPACING.md,
-    paddingVertical: RESPONSIVE_SPACING.sm,
-    borderRadius: BORDER_RADIUS.md,
-  },
-  emptyButtonText: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.white,
-    fontWeight: '600',
+    color: COLORS.text.secondary,
   },
 });

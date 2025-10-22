@@ -1,462 +1,307 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, Modal, TextInput, ActivityIndicator } from 'react-native';
-import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES, SAFE_AREA, DIMENSIONS } from '@/constants/theme';
-import { Settings, MapPin, Calendar, Link as LinkIcon, Users, Grid2x2 as Grid, LogOut, Mail, Phone, UserPlus } from 'lucide-react-native';
-import PostCard from '@/components/PostCard';
-import React, { useState } from 'react';
-import { userAPI, UpdateUserPayload } from '@/services/api';
-import { useState, useEffect, useCallback } from 'react';
-import { userAPI, UpdateUserPayload, postAPI, PostResponse } from '@/services/api';
-import { FileUploadResponse } from '@/services/mediaAPI';
-import ImageUploader from '@/components/ImageUploader';
-import SimpleImageUploader from '@/components/SimpleImageUploader';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, TextInput, Image } from 'react-native';
+import { COLORS, RESPONSIVE_SPACING, FONT_SIZES, BORDER_RADIUS } from '@/constants/theme';
+import { User, userAPI } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import FollowingList from '../components/FollowingList';
-import { FollowingDebugComponent } from '../components/FollowingDebugComponent';
-import { APIConnectionTest } from '../components/APIConnectionTest';
-import { APIConfigDisplay } from '../components/APIConfigDisplay';
+import ImageUploader from '@/components/ImageUploader';
 
-export default function ProfileScreen() {
-  const [activeTab, setActiveTab] = useState<'posts' | 'friends'>('posts');
-  const { user, logout, token } = useAuth();
-  const [displayUser, setDisplayUser] = useState(user);
-  const router = useRouter();
+interface ProfileScreenProps {
+  userId?: number;
+}
+
+export default function ProfileScreen({ userId }: ProfileScreenProps) {
+  const { user: currentUser } = useAuth();
+  const [profileUser, setProfileUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [editVisible, setEditVisible] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [userPosts, setUserPosts] = useState<PostResponse[]>([]);
-  const [isLoadingPosts, setIsLoadingPosts] = useState(false);
-  const [form, setForm] = useState<UpdateUserPayload>({
-    fullName: user?.fullName || '',
-    bio: user?.bio || '',
-    avatarUrl: user?.avatarUrl || '',
-    coverImageUrl: user?.coverImageUrl || '',
-    phoneNumber: user?.phoneNumber || '',
-    dateOfBirth: user?.dateOfBirth || '',
-    location: user?.location || '',
+  const [activeTab, setActiveTab] = useState<'posts' | 'about'>('posts');
+
+  // Form state
+  const [formData, setFormData] = useState({
+    fullName: '',
+    bio: '',
+    phoneNumber: '',
+    dateOfBirth: '',
+    location: '',
+    avatarUrl: '',
+    coverImageUrl: '',
   });
-  const [dobDay, setDobDay] = useState<string>(() => {
-    if (!user?.dateOfBirth) return '';
-    const d = new Date(user.dateOfBirth);
-    return d.getDate() ? String(d.getDate()) : '';
-  });
-  const [dobMonth, setDobMonth] = useState<string>(() => {
-    if (!user?.dateOfBirth) return '';
-    const d = new Date(user.dateOfBirth);
-    return d.getMonth() + 1 ? String(d.getMonth() + 1) : '';
-  });
-  const [dobYear, setDobYear] = useState<string>(() => {
-    if (!user?.dateOfBirth) return '';
-    const d = new Date(user.dateOfBirth);
-    return d.getFullYear() ? String(d.getFullYear()) : '';
-  });
-  const insets = useSafeAreaInsets();
 
-  // Function để refresh dữ liệu user từ API
-  const refreshUserData = async () => {
-    if (user?.id) {
-      try {
-        const updatedUser = await userAPI.getUserById(user.id);
-        setDisplayUser(updatedUser);
-      } catch (error) {
-        console.error('Error refreshing user data:', error);
-      }
-    }
-  };
-
-  // Refresh dữ liệu khi component mount
-  React.useEffect(() => {
-    refreshUserData();
-  }, [user?.id]);
-
-  const fetchUserPosts = useCallback(async () => {
-    if (!user?.id) return;
-    
-    try {
-      setIsLoadingPosts(true);
-      const posts = await postAPI.getPostsByUser(user.id);
-      setUserPosts(posts);
-    } catch (error) {
-      console.error('Error fetching user posts:', error);
-    } finally {
-      setIsLoadingPosts(false);
-    }
-  }, [user?.id]);
-
-  const handlePostDeleted = useCallback((postId: number) => {
-    setUserPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
-  }, []);
-
-  const handleLikeToggle = useCallback((postId: number, isLiked: boolean) => {
-    setUserPosts(prevPosts => 
-      prevPosts.map(post => 
-        post.id === postId 
-          ? { 
-              ...post, 
-              isLiked, 
-              likeCount: isLiked ? post.likeCount + 1 : Math.max(0, post.likeCount - 1)
-            }
-          : post
-      )
-    );
-  }, []);
+  const targetUserId = userId || currentUser?.id;
+  const isOwnProfile = !userId || userId === currentUser?.id;
 
   useEffect(() => {
-    if (activeTab === 'posts') {
-      fetchUserPosts();
+    if (targetUserId) {
+      loadUserProfile();
     }
-  }, [activeTab, fetchUserPosts]);
+  }, [targetUserId]);
 
-  const handleLogout = () => {
-    Alert.alert(
-      'Đăng xuất',
-      'Bạn có chắc chắn muốn đăng xuất?',
-      [
-        { text: 'Hủy', style: 'cancel' },
-        { 
-          text: 'Đăng xuất', 
-          style: 'destructive',
-          onPress: logout
-        }
-      ]
-    );
+  const loadUserProfile = async () => {
+    try {
+      setIsLoading(true);
+      const userData = await userAPI.getUserById(targetUserId!);
+      setProfileUser(userData);
+      
+      // Set form data for editing
+      setFormData({
+        fullName: userData.fullName,
+        bio: userData.bio || '',
+        phoneNumber: userData.phoneNumber,
+        dateOfBirth: userData.dateOfBirth || '',
+        location: userData.location || '',
+        avatarUrl: userData.avatarUrl || '',
+        coverImageUrl: userData.coverImageUrl || '',
+      });
+    } catch (error) {
+      console.error('Error loading user profile:', error);
+      Alert.alert('Lỗi', 'Không thể tải thông tin người dùng');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
+  const handleSaveProfile = async () => {
+    if (!profileUser) return;
+
+    try {
+      setSaving(true);
+      const updatedUser = await userAPI.updateUser(profileUser.id, formData);
+      setProfileUser(updatedUser);
+      setEditVisible(false);
+      Alert.alert('Thành công', 'Cập nhật hồ sơ thành công');
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      Alert.alert('Lỗi', 'Không thể cập nhật hồ sơ');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleImageUpload = (type: 'avatar' | 'cover', result: any) => {
+    setFormData(prev => ({
+      ...prev,
+      [`${type}Url`]: result.publicUrl,
+    }));
+  };
+
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Đang tải...</Text>
+      </View>
+    );
+  }
+
+  if (!profileUser) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>Không tìm thấy người dùng</Text>
+      </View>
+    );
+  }
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollView}>
-        <View style={styles.header}>
-          {displayUser?.coverImageUrl ? (
-            <Image source={{ uri: displayUser.coverImageUrl }} style={styles.coverPhoto} />
+    <View style={styles.container}>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Cover Image */}
+        <View style={styles.coverContainer}>
+          {profileUser.coverImageUrl ? (
+            <Image source={{ uri: profileUser.coverImageUrl }} style={styles.coverImage} />
           ) : (
-            <View style={styles.coverPhoto} />
+            <View style={styles.coverPlaceholder} />
           )}
-          <TouchableOpacity style={styles.settingsButton} onPress={handleLogout}>
-            <LogOut size={24} color={COLORS.black} />
-          </TouchableOpacity>
         </View>
 
+        {/* Profile Info */}
         <View style={styles.profileInfo}>
           <View style={styles.avatarContainer}>
-            {displayUser?.avatarUrl ? (
-              <Image source={{ uri: displayUser.avatarUrl }} style={styles.avatar} />
+            {profileUser.avatarUrl ? (
+              <Image source={{ uri: profileUser.avatarUrl }} style={styles.avatar} />
             ) : (
-              <View style={styles.avatar} />
+              <View style={styles.avatarPlaceholder}>
+                <Text style={styles.avatarText}>
+                  {profileUser.fullName.charAt(0).toUpperCase()}
+                </Text>
+              </View>
             )}
           </View>
 
-          <Text style={styles.name}>{displayUser?.fullName || 'Người dùng'}</Text>
-          <Text style={styles.bio}>
-            {displayUser?.bio || 'Chưa có tiểu sử'}
-          </Text>
+          <Text style={styles.userName}>{profileUser.fullName}</Text>
+          {profileUser.bio && <Text style={styles.bio}>{profileUser.bio}</Text>}
 
-          <View style={styles.infoRow}>
-            <Mail size={16} color={COLORS.darkGray} />
-            <Text style={styles.infoText}>{displayUser?.email || 'Chưa có email'}</Text>
-          </View>
-
-          {displayUser?.phoneNumber && (
-            <View style={styles.infoRow}>
-              <Phone size={16} color={COLORS.darkGray} />
-              <Text style={styles.infoText}>{displayUser.phoneNumber}</Text>
-            </View>
-          )}
-
-          {displayUser?.location && (
-            <View style={styles.infoRow}>
-              <MapPin size={16} color={COLORS.darkGray} />
-              <Text style={styles.infoText}>{displayUser.location}</Text>
-            </View>
-          )}
-
-          <View style={styles.infoRow}>
-            <Calendar size={16} color={COLORS.darkGray} />
-            <Text style={styles.infoText}>
-              Tham gia {displayUser?.createdAt ? new Date(displayUser.createdAt).toLocaleDateString('vi-VN') : 'Chưa xác định'}
-            </Text>
-          </View>
-
-          <View style={styles.stats}>
+          {/* Stats */}
+          <View style={styles.statsContainer}>
             <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{displayUser?.postsCount || 0}</Text>
+              <Text style={styles.statNumber}>{profileUser.postsCount}</Text>
               <Text style={styles.statLabel}>Bài viết</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{displayUser?.followersCount || 0}</Text>
+              <Text style={styles.statNumber}>{profileUser.followersCount}</Text>
               <Text style={styles.statLabel}>Người theo dõi</Text>
             </View>
             <View style={styles.statDivider} />
-            <TouchableOpacity 
-              style={styles.statItem}
-              onPress={() => {
-                if (displayUser?.id) {
-                  router.push(`/following?userId=${displayUser.id}`);
-                }
-              }}
-            >
-              <Text style={styles.statNumber}>{displayUser?.followingCount || 0}</Text>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{profileUser.followingCount}</Text>
               <Text style={styles.statLabel}>Đang theo dõi</Text>
-            </TouchableOpacity>
+            </View>
           </View>
 
-          <TouchableOpacity style={styles.editButton} onPress={() => setEditVisible(true)}>
-            <Text style={styles.editButtonText}>Chỉnh sửa hồ sơ</Text>
-          </TouchableOpacity>
+          {/* Action Buttons */}
+          {isOwnProfile && (
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={() => setEditVisible(true)}
+            >
+              <Text style={styles.editButtonText}>Chỉnh sửa hồ sơ</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
-        <View style={styles.tabs}>
+        {/* Tabs */}
+        <View style={styles.tabsContainer}>
           <TouchableOpacity
             style={[styles.tab, activeTab === 'posts' && styles.activeTab]}
             onPress={() => setActiveTab('posts')}
           >
-            <Grid size={20} color={activeTab === 'posts' ? COLORS.primary : COLORS.gray} />
             <Text style={[styles.tabText, activeTab === 'posts' && styles.activeTabText]}>
               Bài viết
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.tab, activeTab === 'friends' && styles.activeTab]}
-            onPress={() => setActiveTab('friends')}
+            style={[styles.tab, activeTab === 'about' && styles.activeTab]}
+            onPress={() => setActiveTab('about')}
           >
-            <Users size={20} color={activeTab === 'friends' ? COLORS.primary : COLORS.gray} />
-            <Text style={[styles.tabText, activeTab === 'friends' && styles.activeTabText]}>
-              Bạn bè
+            <Text style={[styles.tabText, activeTab === 'about' && styles.activeTabText]}>
+              Giới thiệu
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* Content Area */}
+        <View style={styles.contentArea}>
+          {activeTab === 'posts' ? (
+            <View style={styles.postsContainer}>
+              <Text style={styles.emptyText}>Chưa có bài viết nào</Text>
+            </View>
+          ) : (
+            <View style={styles.aboutContainer}>
+              <View style={styles.aboutItem}>
+                <Text style={styles.aboutLabel}>Số điện thoại</Text>
+                <Text style={styles.aboutValue}>{profileUser.phoneNumber}</Text>
+              </View>
+              {profileUser.dateOfBirth && (
+                <View style={styles.aboutItem}>
+                  <Text style={styles.aboutLabel}>Ngày sinh</Text>
+                  <Text style={styles.aboutValue}>{profileUser.dateOfBirth}</Text>
+                </View>
+              )}
+              {profileUser.location && (
+                <View style={styles.aboutItem}>
+                  <Text style={styles.aboutLabel}>Địa chỉ</Text>
+                  <Text style={styles.aboutValue}>{profileUser.location}</Text>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
       </ScrollView>
 
-      {/* Content area outside ScrollView to avoid nested VirtualizedList */}
-      <View style={styles.contentArea}>
-        {activeTab === 'posts' ? (
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <PostCard showImage={true} />
-            <PostCard showImage={false} />
-            <PostCard showImage={true} />
-          </ScrollView>
-          <View>
-            {isLoadingPosts ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={COLORS.primary} />
-                <Text style={styles.loadingText}>Đang tải bài viết...</Text>
-              </View>
-            ) : userPosts.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>Bạn chưa có bài viết nào</Text>
-                <Text style={styles.emptySubtext}>Hãy tạo bài viết đầu tiên của bạn!</Text>
-              </View>
-            ) : (
-              userPosts.map((post) => (
-                <PostCard
-                  key={post.id}
-                  postData={post}
-                  onPostDeleted={handlePostDeleted}
-                  onLikeToggle={handleLikeToggle}
-                  showImage={!!post.imageUrl || !!post.videoUrl}
-                />
-              ))
-            )}
-          </View>
-        ) : (
-          <View style={styles.tabContent}>
-            <APIConfigDisplay />
-            <APIConnectionTest />
-            <FollowingDebugComponent />
-            <FollowingList userId={displayUser?.id || 0} />
-          </View>
-        )}
-      </View>
-
-      <Modal visible={editVisible} transparent animationType="slide" onRequestClose={() => setEditVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+      {/* Edit Modal */}
+      <Modal
+        visible={editVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setEditVisible(false)}>
+              <Text style={styles.modalCancelText}>Hủy</Text>
+            </TouchableOpacity>
             <Text style={styles.modalTitle}>Chỉnh sửa hồ sơ</Text>
-
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 480 }}>
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Họ tên</Text>
-                <TextInput
-                  style={styles.input}
-                  value={form.fullName}
-                  onChangeText={(t) => setForm({ ...form, fullName: t })}
-                  placeholder="Nhập họ tên"
-                />
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Tiểu sử</Text>
-                <TextInput
-                  style={[styles.input, { height: 88 }]}
-                  value={form.bio}
-                  onChangeText={(t) => setForm({ ...form, bio: t })}
-                  placeholder="Giới thiệu bản thân"
-                  multiline
-                />
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Ảnh đại diện</Text>
-                {form.avatarUrl ? (
-                  <Image source={{ uri: form.avatarUrl }} style={styles.previewImage} />
-                ) : null}
-                <SimpleImageUploader
-                  folder="avatars"
-                  onUploadComplete={(res: FileUploadResponse) => {
-                    console.log('ProfileScreen: Upload response:', res);
-                    console.log('ProfileScreen: Extracted URL:', res.publicUrl);
-                    if (res.publicUrl) {
-                      setForm({ ...form, avatarUrl: res.publicUrl });
-
-                    const url = Array.isArray(res) ? res[0]?.publicUrl : res?.publicUrl;
-                    console.log('ProfileScreen: Extracted URL:', url);
-                    if (url) {
-                      setForm({ ...form, avatarUrl: url });
-                    } else {
-                      console.error('ProfileScreen: No URL found in upload response');
-                    }
-                  }}
-                  onUploadError={(error: any) => {
-                    console.error('ProfileScreen: Upload error:', error);
-                    Alert.alert('Lỗi', 'Không thể tải lên ảnh đại diện');
-                  }}
-                />
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Ảnh bìa</Text>
-                {form.coverImageUrl ? (
-                  <Image source={{ uri: form.coverImageUrl }} style={styles.previewCover} />
-                ) : null}
-                <SimpleImageUploader
-                  folder="covers"
-                  onUploadComplete={(res: FileUploadResponse) => {
-                    console.log('ProfileScreen: Cover upload response:', res);
-                    console.log('ProfileScreen: Extracted cover URL:', res.publicUrl);
-                    if (res.publicUrl) {
-                      setForm({ ...form, coverImageUrl: res.publicUrl });
-                    } else {
-                      console.error('ProfileScreen: No URL found in cover upload response');
-                    }
-                  }}
-                  onUploadError={(error: any) => {
-                    console.error('ProfileScreen: Cover upload error:', error);
-                    Alert.alert('Lỗi', 'Không thể tải lên ảnh bìa');
-                  }}
-                />
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Số điện thoại</Text>
-                <TextInput
-                  style={styles.input}
-                  value={form.phoneNumber}
-                  onChangeText={(t) => setForm({ ...form, phoneNumber: t })}
-                  placeholder="Nhập số điện thoại"
-                  keyboardType="phone-pad"
-                />
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Ngày sinh</Text>
-                <View style={styles.dobRow}>
-                  <TextInput
-                    style={[styles.input, styles.dobInput]}
-                    value={dobDay}
-                    onChangeText={(t) => {
-                      setDobDay(t.replace(/[^0-9]/g, ''));
-                    }}
-                    placeholder="DD"
-                    keyboardType="number-pad"
-                    maxLength={2}
-                  />
-                  <TextInput
-                    style={[styles.input, styles.dobInput]}
-                    value={dobMonth}
-                    onChangeText={(t) => {
-                      setDobMonth(t.replace(/[^0-9]/g, ''));
-                    }}
-                    placeholder="MM"
-                    keyboardType="number-pad"
-                    maxLength={2}
-                  />
-                  <TextInput
-                    style={[styles.input, styles.dobInputYear]}
-                    value={dobYear}
-                    onChangeText={(t) => {
-                      setDobYear(t.replace(/[^0-9]/g, ''));
-                    }}
-                    placeholder="YYYY"
-                    keyboardType="number-pad"
-                    maxLength={4}
-                  />
-                </View>
-                <Text style={styles.helperText}>Định dạng: ngày/tháng/năm</Text>
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Địa điểm</Text>
-                <TextInput
-                  style={styles.input}
-                  value={form.location}
-                  onChangeText={(t) => setForm({ ...form, location: t })}
-                  placeholder="Ví dụ: Hà Nội"
-                />
-              </View>
-            </ScrollView>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={[styles.actionBtn, styles.cancelBtn]} onPress={() => setEditVisible(false)} disabled={saving}>
-                <Text style={styles.cancelText}>Hủy</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.actionBtn, styles.saveBtn]}
-                onPress={async () => {
-                  if (!user?.id) {
-                    Alert.alert('Lỗi', 'Không xác định được người dùng.');
-                    return;
-                  }
-                  try {
-                    setSaving(true);
-                    // Tính ISO thực từ ngày/tháng/năm nếu có đủ dữ liệu
-                    let isoDob = form.dateOfBirth;
-                    if (dobDay && dobMonth && dobYear) {
-                      const d = new Date(
-                        Number(dobYear),
-                        Number(dobMonth) - 1,
-                        Number(dobDay)
-                      );
-                      if (!isNaN(d.getTime())) {
-                        isoDob = d.toISOString();
-                      }
-                    }
-
-                    const payload: UpdateUserPayload = {
-                      fullName: form.fullName,
-                      bio: form.bio,
-                      avatarUrl: form.avatarUrl,
-                      coverImageUrl: form.coverImageUrl,
-                      phoneNumber: form.phoneNumber,
-                      dateOfBirth: isoDob,
-                      location: form.location,
-                    };
-                    await userAPI.updateUser(user.id, payload);
-                // Optimistically update local display data
-                setDisplayUser((prev) => prev ? { ...prev, ...payload } as any : (payload as any));
-                    Alert.alert('Thành công', 'Cập nhật hồ sơ thành công.');
-                    setEditVisible(false);
-                  } catch (e: any) {
-                    Alert.alert('Lỗi', e?.response?.data?.message || 'Cập nhật không thành công.');
-                  } finally {
-                    setSaving(false);
-                  }
-                }}
-                disabled={saving}
-              >
-                {saving ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.saveText}>Lưu</Text>}
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity onPress={handleSaveProfile} disabled={saving}>
+              <Text style={[styles.modalSaveText, saving && styles.modalSaveTextDisabled]}>
+                {saving ? 'Đang lưu...' : 'Lưu'}
+              </Text>
+            </TouchableOpacity>
           </View>
+
+          <ScrollView style={styles.modalContent}>
+            {/* Avatar Upload */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Ảnh đại diện</Text>
+              <ImageUploader
+                onUploadComplete={(result) => handleImageUpload('avatar', result)}
+                folder="avatars"
+                maxImages={1}
+              />
+            </View>
+
+            {/* Cover Upload */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Ảnh bìa</Text>
+              <ImageUploader
+                onUploadComplete={(result) => handleImageUpload('cover', result)}
+                folder="covers"
+                maxImages={1}
+              />
+            </View>
+
+            {/* Form Fields */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Họ và tên</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.fullName}
+                onChangeText={(text) => setFormData(prev => ({ ...prev, fullName: text }))}
+                placeholder="Nhập họ và tên"
+              />
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Giới thiệu</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={formData.bio}
+                onChangeText={(text) => setFormData(prev => ({ ...prev, bio: text }))}
+                placeholder="Giới thiệu về bản thân"
+                multiline
+                numberOfLines={4}
+              />
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Số điện thoại</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.phoneNumber}
+                onChangeText={(text) => setFormData(prev => ({ ...prev, phoneNumber: text }))}
+                placeholder="Nhập số điện thoại"
+                keyboardType="phone-pad"
+              />
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Ngày sinh</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.dateOfBirth}
+                onChangeText={(text) => setFormData(prev => ({ ...prev, dateOfBirth: text }))}
+                placeholder="DD/MM/YYYY"
+              />
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Địa chỉ</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.location}
+                onChangeText={(text) => setFormData(prev => ({ ...prev, location: text }))}
+                placeholder="Nhập địa chỉ"
+              />
+            </View>
+          </ScrollView>
         </View>
       </Modal>
     </View>
@@ -466,252 +311,221 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.lightGray,
+    backgroundColor: COLORS.background.primary,
   },
-  scrollView: {
-    flex: 0,
-  },
-  contentArea: {
+  loadingContainer: {
     flex: 1,
-  },
-  header: {
-    position: 'relative',
-  },
-  coverPhoto: {
-    width: '100%',
-    height: 200,
-    backgroundColor: COLORS.primary + '40',
-  },
-  settingsButton: {
-    position: 'absolute',
-    top: 60,
-    right: RESPONSIVE_SPACING.md,
-    width: 40,
-    height: 40,
-    borderRadius: BORDER_RADIUS.full,
-    backgroundColor: COLORS.white,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  loadingText: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.text.secondary,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorText: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.text.secondary,
+  },
+  coverContainer: {
+    height: 200,
+    backgroundColor: COLORS.background.secondary,
+  },
+  coverImage: {
+    width: '100%',
+    height: '100%',
+  },
+  coverPlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: COLORS.accent.primary + '20',
+  },
   profileInfo: {
-    backgroundColor: COLORS.white,
+    alignItems: 'center',
     paddingHorizontal: RESPONSIVE_SPACING.md,
     paddingBottom: RESPONSIVE_SPACING.md,
-    marginBottom: RESPONSIVE_SPACING.sm,
   },
   avatarContainer: {
-    alignItems: 'center',
-    marginTop: -48,
-    marginBottom: RESPONSIVE_SPACING.sm,
+    marginTop: -50,
+    marginBottom: RESPONSIVE_SPACING.md,
   },
   avatar: {
-    width: 120,
-    height: 120,
-    borderRadius: BORDER_RADIUS.full,
-    backgroundColor: COLORS.lightGray,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     borderWidth: 4,
-    borderColor: COLORS.white,
+    borderColor: COLORS.background.primary,
   },
-  name: {
-    fontSize: RESPONSIVE_FONT_SIZES.xl,
+  avatarPlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: COLORS.accent.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 4,
+    borderColor: COLORS.background.primary,
+  },
+  avatarText: {
+    fontSize: FONT_SIZES.xl,
     fontWeight: '700',
-    color: COLORS.black,
-    textAlign: 'center',
+    color: COLORS.text.primary,
+  },
+  userName: {
+    fontSize: FONT_SIZES.xl,
+    fontWeight: '700',
+    color: COLORS.text.primary,
     marginBottom: RESPONSIVE_SPACING.xs,
   },
   bio: {
-    fontSize: RESPONSIVE_FONT_SIZES.md,
-    color: COLORS.darkGray,
+    fontSize: FONT_SIZES.md,
+    color: COLORS.text.secondary,
     textAlign: 'center',
     marginBottom: RESPONSIVE_SPACING.md,
   },
-  infoRow: {
+  statsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: RESPONSIVE_SPACING.xs,
-    gap: RESPONSIVE_SPACING.xs,
-  },
-  infoText: {
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
-    color: COLORS.darkGray,
-  },
-  link: {
-    color: COLORS.primary,
-  },
-  stats: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: RESPONSIVE_SPACING.md,
     marginBottom: RESPONSIVE_SPACING.md,
   },
   statItem: {
     alignItems: 'center',
+    paddingHorizontal: RESPONSIVE_SPACING.md,
   },
   statNumber: {
-    fontSize: RESPONSIVE_FONT_SIZES.lg,
+    fontSize: FONT_SIZES.lg,
     fontWeight: '700',
-    color: COLORS.black,
-    marginBottom: 4,
+    color: COLORS.text.primary,
   },
   statLabel: {
-    fontSize: RESPONSIVE_FONT_SIZES.xs,
-    color: COLORS.gray,
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.text.secondary,
+    marginTop: RESPONSIVE_SPACING.xs,
   },
   statDivider: {
     width: 1,
-    backgroundColor: COLORS.border,
+    height: 40,
+    backgroundColor: COLORS.border.primary,
   },
   editButton: {
-    backgroundColor: COLORS.primary,
-    height: 44,
+    backgroundColor: COLORS.accent.primary,
+    paddingHorizontal: RESPONSIVE_SPACING.lg,
+    paddingVertical: RESPONSIVE_SPACING.sm,
     borderRadius: BORDER_RADIUS.md,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   editButtonText: {
-    fontSize: RESPONSIVE_FONT_SIZES.md,
+    fontSize: FONT_SIZES.md,
     fontWeight: '600',
-    color: COLORS.white,
+    color: COLORS.text.primary,
   },
-  tabs: {
+  tabsContainer: {
     flexDirection: 'row',
-    backgroundColor: COLORS.white,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    marginBottom: RESPONSIVE_SPACING.sm,
+    borderBottomColor: COLORS.border.primary,
   },
   tab: {
     flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
     paddingVertical: RESPONSIVE_SPACING.md,
-    gap: RESPONSIVE_SPACING.xs,
+    alignItems: 'center',
   },
   activeTab: {
     borderBottomWidth: 2,
-    borderBottomColor: COLORS.primary,
+    borderBottomColor: COLORS.accent.primary,
   },
   tabText: {
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
-    color: COLORS.gray,
-    fontWeight: '500',
+    fontSize: FONT_SIZES.md,
+    color: COLORS.text.secondary,
   },
   activeTabText: {
-    color: COLORS.primary,
+    color: COLORS.accent.primary,
     fontWeight: '600',
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center',
-    padding: RESPONSIVE_SPACING.md,
+  contentArea: {
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.lg,
   },
-  modalContent: {
-    backgroundColor: COLORS.white,
-    borderRadius: BORDER_RADIUS.md,
-    padding: RESPONSIVE_SPACING.md,
+  postsContainer: {
+    alignItems: 'center',
+    paddingVertical: RESPONSIVE_SPACING.xl,
+  },
+  emptyText: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.text.secondary,
+  },
+  aboutContainer: {
+    gap: RESPONSIVE_SPACING.md,
+  },
+  aboutItem: {
+    paddingVertical: RESPONSIVE_SPACING.sm,
+  },
+  aboutLabel: {
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.text.secondary,
+    marginBottom: RESPONSIVE_SPACING.xs,
+  },
+  aboutValue: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.text.primary,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: COLORS.background.primary,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border.primary,
+  },
+  modalCancelText: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.text.secondary,
   },
   modalTitle: {
-    fontSize: RESPONSIVE_FONT_SIZES.lg,
-    fontWeight: '700',
-    color: COLORS.black,
-    marginBottom: RESPONSIVE_SPACING.sm,
-    textAlign: 'center',
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '600',
+    color: COLORS.text.primary,
+  },
+  modalSaveText: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.accent.primary,
+    fontWeight: '600',
+  },
+  modalSaveTextDisabled: {
+    opacity: 0.5,
+  },
+  modalContent: {
+    flex: 1,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
   },
   formGroup: {
-    marginBottom: RESPONSIVE_SPACING.sm,
+    marginBottom: RESPONSIVE_SPACING.md,
   },
   label: {
-    fontSize: RESPONSIVE_FONT_SIZES.xs,
-    color: COLORS.gray,
-    marginBottom: 6,
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+    color: COLORS.text.primary,
+    marginBottom: RESPONSIVE_SPACING.xs,
   },
   input: {
     borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: BORDER_RADIUS.sm,
+    borderColor: COLORS.border.primary,
+    borderRadius: BORDER_RADIUS.md,
     paddingHorizontal: RESPONSIVE_SPACING.sm,
-    paddingVertical: 10,
-    backgroundColor: COLORS.white,
-    color: COLORS.black,
+    paddingVertical: RESPONSIVE_SPACING.sm,
+    fontSize: FONT_SIZES.md,
+    color: COLORS.text.primary,
+    backgroundColor: COLORS.background.secondary,
   },
-  previewImage: {
-    width: 80,
-    height: 80,
-    borderRadius: BORDER_RADIUS.md,
-    marginBottom: RESPONSIVE_SPACING.xs,
-  },
-  previewCover: {
-    width: '100%',
-    height: 120,
-    borderRadius: BORDER_RADIUS.md,
-    marginBottom: RESPONSIVE_SPACING.xs,
-    backgroundColor: COLORS.lightGray,
-  },
-  dobRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: RESPONSIVE_SPACING.xs,
-  },
-  dobInput: {
-    flex: 1,
-  },
-  dobInputYear: {
-    flex: 2,
-  },
-  helperText: {
-    marginTop: 6,
-    fontSize: RESPONSIVE_FONT_SIZES.xs,
-    color: COLORS.gray,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: RESPONSIVE_SPACING.sm,
-    marginTop: RESPONSIVE_SPACING.sm,
-  },
-  actionBtn: {
-    height: 44,
-    paddingHorizontal: RESPONSIVE_SPACING.md,
-    borderRadius: BORDER_RADIUS.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cancelBtn: {
-    backgroundColor: COLORS.lightGray,
-  },
-  saveBtn: {
-    backgroundColor: COLORS.primary,
-  },
-  cancelText: {
-    color: COLORS.black,
-    fontWeight: '600',
-  },
-  saveText: {
-    color: COLORS.white,
-    fontWeight: '700',
-  },
-  loadingContainer: {
-    paddingVertical: RESPONSIVE_SPACING.xl,
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: RESPONSIVE_FONT_SIZES.md,
-    color: COLORS.gray,
-    marginTop: RESPONSIVE_SPACING.sm,
-  },
-  emptyContainer: {
-    paddingVertical: RESPONSIVE_SPACING.xl,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: RESPONSIVE_FONT_SIZES.md,
-    color: COLORS.gray,
-    marginBottom: RESPONSIVE_SPACING.xs,
-  },
-  emptySubtext: {
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
-    color: COLORS.gray,
+  textArea: {
+    height: 100,
+    textAlignVertical: 'top',
   },
 });

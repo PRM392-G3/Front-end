@@ -42,90 +42,62 @@ export default function TagInput({
   const loadAllTags = async () => {
     try {
       setIsLoading(true);
-      console.log('TagInput: Loading tags from API...');
       const tags = await tagAPI.getAllTags();
-      console.log('TagInput: API response:', tags);
-      console.log('TagInput: Tags count:', tags?.length);
-      console.log('TagInput: Tags type:', typeof tags);
-      
-      if (Array.isArray(tags)) {
-        setAllTags(tags);
-        console.log('TagInput: Successfully loaded tags:', tags);
-      } else {
-        console.error('TagInput: Invalid response format, expected array but got:', typeof tags);
-        setAllTags([]);
-      }
+      setAllTags(tags);
+      console.log('TagInput: Loaded', tags.length, 'tags');
     } catch (error) {
       console.error('TagInput: Error loading tags:', error);
-      console.error('TagInput: Error details:', error);
       setAllTags([]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Filter suggestions based on input
-  useEffect(() => {
-    if (inputValue.trim().length > 0) {
-      const filtered = allTags.filter(tag => 
-        tag.name.toLowerCase().includes(inputValue.toLowerCase()) &&
+  const handleInputChange = (text: string) => {
+    setInputValue(text);
+    
+    if (text.trim()) {
+      // Filter suggestions based on input
+      const filteredTags = allTags.filter(tag =>
+        tag.name.toLowerCase().includes(text.toLowerCase()) &&
         !selectedTags.includes(tag.name)
       );
-      setSuggestions(filtered.slice(0, 5)); // Show max 5 suggestions
-      setShowSuggestions(filtered.length > 0);
+      setSuggestions(filteredTags.slice(0, 5)); // Show max 5 suggestions
+      setShowSuggestions(true);
     } else {
       setSuggestions([]);
       setShowSuggestions(false);
     }
-  }, [inputValue, allTags, selectedTags]);
-
-  const handleInputChange = (text: string) => {
-    setInputValue(text);
   };
 
-  const handleAddTag = (tagName: string) => {
-    const trimmedTag = tagName.trim().toLowerCase();
+  const addTag = (tagName: string) => {
+    const cleanTag = tagName.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
     
-    if (!trimmedTag) return;
-    
-    // Check if tag already exists
-    if (selectedTags.includes(trimmedTag)) {
-      return;
+    if (cleanTag && !selectedTags.includes(cleanTag) && selectedTags.length < maxTags) {
+      onTagsChange([...selectedTags, cleanTag]);
+      setInputValue('');
+      setShowSuggestions(false);
+      Keyboard.dismiss();
     }
-    
-    // Check max tags limit
-    if (selectedTags.length >= maxTags) {
-      return;
-    }
-    
-    // Add tag
-    const newTags = [...selectedTags, trimmedTag];
-    onTagsChange(newTags);
-    
-    // Clear input and hide suggestions
-    setInputValue('');
-    setShowSuggestions(false);
-    Keyboard.dismiss();
   };
 
-  const handleRemoveTag = (tagToRemove: string) => {
-    const newTags = selectedTags.filter(tag => tag !== tagToRemove);
-    onTagsChange(newTags);
+  const removeTag = (tagToRemove: string) => {
+    onTagsChange(selectedTags.filter(tag => tag !== tagToRemove));
   };
 
-  const handleInputSubmit = () => {
+  const handleSubmit = () => {
     if (inputValue.trim()) {
-      handleAddTag(inputValue.trim());
+      addTag(inputValue.trim());
     }
   };
 
   const handleSuggestionPress = (tag: Tag) => {
-    handleAddTag(tag.name);
+    addTag(tag.name);
   };
 
   const handleInputFocus = () => {
-    if (inputValue.trim().length > 0) {
-      setShowSuggestions(suggestions.length > 0);
+    if (inputValue.trim()) {
+      setShowSuggestions(true);
     }
   };
 
@@ -136,129 +108,129 @@ export default function TagInput({
     }, 200);
   };
 
-  const renderTag = (tag: string, index: number) => (
-    <View key={index} style={styles.tagContainer}>
-      <Hash size={12} color={COLORS.primary} />
-      <Text style={styles.tagText}>{tag}</Text>
-      {!disabled && (
-        <TouchableOpacity
-          style={styles.removeTagButton}
-          onPress={() => handleRemoveTag(tag)}
-        >
-          <X size={12} color={COLORS.gray} />
-        </TouchableOpacity>
-      )}
-    </View>
-  );
-
-  const renderSuggestion = ({ item }: { item: Tag }) => (
-    <TouchableOpacity
-      style={styles.suggestionItem}
-      onPress={() => handleSuggestionPress(item)}
-    >
-      <Hash size={16} color={COLORS.primary} />
-      <View style={styles.suggestionContent}>
-        <Text style={styles.suggestionName}>{item.name}</Text>
-        {item.description && (
-          <Text style={styles.suggestionDescription}>{item.description}</Text>
-        )}
-      </View>
-      <Text style={styles.suggestionUsage}>{item.usageCount} posts</Text>
-    </TouchableOpacity>
-  );
-
   return (
     <View style={styles.container}>
       {/* Selected Tags */}
-      {selectedTags.length > 0 && (
-        <View style={styles.selectedTagsContainer}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.tagsScrollView}
-          >
-            {selectedTags.map((tag, index) => renderTag(tag, index))}
-          </ScrollView>
-        </View>
-      )}
-
-      {/* Input Field */}
-      <View style={styles.inputContainer}>
-        <TextInput
-          ref={inputRef}
-          style={[styles.input, disabled && styles.inputDisabled]}
-          placeholder={placeholder}
-          placeholderTextColor={COLORS.gray}
-          value={inputValue}
-          onChangeText={handleInputChange}
-          onSubmitEditing={handleInputSubmit}
-          onFocus={handleInputFocus}
-          onBlur={handleInputBlur}
-          editable={!disabled}
-          maxLength={50}
-          returnKeyType="done"
-        />
-        {inputValue.trim() && !disabled && (
+      <View style={styles.selectedTagsContainer}>
+        {selectedTags.map((tag, index) => (
+          <View key={index} style={styles.tag}>
+            <Hash size={12} color={COLORS.accent.primary} />
+            <Text style={styles.tagText}>{tag}</Text>
+            {!disabled && (
+              <TouchableOpacity
+                style={styles.removeTagButton}
+                onPress={() => removeTag(tag)}
+              >
+                <X size={12} color={COLORS.text.secondary} />
+              </TouchableOpacity>
+            )}
+          </View>
+        ))}
+        
+        {selectedTags.length < maxTags && (
           <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => handleAddTag(inputValue.trim())}
+            style={styles.addTagButton}
+            onPress={() => inputRef.current?.focus()}
+            disabled={disabled}
           >
-            <Plus size={16} color={COLORS.white} />
+            <Plus size={16} color={COLORS.accent.primary} />
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Suggestions Dropdown */}
+      {/* Input Field */}
+      {selectedTags.length < maxTags && (
+        <View style={styles.inputContainer}>
+          <TextInput
+            ref={inputRef}
+            style={[styles.input, disabled && styles.inputDisabled]}
+            value={inputValue}
+            onChangeText={handleInputChange}
+            onFocus={handleInputFocus}
+            onBlur={handleInputBlur}
+            onSubmitEditing={handleSubmit}
+            placeholder={placeholder}
+            placeholderTextColor={COLORS.text.secondary}
+            editable={!disabled}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          
+          {inputValue.trim() && (
+            <TouchableOpacity
+              style={styles.submitButton}
+              onPress={handleSubmit}
+              disabled={disabled}
+            >
+              <Text style={styles.submitButtonText}>Thêm</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {/* Suggestions */}
       {showSuggestions && suggestions.length > 0 && (
         <View style={styles.suggestionsContainer}>
-          <ScrollView style={styles.suggestionsList} keyboardShouldPersistTaps="handled">
-            {suggestions.map((item) => (
-              <View key={item.id.toString()}>
-                {renderSuggestion({ item })}
-              </View>
+          <ScrollView
+            style={styles.suggestionsList}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {suggestions.map((tag, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.suggestionItem}
+                onPress={() => handleSuggestionPress(tag)}
+              >
+                <Hash size={14} color={COLORS.accent.primary} />
+                <Text style={styles.suggestionText}>{tag.name}</Text>
+                <Text style={styles.suggestionCount}>
+                  {tag.usageCount} bài viết
+                </Text>
+              </TouchableOpacity>
             ))}
           </ScrollView>
         </View>
       )}
 
-      {/* Helper Text */}
-      <View style={styles.helperContainer}>
-        <Text style={styles.helperText}>
-          {selectedTags.length}/{maxTags} tags
-        </Text>
-        {selectedTags.length >= maxTags && (
-          <Text style={styles.warningText}>
-            Đã đạt giới hạn số lượng tag
-          </Text>
-        )}
-      </View>
+      {/* Loading Indicator */}
+      {isLoading && (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Đang tải hashtag...</Text>
+        </View>
+      )}
+
+      {/* Tag Count */}
+      <Text style={styles.tagCount}>
+        {selectedTags.length}/{maxTags} hashtag
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: RESPONSIVE_SPACING.md,
+    marginVertical: RESPONSIVE_SPACING.sm,
   },
   selectedTagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
     marginBottom: RESPONSIVE_SPACING.sm,
   },
-  tagsScrollView: {
-    maxHeight: 40,
-  },
-  tagContainer: {
+  tag: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.primary + '20',
-    borderRadius: BORDER_RADIUS.full,
+    backgroundColor: COLORS.accent.primary + '20',
     paddingHorizontal: RESPONSIVE_SPACING.sm,
     paddingVertical: RESPONSIVE_SPACING.xs,
+    borderRadius: BORDER_RADIUS.sm,
     marginRight: RESPONSIVE_SPACING.xs,
     marginBottom: RESPONSIVE_SPACING.xs,
   },
   tagText: {
     fontSize: RESPONSIVE_FONT_SIZES.sm,
-    color: COLORS.primary,
+    color: COLORS.accent.primary,
     fontWeight: '500',
     marginLeft: RESPONSIVE_SPACING.xs,
   },
@@ -266,47 +238,50 @@ const styles = StyleSheet.create({
     marginLeft: RESPONSIVE_SPACING.xs,
     padding: 2,
   },
+  addTagButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.accent.primary + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: RESPONSIVE_SPACING.xs,
+  },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    backgroundColor: COLORS.background.secondary,
     borderRadius: BORDER_RADIUS.md,
-    backgroundColor: COLORS.white,
+    paddingHorizontal: RESPONSIVE_SPACING.sm,
+    marginBottom: RESPONSIVE_SPACING.sm,
   },
   input: {
     flex: 1,
-    paddingHorizontal: RESPONSIVE_SPACING.md,
-    paddingVertical: RESPONSIVE_SPACING.sm,
     fontSize: RESPONSIVE_FONT_SIZES.md,
-    color: COLORS.black,
+    color: COLORS.text.primary,
+    paddingVertical: RESPONSIVE_SPACING.sm,
   },
   inputDisabled: {
-    backgroundColor: COLORS.background,
-    color: COLORS.gray,
+    opacity: 0.5,
   },
-  addButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: BORDER_RADIUS.md,
-    padding: RESPONSIVE_SPACING.sm,
-    marginRight: RESPONSIVE_SPACING.sm,
+  submitButton: {
+    backgroundColor: COLORS.accent.primary,
+    paddingHorizontal: RESPONSIVE_SPACING.sm,
+    paddingVertical: RESPONSIVE_SPACING.xs,
+    borderRadius: BORDER_RADIUS.sm,
+  },
+  submitButtonText: {
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    color: COLORS.text.primary,
+    fontWeight: '600',
   },
   suggestionsContainer: {
-    position: 'absolute',
-    top: '100%',
-    left: 0,
-    right: 0,
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    backgroundColor: COLORS.background.primary,
     borderRadius: BORDER_RADIUS.md,
-    marginTop: RESPONSIVE_SPACING.xs,
-    zIndex: 1000,
-    elevation: 5,
-    shadowColor: COLORS.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: COLORS.border.primary,
+    maxHeight: 200,
+    marginBottom: RESPONSIVE_SPACING.sm,
   },
   suggestionsList: {
     maxHeight: 200,
@@ -314,43 +289,32 @@ const styles = StyleSheet.create({
   suggestionItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingHorizontal: RESPONSIVE_SPACING.sm,
     paddingVertical: RESPONSIVE_SPACING.sm,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: COLORS.border.secondary,
   },
-  suggestionContent: {
-    flex: 1,
-    marginLeft: RESPONSIVE_SPACING.sm,
-  },
-  suggestionName: {
-    fontSize: RESPONSIVE_FONT_SIZES.md,
-    color: COLORS.black,
-    fontWeight: '500',
-  },
-  suggestionDescription: {
+  suggestionText: {
     fontSize: RESPONSIVE_FONT_SIZES.sm,
-    color: COLORS.gray,
-    marginTop: 2,
+    color: COLORS.text.primary,
+    marginLeft: RESPONSIVE_SPACING.xs,
+    flex: 1,
   },
-  suggestionUsage: {
+  suggestionCount: {
     fontSize: RESPONSIVE_FONT_SIZES.xs,
-    color: COLORS.gray,
-    fontStyle: 'italic',
+    color: COLORS.text.secondary,
   },
-  helperContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  loadingContainer: {
+    paddingVertical: RESPONSIVE_SPACING.sm,
     alignItems: 'center',
-    marginTop: RESPONSIVE_SPACING.xs,
   },
-  helperText: {
-    fontSize: RESPONSIVE_FONT_SIZES.xs,
-    color: COLORS.gray,
+  loadingText: {
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    color: COLORS.text.secondary,
   },
-  warningText: {
+  tagCount: {
     fontSize: RESPONSIVE_FONT_SIZES.xs,
-    color: COLORS.error,
-    fontWeight: '500',
+    color: COLORS.text.secondary,
+    textAlign: 'right',
   },
 });

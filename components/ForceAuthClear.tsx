@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';

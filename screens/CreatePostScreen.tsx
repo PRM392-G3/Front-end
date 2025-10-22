@@ -1,331 +1,190 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES } from '@/constants/theme';
-import { ArrowLeft, Send, Image as ImageIcon, Hash } from 'lucide-react-native';
-import ImageUploader from '@/components/ImageUploader';
-import SimpleImageUploader from '@/components/SimpleImageUploader';
-import SimpleVideoUpload from '@/components/SimpleVideoUpload';
-import TagInput from '@/components/TagInput';
-import { postAPI, CreatePostRequest } from '@/services/api';
-import { mediaAPI, FileUploadResponse } from '@/services/mediaAPI';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput, Image } from 'react-native';
+import { COLORS, RESPONSIVE_SPACING, FONT_SIZES, BORDER_RADIUS } from '@/constants/theme';
+import { X, Send } from 'lucide-react-native';
+import { PostResponse, postAPI } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
+import ImageUploader from '@/components/ImageUploader';
+import VideoUploader from '@/components/VideoUploader';
+import TagInput from '@/components/TagInput';
 
 interface CreatePostScreenProps {
-  navigation?: any;
-  onPostCreated?: (post: any) => void;
+  onClose: () => void;
+  onPostCreated?: (post: PostResponse) => void;
 }
 
-export default function CreatePostScreen({ navigation, onPostCreated }: CreatePostScreenProps) {
-  const [content, setContent] = useState('');
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [tags, setTags] = useState<string[]>([]);
-  const [isPublic, setIsPublic] = useState(true);
-  const [isCreating, setIsCreating] = useState(false);
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
-  
-  // Media type: 'image' | 'video' | null
-  const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
-  
+export default function CreatePostScreen({ onClose, onPostCreated }: CreatePostScreenProps) {
   const { user } = useAuth();
-  const insets = useSafeAreaInsets();
-
-  const handleImageUploadStart = () => {
-    console.log('CreatePostScreen: Image upload started...');
-    setIsUploadingImage(true);
-  };
-
-  const handleImageUploadComplete = (result: FileUploadResponse) => {
-    console.log('CreatePostScreen: Image upload complete:', result);
-    setImageUrl(result.publicUrl);
-    setVideoUrl(null); // Clear video if image is uploaded
-    setMediaType('image');
-    setIsUploadingImage(false);
-  };
-
-  const handleImageUploadError = (error: any) => {
-    console.error('CreatePostScreen: Image upload error:', error);
-    setIsUploadingImage(false);
-    Alert.alert('Lỗi', 'Không thể tải lên ảnh. Vui lòng thử lại.');
-  };
-
+  const [content, setContent] = useState('');
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [isCreating, setIsCreating] = useState(false);
 
   const handleCreatePost = async () => {
-    if (!content.trim()) {
-      Alert.alert('Lỗi', 'Vui lòng nhập nội dung bài viết.');
-      return;
-    }
+    if (!user || !content.trim() || isCreating) return;
 
-    if (!user?.id) {
-      Alert.alert('Lỗi', 'Không xác định được người dùng.');
-      return;
-    }
-
+    setIsCreating(true);
     try {
-      setIsCreating(true);
-
-      const postData: CreatePostRequest = {
+      const postData = {
         userId: user.id,
         content: content.trim(),
-        imageUrl: imageUrl || undefined,
-        videoUrl: videoUrl || undefined,
-        tags: tags.length > 0 ? tags : undefined,
+        imageUrl: selectedImages[0],
+        videoUrl: selectedVideo,
+        tags: selectedTags,
       };
 
-      console.log('CreatePostScreen: Creating post with data:', postData);
-      console.log('CreatePostScreen: User ID:', user.id);
-      console.log('CreatePostScreen: Content length:', content.trim().length);
-      console.log('CreatePostScreen: Image URL:', imageUrl);
-      console.log('CreatePostScreen: Video URL:', videoUrl);
-      console.log('CreatePostScreen: Tags count:', tags.length);
-      
       const newPost = await postAPI.createPost(postData);
-      
-      console.log('CreatePostScreen: Post created successfully:', newPost);
       
       // Reset form
       setContent('');
-      setImageUrl(null);
-      setVideoUrl(null);
-      setTags([]);
+      setSelectedImages([]);
+      setSelectedVideo(null);
+      setSelectedTags([]);
       
-      Alert.alert('Thành công', 'Bài viết đã được tạo thành công!', [
-        {
-          text: 'OK',
-          onPress: () => {
-            // Callback to parent component
-            onPostCreated?.(newPost);
-            
-            // Navigate back to HomePage
-            navigation?.goBack();
-          }
-        }
-      ]);
+      onPostCreated?.(newPost);
+      onClose();
       
-    } catch (error: any) {
-      console.error('CreatePostScreen: Error creating post:', error);
-      console.error('CreatePostScreen: Error response:', error.response?.data);
-      console.error('CreatePostScreen: Error status:', error.response?.status);
-      console.error('CreatePostScreen: Error message:', error.message);
-      
-      let errorMessage = 'Không thể tạo bài viết. Vui lòng thử lại.';
-      
-      if (error.response?.status === 400) {
-        errorMessage = 'Dữ liệu không hợp lệ. Vui lòng kiểm tra lại thông tin.';
-      } else if (error.response?.status === 401) {
-        errorMessage = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
-      } else if (error.response?.status === 500) {
-        errorMessage = 'Lỗi server. Vui lòng thử lại sau.';
-      }
-      
-      Alert.alert('Lỗi', errorMessage);
+      Alert.alert('Thành công', 'Bài viết đã được tạo');
+    } catch (error) {
+      console.error('Error creating post:', error);
+      Alert.alert('Lỗi', 'Không thể tạo bài viết');
     } finally {
       setIsCreating(false);
     }
   };
 
-  const handleBack = () => {
-    if (content.trim() || imageUrl || videoUrl) {
-      Alert.alert(
-        'Xác nhận',
-        'Bạn có chắc chắn muốn hủy? Nội dung chưa lưu sẽ bị mất.',
-        [
-          { text: 'Tiếp tục chỉnh sửa', style: 'cancel' },
-          { text: 'Hủy', style: 'destructive', onPress: () => navigation?.goBack() }
-        ]
-      );
-    } else {
-      navigation?.goBack();
-    }
+  const handleImageUpload = (result: any) => {
+    setSelectedImages([result.publicUrl]);
   };
 
+  const handleVideoUpload = (result: any) => {
+    setSelectedVideo(result.publicUrl);
+  };
+
+  const canCreatePost = content.trim().length > 0 && !isCreating;
+
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <View style={[styles.header, { paddingTop: insets.top }]}>
-        <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-          <ArrowLeft size={24} color={COLORS.black} />
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={onClose}>
+          <X size={24} color={COLORS.text.primary} />
         </TouchableOpacity>
-        
         <Text style={styles.headerTitle}>Tạo bài viết</Text>
-        
         <TouchableOpacity
-          style={[styles.postButton, (!content.trim() || isCreating) && styles.postButtonDisabled]}
           onPress={handleCreatePost}
-          disabled={!content.trim() || isCreating}
+          disabled={!canCreatePost}
         >
-          {isCreating ? (
-            <ActivityIndicator size="small" color={COLORS.white} />
-          ) : (
-            <Send size={20} color={COLORS.white} />
-          )}
+          <Text style={[
+            styles.postButton,
+            !canCreatePost && styles.postButtonDisabled
+          ]}>
+            {isCreating ? 'Đang tạo...' : 'Đăng'}
+          </Text>
         </TouchableOpacity>
       </View>
 
+      {/* Content */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* User Info */}
         <View style={styles.userInfo}>
-          <View style={styles.avatarContainer}>
-            {user?.avatarUrl ? (
-              <ImageIcon size={24} color={COLORS.primary} />
-            ) : (
-              <View style={styles.avatarPlaceholder} />
+          <Image
+            source={{ uri: user?.avatarUrl || 'https://via.placeholder.com/40' }}
+            style={styles.avatar}
+          />
+          <Text style={styles.userName}>{user?.fullName}</Text>
+        </View>
+
+        {/* Post Content */}
+        <TextInput
+          style={styles.contentInput}
+          value={content}
+          onChangeText={setContent}
+          placeholder="Bạn đang nghĩ gì?"
+          multiline
+          textAlignVertical="top"
+          maxLength={2000}
+        />
+
+        {/* Character Count */}
+        <Text style={styles.characterCount}>
+          {content.length}/2000
+        </Text>
+
+        {/* Media Upload */}
+        <View style={styles.mediaSection}>
+          <Text style={styles.sectionTitle}>Thêm phương tiện</Text>
+          
+          <ImageUploader
+            onUploadComplete={handleImageUpload}
+            folder="posts"
+            maxImages={1}
+          />
+
+          <VideoUploader
+            onUploadComplete={handleVideoUpload}
+            folder="posts"
+            maxVideos={1}
+          />
+        </View>
+
+        {/* Tags */}
+        <View style={styles.tagsSection}>
+          <Text style={styles.sectionTitle}>Thêm hashtag</Text>
+          <TagInput
+            selectedTags={selectedTags}
+            onTagsChange={setSelectedTags}
+            placeholder="Thêm hashtag..."
+            maxTags={5}
+          />
+        </View>
+
+        {/* Preview */}
+        {(selectedImages.length > 0 || selectedVideo) && (
+          <View style={styles.previewSection}>
+            <Text style={styles.sectionTitle}>Xem trước</Text>
+            {selectedImages.length > 0 && (
+              <Image source={{ uri: selectedImages[0] }} style={styles.previewImage} />
+            )}
+            {selectedVideo && (
+              <View style={styles.previewVideo}>
+                <Text style={styles.previewVideoText}>Video đã chọn</Text>
+              </View>
             )}
           </View>
-          <View style={styles.userDetails}>
-            <Text style={styles.userName}>{user?.fullName || 'Người dùng'}</Text>
-            <TouchableOpacity
-              style={styles.privacyButton}
-              onPress={() => setIsPublic(!isPublic)}
-            >
-              <Text style={styles.privacyText}>
-                {isPublic ? 'Công khai' : 'Chỉ bạn bè'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Content Input */}
-        <View style={styles.contentInputContainer}>
-          <TextInput
-            style={styles.contentInput}
-            value={content}
-            onChangeText={setContent}
-            placeholder="Bạn đang nghĩ gì?"
-            placeholderTextColor={COLORS.gray}
-            multiline
-            textAlignVertical="top"
-            maxLength={2000}
-          />
-          <Text style={styles.characterCount}>
-            {content.length}/2000
-          </Text>
-        </View>
-
-        {/* Image Upload */}
-        <View style={styles.imageSection}>
-          <Text style={styles.sectionTitle}>Thêm ảnh</Text>
-          <SimpleImageUploader
-            folder="posts"
-            onUploadStart={handleImageUploadStart}
-            onUploadComplete={handleImageUploadComplete}
-            onUploadError={handleImageUploadError}
-            disabled={isCreating || mediaType === 'video'}
-          />
-          {imageUrl && (
-            <View style={styles.imagePreview}>
-              <Text style={styles.imagePreviewText}>✓ Ảnh đã được tải lên</Text>
-            </View>
-          )}
-          {isUploadingImage && (
-            <View style={styles.uploadingIndicator}>
-              <ActivityIndicator size="small" color={COLORS.primary} />
-              <Text style={styles.uploadingText}>Đang tải lên ảnh...</Text>
-            </View>
-          )}
-          {mediaType === 'video' && (
-            <Text style={styles.disabledText}>Không thể upload ảnh khi đã có video</Text>
-          )}
-        </View>
-
-        {/* Video Upload */}
-        <View style={styles.videoSection}>
-          <Text style={styles.sectionTitle}>Thêm video</Text>
-          <SimpleVideoUpload
-            folder="posts"
-            disabled={isCreating || mediaType === 'image'}
-            onUploadComplete={(url) => {
-              console.log('CreatePostScreen: Video upload complete:', url);
-              setVideoUrl(url);
-              setImageUrl(null); // Clear image if video is uploaded
-              setMediaType('video');
-              setIsUploadingVideo(false);
-            }}
-            onUploadError={(error) => {
-              console.error('CreatePostScreen: Video upload error:', error);
-              setIsUploadingVideo(false);
-            }}
-          />
-          {videoUrl && (
-            <View style={styles.videoPreview}>
-              <Text style={styles.videoPreviewText}>✓ Video đã được tải lên</Text>
-            </View>
-          )}
-          {isUploadingVideo && (
-            <View style={styles.uploadingIndicator}>
-              <ActivityIndicator size="small" color={COLORS.primary} />
-              <Text style={styles.uploadingText}>Đang tải lên video...</Text>
-            </View>
-          )}
-          {mediaType === 'image' && (
-            <Text style={styles.disabledText}>Không thể upload video khi đã có ảnh</Text>
-          )}
-        </View>
-
-        {/* Tags Section */}
-        <View style={styles.tagsSection}>
-          <Text style={styles.sectionTitle}>Thẻ hashtag</Text>
-          <TagInput
-            selectedTags={tags}
-            onTagsChange={setTags}
-            placeholder="Thêm hashtag..."
-            maxTags={10}
-            disabled={isCreating}
-          />
-        </View>
+        )}
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.background.primary,
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: RESPONSIVE_SPACING.md,
     paddingVertical: RESPONSIVE_SPACING.sm,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  backButton: {
-    padding: RESPONSIVE_SPACING.xs,
+    borderBottomColor: COLORS.border.primary,
   },
   headerTitle: {
-    fontSize: RESPONSIVE_FONT_SIZES.lg,
-    fontWeight: '700',
-    color: COLORS.black,
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '600',
+    color: COLORS.text.primary,
   },
   postButton: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: RESPONSIVE_SPACING.md,
-    paddingVertical: RESPONSIVE_SPACING.sm,
-    borderRadius: BORDER_RADIUS.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: RESPONSIVE_SPACING.xs,
+    fontSize: FONT_SIZES.md,
+    color: COLORS.accent.primary,
+    fontWeight: '600',
   },
   postButtonDisabled: {
-    backgroundColor: COLORS.gray,
+    opacity: 0.5,
   },
   content: {
     flex: 1,
@@ -335,122 +194,61 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: RESPONSIVE_SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
-  avatarContainer: {
+  avatar: {
     width: 40,
     height: 40,
-    borderRadius: BORDER_RADIUS.full,
-    backgroundColor: COLORS.lightGray,
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderRadius: 20,
     marginRight: RESPONSIVE_SPACING.sm,
   },
-  avatarPlaceholder: {
-    width: 24,
-    height: 24,
-    borderRadius: BORDER_RADIUS.full,
-    backgroundColor: COLORS.gray,
-  },
-  userDetails: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
   userName: {
-    fontSize: RESPONSIVE_FONT_SIZES.md,
+    fontSize: FONT_SIZES.md,
     fontWeight: '600',
-    color: COLORS.black,
-  },
-  privacyButton: {
-    paddingHorizontal: RESPONSIVE_SPACING.sm,
-    paddingVertical: RESPONSIVE_SPACING.xs,
-    backgroundColor: COLORS.lightGray,
-    borderRadius: BORDER_RADIUS.sm,
-  },
-  privacyText: {
-    fontSize: RESPONSIVE_FONT_SIZES.xs,
-    color: COLORS.primary,
-    fontWeight: '500',
-  },
-  contentInputContainer: {
-    paddingVertical: RESPONSIVE_SPACING.md,
+    color: COLORS.text.primary,
   },
   contentInput: {
-    fontSize: RESPONSIVE_FONT_SIZES.md,
-    color: COLORS.black,
+    fontSize: FONT_SIZES.md,
+    color: COLORS.text.primary,
+    paddingVertical: RESPONSIVE_SPACING.md,
     minHeight: 120,
     textAlignVertical: 'top',
   },
   characterCount: {
-    fontSize: RESPONSIVE_FONT_SIZES.xs,
-    color: COLORS.gray,
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.text.secondary,
     textAlign: 'right',
-    marginTop: RESPONSIVE_SPACING.xs,
+    marginBottom: RESPONSIVE_SPACING.md,
   },
-  imageSection: {
-    paddingVertical: RESPONSIVE_SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  videoSection: {
-    paddingVertical: RESPONSIVE_SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  sectionTitle: {
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
-    fontWeight: '600',
-    color: COLORS.black,
-    marginBottom: RESPONSIVE_SPACING.sm,
-  },
-  imagePreview: {
-    marginTop: RESPONSIVE_SPACING.sm,
-    padding: RESPONSIVE_SPACING.sm,
-    backgroundColor: COLORS.success + '20',
-    borderRadius: BORDER_RADIUS.sm,
-  },
-  imagePreviewText: {
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
-    color: COLORS.success,
-    fontWeight: '500',
-  },
-  videoPreview: {
-    marginTop: RESPONSIVE_SPACING.sm,
-    padding: RESPONSIVE_SPACING.sm,
-    backgroundColor: COLORS.success + '20',
-    borderRadius: BORDER_RADIUS.sm,
-  },
-  videoPreviewText: {
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
-    color: COLORS.success,
-    fontWeight: '500',
-  },
-  uploadingIndicator: {
-    marginTop: RESPONSIVE_SPACING.sm,
-    padding: RESPONSIVE_SPACING.sm,
-    backgroundColor: COLORS.primary + '20',
-    borderRadius: BORDER_RADIUS.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  uploadingText: {
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
-    color: COLORS.primary,
-    fontWeight: '600',
-    marginLeft: RESPONSIVE_SPACING.xs,
+  mediaSection: {
+    marginBottom: RESPONSIVE_SPACING.lg,
   },
   tagsSection: {
-    paddingVertical: RESPONSIVE_SPACING.md,
+    marginBottom: RESPONSIVE_SPACING.lg,
   },
-  disabledText: {
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
-    color: COLORS.gray,
-    fontStyle: 'italic',
-    marginTop: RESPONSIVE_SPACING.xs,
-    textAlign: 'center',
+  previewSection: {
+    marginBottom: RESPONSIVE_SPACING.lg,
+  },
+  sectionTitle: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+    color: COLORS.text.primary,
+    marginBottom: RESPONSIVE_SPACING.sm,
+  },
+  previewImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  previewVideo: {
+    width: '100%',
+    height: 200,
+    borderRadius: BORDER_RADIUS.md,
+    backgroundColor: COLORS.background.secondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  previewVideoText: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.text.secondary,
   },
 });
