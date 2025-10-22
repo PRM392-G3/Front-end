@@ -14,7 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES } from '@/constants/theme';
 import { ArrowLeft, Heart, MessageCircle, Share, MoreVertical, Edit, Trash2, Calendar, User } from 'lucide-react-native';
-import { Video, ResizeMode } from 'expo-av';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import { postAPI, commentAPI, PostResponse } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePostContext } from '@/contexts/PostContext';
@@ -534,6 +534,14 @@ export default function PostDetailScreen({ onLikeToggle, onShareToggle, onCommen
 
           {/* Post Text */}
           <Text style={styles.postContent}>{post.content}</Text>
+          
+          {/* Share Caption for shared posts */}
+          {post.isSharedPost && post.shareCaption && (
+            <View style={styles.shareCaptionContainer}>
+              <Text style={styles.shareCaptionLabel}>Ghi chú chia sẻ:</Text>
+              <Text style={styles.shareCaptionText}>{post.shareCaption}</Text>
+            </View>
+          )}
 
           {/* Post Image */}
           {post.imageUrl && (
@@ -545,13 +553,14 @@ export default function PostDetailScreen({ onLikeToggle, onShareToggle, onCommen
           {/* Post Video */}
           {post.videoUrl && (
             <View style={styles.videoContainer}>
-              <Video
-                source={{ uri: post.videoUrl }}
+              <VideoView
+                player={useVideoPlayer(post.videoUrl, (player) => {
+                  player.loop = false;
+                  player.muted = false;
+                })}
                 style={styles.video}
-                useNativeControls
-                resizeMode={ResizeMode.CONTAIN}
-                isLooping={false}
-                shouldPlay={false}
+                allowsFullscreen
+                allowsPictureInPicture
               />
             </View>
           )}
@@ -562,7 +571,7 @@ export default function PostDetailScreen({ onLikeToggle, onShareToggle, onCommen
               return (
                 <View style={styles.tagsContainer}>
                   {post.tags.map((tag, index) => (
-                    <Text key={index} style={styles.tag}>
+                    <Text key={`post-tag-${tag?.id || index}-${tag?.name || 'unknown'}`} style={styles.tag}>
                       #{tag?.name || 'Unknown Tag'}
                     </Text>
                   ))}
@@ -576,7 +585,7 @@ export default function PostDetailScreen({ onLikeToggle, onShareToggle, onCommen
               return (
                 <View style={styles.tagsContainer}>
                   {tagMatches.map((tag, index) => (
-                    <Text key={index} style={styles.tag}>
+                    <Text key={`extracted-post-tag-${index}-${tag}`} style={styles.tag}>
                       {tag}
                     </Text>
                   ))}
@@ -1069,5 +1078,25 @@ const styles = StyleSheet.create({
   noCommentsSubtext: {
     fontSize: RESPONSIVE_FONT_SIZES.sm,
     color: COLORS.gray,
+  },
+  shareCaptionContainer: {
+    backgroundColor: COLORS.primaryLight,
+    marginHorizontal: RESPONSIVE_SPACING.md,
+    marginBottom: RESPONSIVE_SPACING.sm,
+    padding: RESPONSIVE_SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.primary,
+  },
+  shareCaptionLabel: {
+    fontSize: RESPONSIVE_FONT_SIZES.xs,
+    color: COLORS.primary,
+    fontWeight: '600',
+    marginBottom: RESPONSIVE_SPACING.xs,
+  },
+  shareCaptionText: {
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    color: COLORS.text,
+    lineHeight: 20,
   },
 });

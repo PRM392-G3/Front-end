@@ -131,7 +131,7 @@ export default function ImageUploader({
       {selectedImages.length > 0 && (
         <View style={styles.imageGrid}>
           {selectedImages.map((image, index) => (
-            <View key={index} style={styles.imageContainer}>
+            <View key={`image-${index}-${image.uri}`} style={styles.imageContainer}>
               <Image source={{ uri: image.uri }} style={styles.image} />
               <TouchableOpacity
                 style={styles.removeButton}

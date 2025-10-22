@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Alert } from 'react-native';
-import { Video, ResizeMode } from 'expo-av';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES } from '@/constants/theme';
 import { Heart, MessageCircle, Share2, MoveHorizontal as MoreHorizontal, Trash2, Edit } from 'lucide-react-native';
 import { PostResponse, postAPI, shareAPI } from '@/services/api';
@@ -204,12 +204,34 @@ export default function PostCard({
     
     try {
       setIsLoading(true);
+      console.log('PostCard: Starting unshare process for post:', postData.id);
+      
       await shareAPI.unsharePost(user.id, postData.id);
+      console.log('PostCard: Unshare successful, updating UI');
+      
       onShareToggle?.(postData.id, false);
       onPostDeleted?.(postData.id); // Remove from the list
     } catch (error: any) {
       console.error('PostCard: Error unsharing post:', error);
-      Alert.alert('Lỗi', 'Không thể bỏ chia sẻ bài viết. Vui lòng thử lại.');
+      console.error('PostCard: Error message:', error.message);
+      
+      // Handle different error types
+      if (error.message === 'Phiên đăng nhập hết hạn') {
+        Alert.alert(
+          'Phiên đăng nhập hết hạn',
+          'Vui lòng đăng nhập lại để tiếp tục sử dụng.',
+          [{ text: 'OK' }]
+        );
+      } else if (error.message === 'Bài viết không tồn tại hoặc đã được bỏ chia sẻ') {
+        Alert.alert('Thông báo', 'Bài viết đã được bỏ chia sẻ hoặc không tồn tại.');
+        // Still update UI to reflect current state
+        onShareToggle?.(postData.id, false);
+        onPostDeleted?.(postData.id);
+      } else if (error.message === 'Lỗi kết nối mạng. Vui lòng thử lại sau.') {
+        Alert.alert('Lỗi kết nối', 'Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng và thử lại.');
+      } else {
+        Alert.alert('Lỗi', error.message || 'Không thể bỏ chia sẻ bài viết. Vui lòng thử lại.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -321,6 +343,14 @@ export default function PostCard({
       </View>
 
       <Text style={styles.content}>{postData.content}</Text>
+      
+      {/* Share Caption for shared posts */}
+      {isSharedPost && postData.shareCaption && (
+        <View style={styles.shareCaptionContainer}>
+          <Text style={styles.shareCaptionLabel}>Ghi chú chia sẻ:</Text>
+          <Text style={styles.shareCaptionText}>{postData.shareCaption}</Text>
+        </View>
+      )}
 
       {/* Display tags if available */}
       {(() => {
@@ -328,7 +358,7 @@ export default function PostCard({
           return (
             <View style={styles.tagsContainer}>
               {postData.tags.map((tag, index) => (
-                <Text key={index} style={styles.tag}>
+                <Text key={`tag-${tag?.id || index}-${tag?.name || 'unknown'}`} style={styles.tag}>
                   #{tag?.name || 'Unknown Tag'}
                 </Text>
               ))}
@@ -342,7 +372,7 @@ export default function PostCard({
           return (
             <View style={styles.tagsContainer}>
               {tagMatches.map((tag, index) => (
-                <Text key={index} style={styles.tag}>
+                <Text key={`extracted-tag-${index}-${tag}`} style={styles.tag}>
                   {tag}
                 </Text>
               ))}
@@ -362,13 +392,14 @@ export default function PostCard({
       
       {showImage && postData.videoUrl && (
         <View style={styles.videoContainer}>
-          <Video
-            source={{ uri: postData.videoUrl }}
+          <VideoView
+            player={useVideoPlayer(postData.videoUrl, (player) => {
+              player.loop = false;
+              player.muted = false;
+            })}
             style={styles.video}
-            useNativeControls
-            resizeMode={ResizeMode.CONTAIN}
-            isLooping={false}
-            shouldPlay={false}
+            allowsFullscreen
+            allowsPictureInPicture
           />
         </View>
       )}
@@ -521,5 +552,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: RESPONSIVE_SPACING.sm,
     paddingVertical: RESPONSIVE_SPACING.xs,
     borderRadius: BORDER_RADIUS.sm,
+  },
+  shareCaptionContainer: {
+    backgroundColor: COLORS.primaryLight,
+    marginHorizontal: RESPONSIVE_SPACING.md,
+    marginBottom: RESPONSIVE_SPACING.sm,
+    padding: RESPONSIVE_SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.primary,
+  },
+  shareCaptionLabel: {
+    fontSize: RESPONSIVE_FONT_SIZES.xs,
+    color: COLORS.primary,
+    fontWeight: '600',
+    marginBottom: RESPONSIVE_SPACING.xs,
+  },
+  shareCaptionText: {
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    color: COLORS.text,
+    lineHeight: 20,
   },
 });

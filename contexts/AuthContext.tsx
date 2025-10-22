@@ -78,11 +78,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           // Kiểm tra token có format hợp lệ không (ít nhất 10 ký tự)
           if (storedToken.length > 10 && userData.email) {
             console.log('AuthContext: Valid token and user data found');
+            console.log('AuthContext: Setting user:', userData.email);
+            console.log('AuthContext: Setting token length:', storedToken.length);
             setToken(storedToken);
             setRefreshToken(storedRefreshToken);
             setUser(userData);
+            console.log('AuthContext: Authentication state set successfully');
           } else {
             console.log('AuthContext: Invalid token or user data, clearing...');
+            console.log('AuthContext: Token length:', storedToken.length);
+            console.log('AuthContext: User email:', userData.email);
             // Token hoặc user data không hợp lệ, xóa dữ liệu cũ
             await clearAuthData();
           }
@@ -92,6 +97,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       } else {
         console.log('AuthContext: No stored token or user data');
+        console.log('AuthContext: Token exists:', !!storedToken);
+        console.log('AuthContext: User exists:', !!storedUser);
       }
     } catch (error) {
       console.error('AuthContext: Error checking auth status:', error);

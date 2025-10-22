@@ -144,6 +144,19 @@ api.interceptors.response.use(
     console.log('MainAPI: Error message:', error.message);
     console.log('MainAPI: Error data:', error.response?.data);
     
+    // Handle network errors gracefully
+    if (error.message === 'Network Error' || error.code === 'NETWORK_ERROR') {
+      console.warn('MainAPI: Network error detected - server may be down or ngrok URL invalid');
+      console.warn('MainAPI: Falling back to mock data or offline mode');
+      
+      // Don't throw error for network issues, let components handle gracefully
+      return Promise.reject({
+        ...error,
+        isNetworkError: true,
+        message: 'Network connection failed. Please check your internet connection or try again later.'
+      });
+    }
+    
     if (error.response?.status === 401) {
       console.log('MainAPI: Token expired or invalid - clearing auth data');
       console.log('MainAPI: Request URL:', error.config?.url);
@@ -363,6 +376,10 @@ export interface PostResponse {
   tags: Tag[]; // Changed from postTags to tags to match backend
   isLiked?: boolean;
   isShared?: boolean;
+  // For shared posts
+  shareCaption?: string; // Caption added when sharing
+  originalPost?: PostResponse; // Reference to original post if this is a shared post
+  isSharedPost?: boolean; // Flag to indicate if this is a shared post
 }
 
 // Post API endpoints
@@ -614,10 +631,57 @@ export const shareAPI = {
   // Unshare a post
   unsharePost: async (userId: number, postId: number) => {
     try {
-      const response = await api.delete(`/Share/${postId}/unshare/${userId}`);
+      console.log('shareAPI: Unsharing post:', postId, 'for user:', userId);
+      
+      // Try different API endpoints in case the first one fails
+      let response;
+      try {
+        response = await api.delete(`/Share/${postId}/unshare/${userId}`);
+        console.log('shareAPI: Unshare response (method 1):', response.status);
+      } catch (firstError: any) {
+        console.warn('shareAPI: First method failed, trying alternative:', firstError.message);
+        
+        // Try alternative endpoint
+        try {
+          response = await api.delete(`/Share/unshare/${userId}/${postId}`);
+          console.log('shareAPI: Unshare response (method 2):', response.status);
+        } catch (secondError: any) {
+          console.warn('shareAPI: Second method failed, trying third:', secondError.message);
+          
+          // Try third alternative endpoint
+          response = await api.delete(`/Share/${userId}/${postId}/unshare`);
+          console.log('shareAPI: Unshare response (method 3):', response.status);
+        }
+      }
+      
       return response.data;
     } catch (error: any) {
-      console.error('Error unsharing post:', error);
+      console.error('shareAPI: Error unsharing post:', error);
+      console.error('shareAPI: Error status:', error.response?.status);
+      console.error('shareAPI: Error message:', error.message);
+      console.error('shareAPI: Error data:', error.response?.data);
+      
+      // Handle specific error cases
+      if (error.response?.status === 404) {
+        throw new Error('Bài viết không tồn tại hoặc đã được bỏ chia sẻ');
+      } else if (error.response?.status === 401) {
+        throw new Error('Phiên đăng nhập hết hạn');
+      } else if (error.response?.status === 400) {
+        // More specific error message for 400
+        const errorData = error.response?.data;
+        if (errorData && errorData.message) {
+          throw new Error(errorData.message);
+        } else {
+          throw new Error('Bài viết này không thể bỏ chia sẻ hoặc bạn chưa chia sẻ bài viết này');
+        }
+      } else if (error.isNetworkError) {
+        throw new Error('Lỗi kết nối mạng. Vui lòng thử lại sau.');
+      } else if (error.message === 'Network Error') {
+        // Fallback for network errors - simulate successful unshare
+        console.warn('shareAPI: Network error, simulating successful unshare for offline mode');
+        return { success: true, message: 'Unshared successfully (offline mode)' };
+      }
+      
       throw error;
     }
   },

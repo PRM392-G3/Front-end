@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Modal, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { shareAPI } from '../services/api';
@@ -25,11 +25,22 @@ export default function ShareButton({
   const [isLoading, setIsLoading] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareCaption, setShareCaption] = useState('');
+  const [localIsShared, setLocalIsShared] = useState(isShared);
+  const [localShareCount, setLocalShareCount] = useState(shareCount);
+
+  // Sync local state with props when they change
+  useEffect(() => {
+    setLocalIsShared(isShared);
+  }, [isShared]);
+
+  useEffect(() => {
+    setLocalShareCount(shareCount);
+  }, [shareCount]);
 
   const handleShare = async () => {
     if (!user?.id || isLoading || disabled) return;
 
-    if (isShared) {
+    if (localIsShared) {
       // Show confirmation dialog for unshare
       Alert.alert(
         'Bỏ chia sẻ',
@@ -50,8 +61,30 @@ export default function ShareButton({
 
     try {
       setIsLoading(true);
+      console.log('ShareButton: Starting unshare process for post:', postId);
       
-      await shareAPI.unsharePost(user.id, postId);
+      try {
+        await shareAPI.unsharePost(user.id, postId);
+        console.log('ShareButton: Unshare successful, updating UI');
+      } catch (apiError: any) {
+        console.warn('ShareButton: API unshare failed, checking if post was already unshared:', apiError.message);
+        
+        // If it's a 404 or specific error, assume it was already unshared
+        if (apiError.message?.includes('đã được bỏ chia sẻ') || 
+            apiError.message?.includes('chưa chia sẻ') ||
+            apiError.response?.status === 404) {
+          console.log('ShareButton: Post was already unshared, proceeding with UI update');
+        } else {
+          // Re-throw other errors
+          throw apiError;
+        }
+      }
+      
+      // Update local state immediately for instant UI feedback
+      setLocalIsShared(false);
+      setLocalShareCount(prev => Math.max(0, prev - 1));
+      
+      // Update parent component
       onShareToggle?.(postId, false);
       
       // Tự động refresh sau khi unshare thành công
@@ -62,17 +95,38 @@ export default function ShareButton({
       Alert.alert('Thành công', 'Đã bỏ chia sẻ bài viết!');
     } catch (error: any) {
       console.error('ShareButton: Error unsharing post:', error);
+      console.error('ShareButton: Error type:', typeof error);
+      console.error('ShareButton: Error message:', error.message);
       
-      if (error.response?.status === 401) {
+      // Handle different error types
+      if (error.message === 'Phiên đăng nhập hết hạn') {
+        Alert.alert(
+          'Phiên đăng nhập hết hạn',
+          'Vui lòng đăng nhập lại để tiếp tục sử dụng.',
+          [{ text: 'OK' }]
+        );
+      } else if (error.message === 'Bài viết không tồn tại hoặc đã được bỏ chia sẻ') {
+        Alert.alert('Thông báo', 'Bài viết đã được bỏ chia sẻ hoặc không tồn tại.');
+        // Still update UI to reflect current state
+        onShareToggle?.(postId, false);
+      } else if (error.message === 'Bài viết này không thể bỏ chia sẻ hoặc bạn chưa chia sẻ bài viết này') {
+        Alert.alert('Thông báo', 'Bạn chưa chia sẻ bài viết này hoặc bài viết không thể bỏ chia sẻ.');
+        // Still update UI to reflect current state
+        onShareToggle?.(postId, false);
+      } else if (error.message === 'Lỗi kết nối mạng. Vui lòng thử lại sau.') {
+        Alert.alert('Lỗi kết nối', 'Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng và thử lại.');
+      } else if (error.response?.status === 401) {
         Alert.alert(
           'Phiên đăng nhập hết hạn',
           'Vui lòng đăng nhập lại để tiếp tục sử dụng.',
           [{ text: 'OK' }]
         );
       } else if (error.response?.status === 400) {
-        Alert.alert('Lỗi', 'Không thể bỏ chia sẻ bài viết này.');
+        Alert.alert('Lỗi', 'Không thể bỏ chia sẻ bài viết này. Có thể bạn chưa chia sẻ bài viết này.');
+        // Still update UI to reflect current state
+        onShareToggle?.(postId, false);
       } else {
-        Alert.alert('Lỗi', 'Không thể bỏ chia sẻ bài viết. Vui lòng thử lại.');
+        Alert.alert('Lỗi', error.message || 'Không thể bỏ chia sẻ bài viết. Vui lòng thử lại.');
       }
     } finally {
       setIsLoading(false);
@@ -87,6 +141,12 @@ export default function ShareButton({
       
       // Share the post with caption (always public for now)
       await shareAPI.sharePost(user.id, postId, shareCaption.trim() || undefined, true);
+      
+      // Update local state immediately for instant UI feedback
+      setLocalIsShared(true);
+      setLocalShareCount(prev => prev + 1);
+      
+      // Notify parent component
       onShareToggle?.(postId, true);
       setShowShareModal(false);
       setShareCaption('');
@@ -121,23 +181,23 @@ export default function ShareButton({
       <TouchableOpacity
         style={[
           styles.shareButton,
-          isShared && styles.shareButtonActive,
+          localIsShared && styles.shareButtonActive,
           (isLoading || disabled) && styles.shareButtonDisabled
         ]}
         onPress={handleShare}
         disabled={isLoading || disabled}
       >
         <Ionicons
-          name={isShared ? "share" : "share-outline"}
+          name={localIsShared ? "share" : "share-outline"}
           size={20}
-          color={isShared ? "#007AFF" : "#666"}
+          color={localIsShared ? "#007AFF" : "#666"}
         />
         <Text style={[
           styles.shareText,
-          isShared && styles.shareTextActive,
+          localIsShared && styles.shareTextActive,
           (isLoading || disabled) && styles.shareTextDisabled
         ]}>
-          {shareCount}
+          {localShareCount}
         </Text>
       </TouchableOpacity>
 

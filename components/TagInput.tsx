@@ -79,7 +79,7 @@ export default function TagInput({
       {/* Selected Tags */}
       <View style={styles.selectedTagsContainer}>
         {selectedTags.map((tag, index) => (
-          <View key={index} style={styles.selectedTag}>
+          <View key={`selected-tag-${index}-${tag}`} style={styles.selectedTag}>
             <Text style={styles.selectedTagText}>{tag}</Text>
             <TouchableOpacity 
               onPress={() => removeTag(tag)}

@@ -16,7 +16,7 @@ export default function HomeScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const { user } = useAuth();
-  const { posts, setPosts, updatePostLike, updatePost } = usePostContext();
+  const { posts, setPosts, updatePostLike, updatePostShare, updatePost, getPostShareState } = usePostContext();
   const insets = useSafeAreaInsets();
 
   // Dữ liệu mẫu cho demo
@@ -194,7 +194,7 @@ export default function HomeScreen() {
   }, [updatePostLike]);
 
   const handleShareToggle = useCallback((postId: number, isShared: boolean) => {
-    // Update the post's share count and state
+    // Update local state
     setPosts(prevPosts => 
       prevPosts.map(post => 
         post.id === postId 
@@ -206,7 +206,10 @@ export default function HomeScreen() {
           : post
       )
     );
-  }, []);
+    
+    // Update global context for sync with other screens
+    updatePostShare(postId, isShared);
+  }, [updatePostShare]);
 
   const handleCommentCountUpdate = useCallback((postId: number, commentCount: number) => {
     // Update the post's comment count in both local state and global context
@@ -239,6 +242,26 @@ export default function HomeScreen() {
       fetchPosts();
     }, [fetchPosts])
   );
+
+  // Sync share states from global context (only when share states change)
+  useEffect(() => {
+    const hasShareStates = posts.some(post => getPostShareState(post.id));
+    if (hasShareStates) {
+      setPosts(prevPosts =>
+        prevPosts.map(post => {
+          const shareState = getPostShareState(post.id);
+          if (shareState && (post.isShared !== shareState.isShared || post.shareCount !== shareState.shareCount)) {
+            return {
+              ...post,
+              isShared: shareState.isShared,
+              shareCount: shareState.shareCount
+            };
+          }
+          return post;
+        })
+      );
+    }
+  }, [getPostShareState]); // Remove posts and setPosts from dependencies to prevent infinite loop
 
   if (showCreatePost) {
     return (
@@ -324,9 +347,9 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </View>
           ) : (
-            posts.map((post) => (
+            posts.map((post, index) => (
               <PostCard
-                key={post.id}
+                key={`post-${post.id}-${index}`}
                 postData={post}
                 onPostDeleted={handlePostDeleted}
                 onLikeToggle={handleLikeToggle}

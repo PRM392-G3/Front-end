@@ -8,11 +8,13 @@ import { FileUploadResponse } from '@/services/mediaAPI';
 import ImageUploader from '@/components/ImageUploader';
 import SimpleImageUploader from '@/components/SimpleImageUploader';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePostContext } from '@/contexts/PostContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ProfileScreen() {
   const [activeTab, setActiveTab] = useState<'posts' | 'friends'>('posts');
   const { user, logout, token } = useAuth();
+  const { updatePostShare, getPostShareState } = usePostContext();
   const [displayUser, setDisplayUser] = useState(user);
   const [editVisible, setEditVisible] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -88,6 +90,7 @@ export default function ProfileScreen() {
   }, []);
 
   const handleShareToggle = useCallback((postId: number, isShared: boolean) => {
+    // Update local state
     setUserPosts(prevPosts =>
       prevPosts.map(post =>
         post.id === postId
@@ -99,7 +102,10 @@ export default function ProfileScreen() {
           : post
       )
     );
-  }, []);
+    
+    // Update global context for sync with other screens
+    updatePostShare(postId, isShared);
+  }, [updatePostShare]);
 
   const handleRefresh = useCallback(() => {
     fetchUserPosts();
@@ -110,6 +116,26 @@ export default function ProfileScreen() {
       fetchUserPosts();
     }
   }, [activeTab, fetchUserPosts]);
+
+  // Sync share states from global context (only when share states change)
+  useEffect(() => {
+    const hasShareStates = userPosts.some(post => getPostShareState(post.id));
+    if (hasShareStates) {
+      setUserPosts(prevPosts =>
+        prevPosts.map(post => {
+          const shareState = getPostShareState(post.id);
+          if (shareState && (post.isShared !== shareState.isShared || post.shareCount !== shareState.shareCount)) {
+            return {
+              ...post,
+              isShared: shareState.isShared,
+              shareCount: shareState.shareCount
+            };
+          }
+          return post;
+        })
+      );
+    }
+  }, [getPostShareState]); // Remove userPosts from dependencies to prevent infinite loop
 
   const handleLogout = () => {
     Alert.alert(
@@ -261,9 +287,9 @@ export default function ProfileScreen() {
                 <Text style={styles.emptySubtext}>Hãy tạo bài viết đầu tiên của bạn!</Text>
               </View>
             ) : (
-              userPosts.map((post) => (
+              userPosts.map((post, index) => (
                 <PostCard
-                  key={post.id}
+                  key={`profile-post-${post.id}-${index}`}
                   postData={post}
                   onPostDeleted={handlePostDeleted}
                   onLikeToggle={handleLikeToggle}
