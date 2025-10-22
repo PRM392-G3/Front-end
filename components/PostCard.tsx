@@ -3,17 +3,21 @@ import { View, Text, StyleSheet, TouchableOpacity, Image, Alert } from 'react-na
 import { Video, ResizeMode } from 'expo-av';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES } from '@/constants/theme';
 import { Heart, MessageCircle, Share2, MoveHorizontal as MoreHorizontal, Trash2, Edit } from 'lucide-react-native';
-import { PostResponse, postAPI } from '@/services/api';
+import { PostResponse, postAPI, shareAPI } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePostContext } from '@/contexts/PostContext';
 import { useRouter } from 'expo-router';
+import ShareButton from './ShareButton';
 
 interface PostCardProps {
   postData: PostResponse;
   onPostUpdated?: (post: PostResponse) => void;
   onPostDeleted?: (postId: number) => void;
   onLikeToggle?: (postId: number, isLiked: boolean) => void;
+  onShareToggle?: (postId: number, isShared: boolean) => void;
+  onRefresh?: () => void;
   showImage?: boolean;
+  isSharedPost?: boolean;
 }
 
 export default function PostCard({ 
@@ -21,7 +25,10 @@ export default function PostCard({
   onPostUpdated,
   onPostDeleted,
   onLikeToggle,
-  showImage = true
+  onShareToggle,
+  onRefresh,
+  showImage = true,
+  isSharedPost = false
 }: PostCardProps) {
   const { user } = useAuth();
   const { getPostLikeState } = usePostContext();
@@ -42,6 +49,11 @@ export default function PostCard({
     }
     return postData.likeCount;
   });
+  const [isShared, setIsShared] = useState(() => {
+    // Check if current user has shared this post
+    return postData.shares?.some(share => share.userId === user?.id) || false;
+  });
+  const [sharesCount, setSharesCount] = useState(postData.shareCount);
   const [isLoading, setIsLoading] = useState(false);
   const [isApiCalling, setIsApiCalling] = useState(false);
 
@@ -58,7 +70,11 @@ export default function PostCard({
       setIsLiked(postData.isLiked || false);
       setLikesCount(postData.likeCount);
     }
-  }, [postData.isLiked, postData.likeCount, getPostLikeState]);
+    
+    // Update share state
+    setIsShared(postData.shares?.some(share => share.userId === user?.id) || false);
+    setSharesCount(postData.shareCount);
+  }, [postData.isLiked, postData.likeCount, postData.shares, postData.shareCount, getPostLikeState, user?.id]);
 
   const formatTimestamp = (timestamp: string) => {
     const now = new Date();
@@ -78,11 +94,8 @@ export default function PostCard({
   };
 
   const handleViewPost = () => {
-    console.log('PostCard: Navigating to post detail for post ID:', postData.id);
-    
     // Validate postId before navigation
     if (!postData.id || isNaN(Number(postData.id))) {
-      console.error('PostCard: Invalid postId for navigation:', postData.id);
       Alert.alert('Lỗi', 'Không thể mở bài viết. ID không hợp lệ.');
       return;
     }
@@ -98,38 +111,68 @@ export default function PostCard({
   };
 
   const handleMoreOptions = () => {
-    Alert.alert(
-      'Tùy chọn',
-      'Bạn muốn làm gì với bài viết này?',
-      [
-        {
-          text: 'Chỉnh sửa',
-          onPress: () => {
-            // Navigate to edit post screen
-            router.push(`/(tabs)/create`);
+    if (isSharedPost) {
+      // Options for shared posts
+      Alert.alert(
+        'Tùy chọn',
+        'Bạn muốn làm gì với bài viết đã chia sẻ này?',
+        [
+          {
+            text: 'Bỏ chia sẻ',
+            style: 'destructive',
+            onPress: () => {
+              Alert.alert(
+                'Xác nhận bỏ chia sẻ',
+                'Bạn có chắc chắn muốn bỏ chia sẻ bài viết này?',
+                [
+                  { text: 'Hủy', style: 'cancel' },
+                  {
+                    text: 'Bỏ chia sẻ',
+                    style: 'destructive',
+                    onPress: handleUnsharePost,
+                  },
+                ]
+              );
+            },
           },
-        },
-        {
-          text: 'Xóa',
-          style: 'destructive',
-          onPress: () => {
-            Alert.alert(
-              'Xác nhận xóa',
-              'Bạn có chắc chắn muốn xóa bài viết này?',
-              [
-                { text: 'Hủy', style: 'cancel' },
-                {
-                  text: 'Xóa',
-                  style: 'destructive',
-                  onPress: handleDeletePost,
-                },
-              ]
-            );
+          { text: 'Hủy', style: 'cancel' },
+        ]
+      );
+    } else {
+      // Options for original posts
+      Alert.alert(
+        'Tùy chọn',
+        'Bạn muốn làm gì với bài viết này?',
+        [
+          {
+            text: 'Chỉnh sửa',
+            onPress: () => {
+              // Navigate to edit post screen
+              router.push(`/(tabs)/create`);
+            },
           },
-        },
-        { text: 'Hủy', style: 'cancel' },
-      ]
-    );
+          {
+            text: 'Xóa',
+            style: 'destructive',
+            onPress: () => {
+              Alert.alert(
+                'Xác nhận xóa',
+                'Bạn có chắc chắn muốn xóa bài viết này?',
+                [
+                  { text: 'Hủy', style: 'cancel' },
+                  {
+                    text: 'Xóa',
+                    style: 'destructive',
+                    onPress: handleDeletePost,
+                  },
+                ]
+              );
+            },
+          },
+          { text: 'Hủy', style: 'cancel' },
+        ]
+      );
+    }
   };
 
   const handleDeletePost = async () => {
@@ -137,10 +180,25 @@ export default function PostCard({
       setIsLoading(true);
       await postAPI.deletePost(postData.id);
       onPostDeleted?.(postData.id);
-      console.log(`PostCard: Successfully deleted post ${postData.id}`);
     } catch (error: any) {
       console.error('PostCard: Error deleting post:', error);
       Alert.alert('Lỗi', 'Không thể xóa bài viết. Vui lòng thử lại.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUnsharePost = async () => {
+    if (!user?.id) return;
+    
+    try {
+      setIsLoading(true);
+      await shareAPI.unsharePost(user.id, postData.id);
+      onShareToggle?.(postData.id, false);
+      onPostDeleted?.(postData.id); // Remove from the list
+    } catch (error: any) {
+      console.error('PostCard: Error unsharing post:', error);
+      Alert.alert('Lỗi', 'Không thể bỏ chia sẻ bài viết. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
     }
@@ -150,7 +208,6 @@ export default function PostCard({
     if (isLoading || isApiCalling) return;
     
     const wasLiked = isLiked;
-    console.log('PostCard: Toggling like for post:', postData.id, 'wasLiked:', wasLiked);
 
     try {
       setIsLoading(true);
@@ -200,7 +257,6 @@ export default function PostCard({
           } else if (error.response?.status === 400) {
             // For 400, the backend indicates the action was redundant (already liked/unliked)
             // Don't revert UI state - just refresh data to ensure sync
-            console.log('PostCard: Handling 400 error - refreshing post data to sync state');
             // The UI state is already correct, just refresh to ensure backend sync
             setTimeout(() => {
               // Trigger a refresh by calling onLikeToggle with current state
@@ -328,10 +384,14 @@ export default function PostCard({
           <MessageCircle size={20} color={COLORS.gray} />
           <Text style={styles.actionText}>{postData.commentCount}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton}>
-          <Share2 size={20} color={COLORS.gray} />
-          <Text style={styles.actionText}>{postData.shareCount}</Text>
-        </TouchableOpacity>
+        <ShareButton
+          postId={postData.id}
+          shareCount={sharesCount}
+          isShared={isShared}
+          onShareToggle={onShareToggle}
+          onRefresh={onRefresh}
+          disabled={isLoading || isApiCalling}
+        />
       </View>
     </TouchableOpacity>
   );

@@ -316,6 +316,16 @@ export interface Tag {
   updatedAt: string;
 }
 
+export interface Share {
+  id: number;
+  userId: number;
+  postId: number;
+  caption?: string;
+  isPublic: boolean;
+  createdAt: string;
+  user: User;
+}
+
 // Post request/response interfaces
 export interface CreatePostRequest {
   userId: number;
@@ -349,8 +359,10 @@ export interface PostResponse {
   user: User;
   comments: Comment[];
   likes: Like[];
+  shares: Share[];
   tags: Tag[]; // Changed from postTags to tags to match backend
   isLiked?: boolean;
+  isShared?: boolean;
 }
 
 // Post API endpoints
@@ -389,6 +401,16 @@ export const postAPI = {
   getPostsByUser: async (userId: number) => {
     try {
       const response = await api.get(`/Post/user/${userId}`);
+      return response.data as PostResponse[];
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Get shared posts by user ID
+  getSharedPostsByUser: async (userId: number) => {
+    try {
+      const response = await api.get(`/Post/user/${userId}/shares`);
       return response.data as PostResponse[];
     } catch (error) {
       throw error;
@@ -567,6 +589,80 @@ export const tagAPI = {
       
       // For other errors, still throw but with better error message
       throw new Error(`Failed to search tags: ${error.response?.status || 'Network error'}`);
+    }
+  },
+};
+
+// Share API functions
+export const shareAPI = {
+  // Share a post
+  sharePost: async (userId: number, postId: number, caption?: string, isPublic: boolean = true) => {
+    try {
+      const response = await api.post('/Share/share', {
+        userId,
+        postId,
+        caption,
+        isPublic
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error sharing post:', error);
+      throw error;
+    }
+  },
+
+  // Unshare a post
+  unsharePost: async (userId: number, postId: number) => {
+    try {
+      const response = await api.delete(`/Share/${postId}/unshare/${userId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error unsharing post:', error);
+      throw error;
+    }
+  },
+
+  // Get shares by post
+  getSharesByPost: async (postId: number) => {
+    try {
+      const response = await api.get(`/Share/post/${postId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting shares by post:', error);
+      throw error;
+    }
+  },
+
+  // Get shares by user
+  getSharesByUser: async (userId: number) => {
+    try {
+      const response = await api.get(`/Share/user/${userId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting shares by user:', error);
+      throw error;
+    }
+  },
+
+  // Check if user has shared post
+  hasUserSharedPost: async (userId: number, postId: number) => {
+    try {
+      const response = await api.get(`/Share/has-shared/${userId}/${postId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error checking if user shared post:', error);
+      throw error;
+    }
+  },
+
+  // Get share count for post
+  getShareCount: async (postId: number) => {
+    try {
+      const response = await api.get(`/Share/count/${postId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting share count:', error);
+      throw error;
     }
   },
 };

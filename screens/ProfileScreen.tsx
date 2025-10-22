@@ -49,8 +49,19 @@ export default function ProfileScreen() {
     
     try {
       setIsLoadingPosts(true);
-      const posts = await postAPI.getPostsByUser(user.id);
-      setUserPosts(posts);
+      
+      // Fetch both original posts and shared posts
+      const [originalPosts, sharedPosts] = await Promise.all([
+        postAPI.getPostsByUser(user.id),
+        postAPI.getSharedPostsByUser(user.id)
+      ]);
+      
+      // Combine and sort by creation date (newest first)
+      const allPosts = [...originalPosts, ...sharedPosts].sort((a, b) => 
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      
+      setUserPosts(allPosts);
     } catch (error) {
       console.error('Error fetching user posts:', error);
     } finally {
@@ -63,9 +74,9 @@ export default function ProfileScreen() {
   }, []);
 
   const handleLikeToggle = useCallback((postId: number, isLiked: boolean) => {
-    setUserPosts(prevPosts => 
-      prevPosts.map(post => 
-        post.id === postId 
+    setUserPosts(prevPosts =>
+      prevPosts.map(post =>
+        post.id === postId
           ? { 
               ...post, 
               isLiked, 
@@ -75,6 +86,24 @@ export default function ProfileScreen() {
       )
     );
   }, []);
+
+  const handleShareToggle = useCallback((postId: number, isShared: boolean) => {
+    setUserPosts(prevPosts =>
+      prevPosts.map(post =>
+        post.id === postId
+          ? { 
+              ...post, 
+              isShared, 
+              shareCount: isShared ? post.shareCount + 1 : Math.max(0, post.shareCount - 1)
+            }
+          : post
+      )
+    );
+  }, []);
+
+  const handleRefresh = useCallback(() => {
+    fetchUserPosts();
+  }, [fetchUserPosts]);
 
   useEffect(() => {
     if (activeTab === 'posts') {
@@ -238,7 +267,10 @@ export default function ProfileScreen() {
                   postData={post}
                   onPostDeleted={handlePostDeleted}
                   onLikeToggle={handleLikeToggle}
+                  onShareToggle={handleShareToggle}
+                  onRefresh={handleRefresh}
                   showImage={!!post.imageUrl || !!post.videoUrl}
+                  isSharedPost={post.isShared || false}
                 />
               ))
             )}
@@ -282,18 +314,12 @@ export default function ProfileScreen() {
               <SimpleImageUploader
                 folder="avatars"
                 onUploadComplete={(res: FileUploadResponse) => {
-                  console.log('ProfileScreen: Upload response:', res);
-                  console.log('ProfileScreen: Extracted URL:', res.publicUrl);
                   const url = Array.isArray(res) ? res[0]?.publicUrl : res?.publicUrl;
-                  console.log('ProfileScreen: Extracted URL:', url);
                   if (url) {
                     setForm({ ...form, avatarUrl: url });
-                  } else {
-                    console.error('ProfileScreen: No URL found in upload response');
                   }
                 }}
                 onUploadError={(error: any) => {
-                  console.error('ProfileScreen: Upload error:', error);
                   Alert.alert('Lỗi', 'Không thể tải lên ảnh đại diện');
                 }}
               />
@@ -304,14 +330,12 @@ export default function ProfileScreen() {
               <SimpleImageUploader
                 folder="covers"
                 onUploadComplete={(res: FileUploadResponse) => {
-                  console.log('ProfileScreen: Cover upload response:', res);
                   const url = Array.isArray(res) ? res[0]?.publicUrl : res?.publicUrl;
                   if (url) {
                     setForm({ ...form, coverImageUrl: url });
                   }
                 }}
                 onUploadError={(error: any) => {
-                  console.error('ProfileScreen: Cover upload error:', error);
                   Alert.alert('Lỗi', 'Không thể tải lên ảnh bìa');
                 }}
               />
@@ -357,18 +381,12 @@ export default function ProfileScreen() {
                 <SimpleImageUploader
                   folder="avatars"
                   onUploadComplete={(res: FileUploadResponse) => {
-                    console.log('ProfileScreen: Upload response:', res);
-                    console.log('ProfileScreen: Extracted URL:', res.publicUrl);
                     const url = Array.isArray(res) ? res[0]?.publicUrl : res?.publicUrl;
-                    console.log('ProfileScreen: Extracted URL:', url);
                     if (url) {
                       setForm({ ...form, avatarUrl: url });
-                    } else {
-                      console.error('ProfileScreen: No URL found in upload response');
                     }
                   }}
                   onUploadError={(error: any) => {
-                    console.error('ProfileScreen: Upload error:', error);
                     Alert.alert('Lỗi', 'Không thể tải lên ảnh đại diện');
                   }}
                 />
@@ -382,16 +400,11 @@ export default function ProfileScreen() {
                 <SimpleImageUploader
                   folder="covers"
                   onUploadComplete={(res: FileUploadResponse) => {
-                    console.log('ProfileScreen: Cover upload response:', res);
-                    console.log('ProfileScreen: Extracted cover URL:', res.publicUrl);
                     if (res.publicUrl) {
                       setForm({ ...form, coverImageUrl: res.publicUrl });
-                    } else {
-                      console.error('ProfileScreen: No URL found in cover upload response');
                     }
                   }}
                   onUploadError={(error: any) => {
-                    console.error('ProfileScreen: Cover upload error:', error);
                     Alert.alert('Lỗi', 'Không thể tải lên ảnh bìa');
                   }}
                 />

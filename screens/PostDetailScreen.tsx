@@ -19,17 +19,19 @@ import { postAPI, commentAPI, PostResponse } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePostContext } from '@/contexts/PostContext';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import ShareButton from '@/components/ShareButton';
 
 interface PostDetailScreenProps {
   onLikeToggle?: (postId: number, isLiked: boolean) => void;
+  onShareToggle?: (postId: number, isShared: boolean) => void;
+  onRefresh?: () => void;
 }
 
-export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps = {}) {
+export default function PostDetailScreen({ onLikeToggle, onShareToggle, onRefresh }: PostDetailScreenProps = {}) {
   const params = useLocalSearchParams();
   const postId = params.id;
   const router = useRouter();
   
-  console.log('PostDetailScreen: Fetching post with ID:', postId);
   const [post, setPost] = useState<PostResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -43,6 +45,8 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
   const [editingCommentText, setEditingCommentText] = useState('');
   const [isUpdatingComment, setIsUpdatingComment] = useState(false);
   const [isDeletingComment, setIsDeletingComment] = useState(false);
+  const [isShared, setIsShared] = useState(false);
+  const [sharesCount, setSharesCount] = useState(0);
   
   const { user } = useAuth();
   const { updatePostLike, getPostLikeState, updatePost } = usePostContext();
@@ -53,11 +57,8 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
 
   const fetchPost = async () => {
     try {
-      console.log('PostDetailScreen: Fetching post with ID:', postId);
-      
       // Validate postId
       if (!postId) {
-        console.error('PostDetailScreen: postId is null/undefined:', postId);
         Alert.alert('Lỗi', 'Không tìm thấy ID bài viết. Vui lòng thử lại.');
         router.back();
         return;
@@ -66,26 +67,19 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
       const numericPostId = Number(postId);
       
       if (isNaN(numericPostId) || numericPostId <= 0) {
-        console.error('PostDetailScreen: Invalid postId:', postId);
         Alert.alert('Lỗi', 'ID bài viết không hợp lệ. Vui lòng thử lại.');
         router.back();
         return;
       }
       
       // Fetch post data first
-      console.log('PostDetailScreen: Fetching post data...');
       const postData = await postAPI.getPost(numericPostId);
-      console.log('PostDetailScreen: Post data fetched:', postData);
       
       // Fetch comments separately
-      console.log('PostDetailScreen: Fetching comments...');
       let comments = [];
       try {
         comments = await commentAPI.getCommentsByPost(numericPostId);
-        console.log('PostDetailScreen: Comments fetched:', comments);
-        console.log('PostDetailScreen: Comments count:', comments?.length || 0);
       } catch (commentError) {
-        console.error('PostDetailScreen: Error fetching comments:', commentError);
         // Don't fail the entire request if comments fail
         comments = [];
       }
@@ -97,7 +91,6 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
         commentCount: comments?.length || postData.commentCount || 0
       };
       
-      console.log('PostDetailScreen: Final post data with comments:', postWithComments);
       setPost(postWithComments);
       
       // Initialize like state - CRITICAL: Check if current user has liked this post
@@ -105,16 +98,13 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
       if (globalLikeState) {
         setIsLiked(globalLikeState.isLiked);
         setLikesCount(globalLikeState.likeCount);
-        console.log('PostDetailScreen: Using global like state:', globalLikeState);
       } else {
         // Determine like state from post data - check likes array for current user
         let userLiked = false;
         if (user?.id && postData.likes && Array.isArray(postData.likes)) {
           userLiked = postData.likes.some(like => like.userId === user.id);
-          console.log('PostDetailScreen: User like status from likes array:', userLiked, 'likes count:', postData.likes.length);
         } else if (postData.isLiked !== undefined) {
           userLiked = postData.isLiked;
-          console.log('PostDetailScreen: User like status from isLiked field:', userLiked);
         }
         
         setIsLiked(userLiked);
@@ -122,10 +112,13 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
         
         // Update global context with determined state
         updatePostLike(postData.id, userLiked);
-        console.log('PostDetailScreen: Updated global context with like state:', userLiked);
       }
       
-      console.log('PostDetailScreen: Post fetched successfully with', comments?.length || 0, 'comments');
+      // Initialize share state
+      const userShared = postData.shares?.some(share => share.userId === user?.id) || false;
+      setIsShared(userShared);
+      setSharesCount(postData.shareCount || 0);
+      
     } catch (error) {
       console.error('PostDetailScreen: Error fetching post:', error);
       Alert.alert('Lỗi', 'Không thể tải bài viết. Vui lòng thử lại.');
@@ -139,21 +132,18 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
     if (!post || !user?.id || isLoadingLike) return;
 
     const wasLiked = isLiked;
-    console.log('PostDetailScreen: Toggling like for post:', post.id, 'wasLiked:', wasLiked);
 
     try {
       setIsLoadingLike(true);
       
       if (isLiked) {
         const response = await postAPI.unlikePost(post.id, user.id);
-        console.log('PostDetailScreen: Unlike response:', response);
         setIsLiked(false);
         setLikesCount(prev => Math.max(0, prev - 1));
         onLikeToggle?.(post.id, false);
         updatePostLike(post.id, false);
       } else {
         const response = await postAPI.likePost(post.id, user.id);
-        console.log('PostDetailScreen: Like response:', response);
         setIsLiked(true);
         setLikesCount(prev => prev + 1);
         onLikeToggle?.(post.id, true);
@@ -161,13 +151,10 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
       }
     } catch (error: any) {
       console.error('PostDetailScreen: Error toggling like:', error);
-      console.error('PostDetailScreen: Error response:', error.response?.data);
-      console.error('PostDetailScreen: Error status:', error.response?.status);
       
       // Handle specific error cases
       if (error.response?.status === 400) {
         // Don't show error for 400 - post might already be in desired state
-        console.log('PostDetailScreen: Silently handling 400 error - post may already be in desired state');
         // Refresh post data to get correct state instead of reverting
         await fetchPost();
         return; // Don't revert UI state, let fetchPost handle it
@@ -251,7 +238,6 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
             try {
               setIsDeleting(true);
               await postAPI.deletePost(post.id);
-              console.log('PostDetailScreen: Post deleted successfully');
               Alert.alert('Thành công', 'Bài viết đã được xóa.');
               router.back();
             } catch (error) {
@@ -351,6 +337,8 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
   const handleRefresh = () => {
     setIsRefreshing(true);
     fetchPost();
+    // Cũng gọi callback từ parent nếu có
+    onRefresh?.();
   };
 
   const formatDate = (dateString: string) => {
@@ -586,17 +574,20 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
               style={styles.actionButton}
               onPress={() => {
                 // Scroll to comments section
-                console.log('Scroll to comments');
               }}
             >
               <MessageCircle size={20} color={COLORS.gray} />
               <Text style={styles.actionText}>{post.commentCount}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.actionButton}>
-              <Share size={20} color={COLORS.gray} />
-              <Text style={styles.actionText}>{post.shareCount}</Text>
-            </TouchableOpacity>
+            <ShareButton
+              postId={post.id}
+              shareCount={sharesCount}
+              isShared={isShared}
+              onShareToggle={onShareToggle}
+              onRefresh={onRefresh}
+              disabled={isLoadingLike}
+            />
           </View>
         </View>
 

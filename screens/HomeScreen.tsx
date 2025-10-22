@@ -141,19 +141,15 @@ export default function HomeScreen() {
 
   const fetchPosts = useCallback(async () => {
     try {
-      console.log('HomeScreen: Fetching posts...');
-      
       // Thử load từ API trước
       if (user) {
         try {
           const fetchedPosts = await postAPI.getAllPosts();
-          console.log('HomeScreen: Posts fetched successfully, count:', fetchedPosts.length);
           
           // Validate posts before setting
           const validPosts = fetchedPosts.filter(post => post && post.id);
           
           if (validPosts.length === 0) {
-            console.log('HomeScreen: No valid posts found, using mock data');
             setPosts(mockPosts);
             return;
           }
@@ -161,17 +157,15 @@ export default function HomeScreen() {
           setPosts(validPosts);
           return;
         } catch (apiError) {
-          console.log('HomeScreen: API failed, using mock data:', apiError);
+          // API failed, fallback to mock data
         }
       }
       
       // Nếu API fail hoặc không có user, dùng dữ liệu mẫu
-      console.log('HomeScreen: Using mock posts for demo');
       setPosts(mockPosts);
     } catch (error) {
       console.error('HomeScreen: Error fetching posts:', error);
       // Fallback to mock data
-      console.log('HomeScreen: Using mock posts as fallback');
       setPosts(mockPosts);
     } finally {
       setIsLoading(false);
@@ -184,20 +178,36 @@ export default function HomeScreen() {
   }, [fetchPosts]);
 
   const handlePostCreated = useCallback((newPost: PostResponse) => {
-    console.log('HomeScreen: New post created:', newPost);
     setPosts([newPost, ...posts]);
     setShowCreatePost(false);
   }, [posts, setPosts]);
 
   const handlePostDeleted = useCallback((postId: number) => {
-    console.log('HomeScreen: Post deleted:', postId);
     setPosts(posts.filter(post => post.id !== postId));
   }, [posts, setPosts]);
 
   const handleLikeToggle = useCallback((postId: number, isLiked: boolean) => {
-    console.log('HomeScreen: Like toggled:', postId, isLiked);
     updatePostLike(postId, isLiked);
   }, [updatePostLike]);
+
+  const handleShareToggle = useCallback((postId: number, isShared: boolean) => {
+    // Update the post's share count and state
+    setPosts(prevPosts => 
+      prevPosts.map(post => 
+        post.id === postId 
+          ? { 
+              ...post, 
+              shareCount: isShared ? post.shareCount + 1 : Math.max(0, post.shareCount - 1),
+              isShared: isShared
+            }
+          : post
+      )
+    );
+  }, []);
+
+  const handleRefresh = useCallback(() => {
+    fetchPosts();
+  }, [fetchPosts]);
 
   // Fetch posts when component mounts
   useEffect(() => {
@@ -301,6 +311,8 @@ export default function HomeScreen() {
                 postData={post}
                 onPostDeleted={handlePostDeleted}
                 onLikeToggle={handleLikeToggle}
+                onShareToggle={handleShareToggle}
+                onRefresh={handleRefresh}
                 showImage={!!post.imageUrl || !!post.videoUrl}
               />
             ))
