@@ -25,18 +25,11 @@ interface PostDetailScreenProps {
 }
 
 export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps = {}) {
-  const { postId } = useLocalSearchParams();
+  const params = useLocalSearchParams();
+  const postId = params.id;
   const router = useRouter();
   
-  console.log('PostDetailScreen: Component mounted');
-  console.log('PostDetailScreen: Raw postId from params:', postId);
-  console.log('PostDetailScreen: postId type:', typeof postId);
-  console.log('PostDetailScreen: postId value:', postId);
-  console.log('PostDetailScreen: postId is undefined?', postId === undefined);
-  console.log('PostDetailScreen: postId is null?', postId === null);
-  console.log('PostDetailScreen: postId is empty string?', postId === '');
-  console.log('PostDetailScreen: postId length:', postId?.length);
-  console.log('PostDetailScreen: All params:', useLocalSearchParams());
+  console.log('PostDetailScreen: Fetching post with ID:', postId);
   const [post, setPost] = useState<PostResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -46,9 +39,13 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
   const [commentText, setCommentText] = useState('');
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
+  const [editingCommentText, setEditingCommentText] = useState('');
+  const [isUpdatingComment, setIsUpdatingComment] = useState(false);
+  const [isDeletingComment, setIsDeletingComment] = useState(false);
   
   const { user } = useAuth();
-  const { updatePostLike } = usePostContext();
+  const { updatePostLike, getPostLikeState, updatePost } = usePostContext();
   const insets = useSafeAreaInsets();
 
   // Tags are already provided by backend in postData.tags
@@ -57,8 +54,6 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
   const fetchPost = async () => {
     try {
       console.log('PostDetailScreen: Fetching post with ID:', postId);
-      console.log('PostDetailScreen: PostId type:', typeof postId);
-      console.log('PostDetailScreen: PostId value:', postId);
       
       // Validate postId
       if (!postId) {
@@ -69,7 +64,6 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
       }
       
       const numericPostId = Number(postId);
-      console.log('PostDetailScreen: Converting to number:', numericPostId);
       
       if (isNaN(numericPostId) || numericPostId <= 0) {
         console.error('PostDetailScreen: Invalid postId:', postId);
@@ -78,19 +72,60 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
         return;
       }
       
-      console.log('PostDetailScreen: Fetching post with valid ID:', numericPostId);
+      // Fetch post data first
+      console.log('PostDetailScreen: Fetching post data...');
       const postData = await postAPI.getPost(numericPostId);
-      setPost(postData);
+      console.log('PostDetailScreen: Post data fetched:', postData);
       
-      // Initialize like state
-      if (user?.id && postData.likes && Array.isArray(postData.likes)) {
-        setIsLiked(postData.likes.some(like => like.userId === user.id));
-      } else {
-        setIsLiked(postData.isLiked || false);
+      // Fetch comments separately
+      console.log('PostDetailScreen: Fetching comments...');
+      let comments = [];
+      try {
+        comments = await commentAPI.getCommentsByPost(numericPostId);
+        console.log('PostDetailScreen: Comments fetched:', comments);
+        console.log('PostDetailScreen: Comments count:', comments?.length || 0);
+      } catch (commentError) {
+        console.error('PostDetailScreen: Error fetching comments:', commentError);
+        // Don't fail the entire request if comments fail
+        comments = [];
       }
-      setLikesCount(postData.likeCount || 0);
       
-      console.log('PostDetailScreen: Post fetched successfully:', postData);
+      // Combine post data with comments
+      const postWithComments = {
+        ...postData,
+        comments: comments || [],
+        commentCount: comments?.length || postData.commentCount || 0
+      };
+      
+      console.log('PostDetailScreen: Final post data with comments:', postWithComments);
+      setPost(postWithComments);
+      
+      // Initialize like state - CRITICAL: Check if current user has liked this post
+      const globalLikeState = getPostLikeState(postData.id);
+      if (globalLikeState) {
+        setIsLiked(globalLikeState.isLiked);
+        setLikesCount(globalLikeState.likeCount);
+        console.log('PostDetailScreen: Using global like state:', globalLikeState);
+      } else {
+        // Determine like state from post data - check likes array for current user
+        let userLiked = false;
+        if (user?.id && postData.likes && Array.isArray(postData.likes)) {
+          userLiked = postData.likes.some(like => like.userId === user.id);
+          console.log('PostDetailScreen: User like status from likes array:', userLiked, 'likes count:', postData.likes.length);
+        } else if (postData.isLiked !== undefined) {
+          userLiked = postData.isLiked;
+          console.log('PostDetailScreen: User like status from isLiked field:', userLiked);
+        }
+        
+        setIsLiked(userLiked);
+        setLikesCount(postData.likeCount || 0);
+        
+        // Update global context with determined state
+        updatePostLike(postData.id, userLiked);
+        console.log('PostDetailScreen: Updated global context with like state:', userLiked);
+      }
+      
+      console.log('PostDetailScreen: Post fetched successfully with', comments?.length || 0, 'comments');
     } catch (error) {
       console.error('PostDetailScreen: Error fetching post:', error);
       Alert.alert('Lỗi', 'Không thể tải bài viết. Vui lòng thử lại.');
@@ -103,41 +138,65 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
   const handleLike = async () => {
     if (!post || !user?.id || isLoadingLike) return;
 
+    const wasLiked = isLiked;
+    console.log('PostDetailScreen: Toggling like for post:', post.id, 'wasLiked:', wasLiked);
+
     try {
       setIsLoadingLike(true);
       
       if (isLiked) {
-        console.log(`PostDetailScreen: Unliking post ${post.id} for user ${user.id}`);
-        await postAPI.unlikePost(post.id, user.id);
+        const response = await postAPI.unlikePost(post.id, user.id);
+        console.log('PostDetailScreen: Unlike response:', response);
         setIsLiked(false);
         setLikesCount(prev => Math.max(0, prev - 1));
         onLikeToggle?.(post.id, false);
         updatePostLike(post.id, false);
-        console.log(`PostDetailScreen: Successfully unliked post ${post.id}`);
       } else {
-        console.log(`PostDetailScreen: Liking post ${post.id} for user ${user.id}`);
-        await postAPI.likePost(post.id, user.id);
+        const response = await postAPI.likePost(post.id, user.id);
+        console.log('PostDetailScreen: Like response:', response);
         setIsLiked(true);
         setLikesCount(prev => prev + 1);
         onLikeToggle?.(post.id, true);
         updatePostLike(post.id, true);
-        console.log(`PostDetailScreen: Successfully liked post ${post.id}`);
       }
     } catch (error: any) {
       console.error('PostDetailScreen: Error toggling like:', error);
-      console.error('PostDetailScreen: Error details:', error.response?.data);
+      console.error('PostDetailScreen: Error response:', error.response?.data);
       console.error('PostDetailScreen: Error status:', error.response?.status);
       
-      // Revert the UI state on error
-      if (isLiked) {
+      // Handle specific error cases
+      if (error.response?.status === 400) {
+        // Don't show error for 400 - post might already be in desired state
+        console.log('PostDetailScreen: Silently handling 400 error - post may already be in desired state');
+        // Refresh post data to get correct state instead of reverting
+        await fetchPost();
+        return; // Don't revert UI state, let fetchPost handle it
+      } else if (error.response?.status === 401) {
+        Alert.alert(
+          'Phiên đăng nhập hết hạn',
+          'Vui lòng đăng nhập lại để tiếp tục sử dụng.',
+          [
+            { text: 'Đăng nhập lại', onPress: () => {
+              router.push('/auth/login');
+            }}
+          ]
+        );
+      } else {
+        Alert.alert('Lỗi', 'Không thể thực hiện hành động này. Vui lòng thử lại.');
+      }
+      
+      // Revert the UI state on error (except for 400)
+      if (wasLiked) {
         setLikesCount(prev => prev + 1);
         setIsLiked(true);
+        onLikeToggle?.(post.id, true);
+        updatePostLike(post.id, true);
       } else {
         setLikesCount(prev => Math.max(0, prev - 1));
         setIsLiked(false);
+        onLikeToggle?.(post.id, false);
+        updatePostLike(post.id, false);
       }
-      
-      Alert.alert('Lỗi', 'Không thể thực hiện hành động này. Vui lòng thử lại.');
     } finally {
       setIsLoadingLike(false);
     }
@@ -149,23 +208,13 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
     try {
       setIsSubmittingComment(true);
       
-      console.log('PostDetailScreen: Submitting comment:', {
-        postId: post.id,
-        userId: user.id,
-        content: commentText.trim()
-      });
-
       const commentData = {
         postId: post.id,
         userId: user.id,
         content: commentText.trim()
       };
 
-      console.log('PostDetailScreen: Comment data to send:', commentData);
-
       const newComment = await commentAPI.createComment(commentData);
-
-      console.log('PostDetailScreen: Comment created successfully:', newComment);
 
       // Update post with new comment
       setPost(prev => prev ? {
@@ -180,9 +229,6 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
       Alert.alert('Thành công', 'Bình luận đã được thêm!');
     } catch (error: any) {
       console.error('PostDetailScreen: Error submitting comment:', error);
-      console.error('PostDetailScreen: Error details:', error.response?.data);
-      console.error('PostDetailScreen: Error status:', error.response?.status);
-      console.error('PostDetailScreen: Error message:', error.message);
       
       Alert.alert('Lỗi', 'Không thể thêm bình luận. Vui lòng thử lại.');
     } finally {
@@ -225,6 +271,83 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
     router.push('/(tabs)/create');
   };
 
+  const handleEditComment = (comment: any) => {
+    setEditingCommentId(comment.id);
+    setEditingCommentText(comment.content);
+  };
+
+  const handleCancelEditComment = () => {
+    setEditingCommentId(null);
+    setEditingCommentText('');
+  };
+
+  const handleUpdateComment = async () => {
+    if (!post || !editingCommentId || !editingCommentText.trim() || isUpdatingComment) return;
+
+    try {
+      setIsUpdatingComment(true);
+      
+      const updatedComment = await commentAPI.updateComment(editingCommentId, {
+        content: editingCommentText.trim()
+      });
+
+      // Update post with updated comment
+      setPost(prev => prev ? {
+        ...prev,
+        comments: prev.comments.map(comment => 
+          comment.id === editingCommentId ? updatedComment : comment
+        )
+      } : null);
+
+      // Clear editing state
+      setEditingCommentId(null);
+      setEditingCommentText('');
+      
+      Alert.alert('Thành công', 'Bình luận đã được cập nhật!');
+    } catch (error: any) {
+      console.error('PostDetailScreen: Error updating comment:', error);
+      Alert.alert('Lỗi', 'Không thể cập nhật bình luận. Vui lòng thử lại.');
+    } finally {
+      setIsUpdatingComment(false);
+    }
+  };
+
+  const handleDeleteComment = async (commentId: number) => {
+    if (!post || !user?.id) return;
+
+    Alert.alert(
+      'Xóa bình luận',
+      'Bạn có chắc chắn muốn xóa bình luận này?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Xóa',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsDeletingComment(true);
+              await commentAPI.deleteComment(commentId);
+              
+              // Update post by removing the deleted comment
+              setPost(prev => prev ? {
+                ...prev,
+                comments: prev.comments.filter(comment => comment.id !== commentId),
+                commentCount: prev.commentCount - 1
+              } : null);
+              
+              Alert.alert('Thành công', 'Bình luận đã được xóa.');
+            } catch (error) {
+              console.error('PostDetailScreen: Error deleting comment:', error);
+              Alert.alert('Lỗi', 'Không thể xóa bình luận. Vui lòng thử lại.');
+            } finally {
+              setIsDeletingComment(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const handleRefresh = () => {
     setIsRefreshing(true);
     fetchPost();
@@ -232,8 +355,6 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
 
   const formatDate = (dateString: string) => {
     try {
-      console.log('PostDetailScreen: Raw date string from backend:', dateString);
-      
       // Parse the date string
       let date = new Date(dateString);
       
@@ -243,19 +364,12 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
         return 'Thời gian không hợp lệ';
       }
       
-      console.log('PostDetailScreen: Parsed date (UTC):', date.toISOString());
-      console.log('PostDetailScreen: Parsed date (Local):', date.toLocaleString('vi-VN'));
-      
       // Based on the format "2025-10-15 13:40:29.414779", this appears to be UTC time
       // without timezone indicator, so we need to add 7 hours to get Vietnam time
-      console.log('PostDetailScreen: Backend time appears to be UTC without timezone indicator');
-      console.log('PostDetailScreen: Converting to Vietnam time (UTC+7)');
       
       // Add 7 hours to get Vietnam time
       const vietnamTime = new Date(date.getTime() + (7 * 60 * 60 * 1000));
       date = vietnamTime;
-      
-      console.log('PostDetailScreen: Final date (Vietnam time):', date.toLocaleString('vi-VN'));
       
       // Show actual time in Vietnamese format
       return date.toLocaleString('vi-VN', {
@@ -422,11 +536,6 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
 
           {/* Tags */}
           {(() => {
-            console.log('PostDetailScreen: Full post:', JSON.stringify(post, null, 2));
-            console.log('PostDetailScreen: tags from backend:', post.tags);
-            console.log('PostDetailScreen: tags length:', post.tags?.length);
-            console.log('PostDetailScreen: tags type:', typeof post.tags);
-            
             if (post.tags && Array.isArray(post.tags) && post.tags.length > 0) {
               return (
                 <View style={styles.tagsContainer}>
@@ -522,22 +631,86 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
           {/* Comments List */}
           {post.comments && post.comments.length > 0 ? (
             <View style={styles.commentsList}>
-              {post.comments.map((comment) => (
-                <View key={comment.id} style={styles.commentItem}>
-                  <View style={styles.commentAvatar}>
-                    {comment.user.avatarUrl ? (
-                      <Image source={{ uri: comment.user.avatarUrl }} style={styles.commentAvatarImage} />
-                    ) : (
-                      <User size={16} color={COLORS.white} />
-                    )}
+              {post.comments.map((comment) => {
+                const isCommentOwner = user?.id === comment.userId;
+                const isEditing = editingCommentId === comment.id;
+                
+                return (
+                  <View key={comment.id} style={styles.commentItem}>
+                    <View style={styles.commentAvatar}>
+                      {comment.user?.avatarUrl ? (
+                        <Image source={{ uri: comment.user.avatarUrl }} style={styles.commentAvatarImage} />
+                      ) : (
+                        <User size={16} color={COLORS.white} />
+                      )}
+                    </View>
+                    <View style={styles.commentContent}>
+                      <View style={styles.commentHeader}>
+                        <Text style={styles.commentUserName}>
+                          {comment.user?.fullName || 'Unknown User'}
+                        </Text>
+                        {isCommentOwner && !isEditing && (
+                          <View style={styles.commentActions}>
+                            <TouchableOpacity
+                              style={styles.commentActionButton}
+                              onPress={() => handleEditComment(comment)}
+                              disabled={isUpdatingComment || isDeletingComment}
+                            >
+                              <Edit size={14} color={COLORS.gray} />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.commentActionButton}
+                              onPress={() => handleDeleteComment(comment.id)}
+                              disabled={isUpdatingComment || isDeletingComment}
+                            >
+                              <Trash2 size={14} color={COLORS.error} />
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      </View>
+                      
+                      {isEditing ? (
+                        <View style={styles.editCommentContainer}>
+                          <TextInput
+                            style={styles.editCommentInput}
+                            value={editingCommentText}
+                            onChangeText={setEditingCommentText}
+                            multiline
+                            placeholder="Chỉnh sửa bình luận..."
+                            placeholderTextColor={COLORS.gray}
+                            editable={!isUpdatingComment}
+                          />
+                          <View style={styles.editCommentActions}>
+                            <TouchableOpacity
+                              style={[styles.editCommentButton, styles.cancelButton]}
+                              onPress={handleCancelEditComment}
+                              disabled={isUpdatingComment}
+                            >
+                              <Text style={styles.cancelButtonText}>Hủy</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[styles.editCommentButton, styles.saveButton]}
+                              onPress={handleUpdateComment}
+                              disabled={!editingCommentText.trim() || isUpdatingComment}
+                            >
+                              {isUpdatingComment ? (
+                                <ActivityIndicator size="small" color={COLORS.white} />
+                              ) : (
+                                <Text style={styles.saveButtonText}>Lưu</Text>
+                              )}
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      ) : (
+                        <>
+                          <Text style={styles.commentText}>{comment.content}</Text>
+                          <Text style={styles.commentTime}>{formatDate(comment.createdAt)}</Text>
+                        </>
+                      )}
+                    </View>
                   </View>
-                  <View style={styles.commentContent}>
-                    <Text style={styles.commentUserName}>{comment.user.fullName}</Text>
-                    <Text style={styles.commentText}>{comment.content}</Text>
-                    <Text style={styles.commentTime}>{formatDate(comment.createdAt)}</Text>
-                  </View>
-                </View>
-              ))}
+                );
+              })}
             </View>
           ) : (
             <View style={styles.noCommentsContainer}>
@@ -788,11 +961,26 @@ const styles = StyleSheet.create({
   commentContent: {
     flex: 1,
   },
+  commentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
   commentUserName: {
     fontSize: RESPONSIVE_FONT_SIZES.sm,
     fontWeight: '600',
     color: COLORS.black,
-    marginBottom: 2,
+    flex: 1,
+  },
+  commentActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  commentActionButton: {
+    padding: RESPONSIVE_SPACING.xs,
+    marginLeft: RESPONSIVE_SPACING.xs,
+    borderRadius: BORDER_RADIUS.sm,
   },
   commentText: {
     fontSize: RESPONSIVE_FONT_SIZES.sm,
@@ -803,6 +991,46 @@ const styles = StyleSheet.create({
   commentTime: {
     fontSize: RESPONSIVE_FONT_SIZES.xs,
     color: COLORS.gray,
+  },
+  editCommentContainer: {
+    marginTop: RESPONSIVE_SPACING.xs,
+  },
+  editCommentInput: {
+    backgroundColor: COLORS.lightGray,
+    borderRadius: BORDER_RADIUS.sm,
+    paddingHorizontal: RESPONSIVE_SPACING.sm,
+    paddingVertical: RESPONSIVE_SPACING.sm,
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    color: COLORS.black,
+    marginBottom: RESPONSIVE_SPACING.sm,
+    maxHeight: 100,
+  },
+  editCommentActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+  },
+  editCommentButton: {
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.xs,
+    borderRadius: BORDER_RADIUS.sm,
+    marginLeft: RESPONSIVE_SPACING.sm,
+  },
+  cancelButton: {
+    backgroundColor: COLORS.gray,
+  },
+  saveButton: {
+    backgroundColor: COLORS.primary,
+  },
+  cancelButtonText: {
+    color: COLORS.white,
+    fontSize: RESPONSIVE_FONT_SIZES.xs,
+    fontWeight: '600',
+  },
+  saveButtonText: {
+    color: COLORS.white,
+    fontSize: RESPONSIVE_FONT_SIZES.xs,
+    fontWeight: '600',
   },
   noCommentsContainer: {
     alignItems: 'center',

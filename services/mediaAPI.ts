@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // API Configuration - Manual configuration
 const API_CONFIG = {
-  BASE_URL: 'https://bobby-unpargeted-nicole.ngrok-free.dev/api', // Updated ngrok endpoint
+  BASE_URL: 'https://0eb536398401.ngrok-free.app/api', // Updated ngrok endpoint
   TIMEOUT: 30000,
   MEDIA_TIMEOUT: 120000, // Tăng lên 2 phút cho video
   HEADERS: {

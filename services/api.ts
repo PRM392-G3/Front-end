@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // API Configuration
 export const API_CONFIG = {
   // Update this URL to your current backend server URL
-  BASE_URL: 'https://bobby-unpargeted-nicole.ngrok-free.dev/api',
+  BASE_URL: 'https://0eb536398401.ngrok-free.app/api',
   
   // Alternative URLs for testing (uncomment and use if needed)
   // BASE_URL: 'http://localhost:5000/api', // Local development
@@ -433,6 +433,7 @@ export const postAPI = {
       const response = await api.post(`/Post/${postId}/like/${userId}`);
       return response.data;
     } catch (error) {
+      console.error('Error liking post:', error);
       throw error;
     }
   },
@@ -443,6 +444,7 @@ export const postAPI = {
       const response = await api.delete(`/Post/${postId}/like/${userId}`);
       return response.data;
     } catch (error) {
+      console.error('Error unliking post:', error);
       throw error;
     }
   },

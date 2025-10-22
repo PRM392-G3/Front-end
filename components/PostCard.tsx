@@ -5,6 +5,7 @@ import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES } from
 import { Heart, MessageCircle, Share2, MoveHorizontal as MoreHorizontal, Trash2, Edit } from 'lucide-react-native';
 import { PostResponse, postAPI } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePostContext } from '@/contexts/PostContext';
 import { useRouter } from 'expo-router';
 
 interface PostCardProps {
@@ -22,45 +23,42 @@ export default function PostCard({
   onLikeToggle,
   showImage = true
 }: PostCardProps) {
-  console.log('PostCard: Component rendered with postData:', JSON.stringify(postData, null, 2));
-  console.log('PostCard: postData.id:', postData.id);
-  console.log('PostCard: postData.id type:', typeof postData.id);
-  console.log('PostCard: postData.id is undefined?', postData.id === undefined);
-  console.log('PostCard: postData.id is null?', postData.id === null);
-  console.log('PostCard: postData.id is NaN?', isNaN(Number(postData.id)));
-  console.log('PostCard: postData.id check:', {
-    id: postData.id,
-    idExists: 'id' in postData,
-    idValue: postData.id,
-    idType: typeof postData.id,
-    idIsNumber: typeof postData.id === 'number',
-    idIsString: typeof postData.id === 'string',
-    idIsUndefined: postData.id === undefined,
-    idIsNull: postData.id === null,
-    idIsNaN: isNaN(Number(postData.id))
-  });
+  const { user } = useAuth();
+  const { getPostLikeState } = usePostContext();
+  const router = useRouter();
+
   const [isLiked, setIsLiked] = useState(() => {
-    // Check if current user has liked this post
-    console.log('PostCard: Initializing isLiked state:', postData.isLiked);
-    console.log('PostCard: Post ID:', postData.id);
-    console.log('PostCard: User ID:', user?.id);
+    // Check global context first, then fallback to post data
+    const globalLikeState = getPostLikeState(postData.id);
+    if (globalLikeState) {
+      return globalLikeState.isLiked;
+    }
     return postData.isLiked || false;
   });
-  const [likesCount, setLikesCount] = useState(postData.likeCount);
+  const [likesCount, setLikesCount] = useState(() => {
+    const globalLikeState = getPostLikeState(postData.id);
+    if (globalLikeState) {
+      return globalLikeState.likeCount;
+    }
+    return postData.likeCount;
+  });
   const [isLoading, setIsLoading] = useState(false);
-  const { user } = useAuth();
-  const router = useRouter();
+  const [isApiCalling, setIsApiCalling] = useState(false);
 
   const isOwnPost = user?.id === postData.userId;
 
-  // Sync state when postData changes
+  // Sync state when postData changes or global state changes
   useEffect(() => {
-    console.log('PostCard: PostData changed, syncing state...');
-    console.log('PostCard: New isLiked from props:', postData.isLiked);
-    console.log('PostCard: New likeCount from props:', postData.likeCount);
-    setIsLiked(postData.isLiked || false);
-    setLikesCount(postData.likeCount);
-  }, [postData.isLiked, postData.likeCount]);
+    // Check global context first
+    const globalLikeState = getPostLikeState(postData.id);
+    if (globalLikeState) {
+      setIsLiked(globalLikeState.isLiked);
+      setLikesCount(globalLikeState.likeCount);
+    } else {
+      setIsLiked(postData.isLiked || false);
+      setLikesCount(postData.likeCount);
+    }
+  }, [postData.isLiked, postData.likeCount, getPostLikeState]);
 
   const formatTimestamp = (timestamp: string) => {
     const now = new Date();
@@ -80,61 +78,22 @@ export default function PostCard({
   };
 
   const handleViewPost = () => {
-    console.log('PostCard: Comment button clicked!');
-    console.log('PostCard: Full postData:', JSON.stringify(postData, null, 2));
-    console.log('PostCard: Post ID:', postData.id);
-    console.log('PostCard: Post ID type:', typeof postData.id);
-    console.log('PostCard: Post ID value:', postData.id);
-    console.log('PostCard: Is postData.id undefined?', postData.id === undefined);
-    console.log('PostCard: Is postData.id null?', postData.id === null);
-    console.log('PostCard: Is postData.id empty string?', String(postData.id) === '');
-    console.log('PostCard: Converting to string:', postData.id?.toString());
-    console.log('PostCard: Navigating to post detail...');
-    console.log('PostCard: postData.id check before navigation:', {
-      id: postData.id,
-      idExists: 'id' in postData,
-      idValue: postData.id,
-      idType: typeof postData.id,
-      idIsNumber: typeof postData.id === 'number',
-      idIsString: typeof postData.id === 'string',
-      idIsUndefined: postData.id === undefined,
-      idIsNull: postData.id === null,
-      idIsNaN: isNaN(Number(postData.id))
-    });
+    console.log('PostCard: Navigating to post detail for post ID:', postData.id);
     
     // Validate postId before navigation
     if (!postData.id || isNaN(Number(postData.id))) {
       console.error('PostCard: Invalid postId for navigation:', postData.id);
-      console.error('PostCard: postData.id is undefined/null/NaN');
-      console.error('PostCard: postData keys:', Object.keys(postData));
-      console.error('PostCard: postData.id exists?', 'id' in postData);
-      console.error('PostCard: postData structure:', {
-        hasId: 'id' in postData,
-        idValue: postData.id,
-        idType: typeof postData.id,
-        allKeys: Object.keys(postData)
-      });
-      console.error('PostCard: postData.id is NaN?', isNaN(Number(postData.id)));
-      console.error('PostCard: postData.id is 0?', postData.id === 0);
-      console.error('PostCard: postData.id is empty?', String(postData.id) === '');
       Alert.alert('Lỗi', 'Không thể mở bài viết. ID không hợp lệ.');
       return;
     }
     
     try {
-      const postIdString = postData.id.toString();
-      console.log('PostCard: PostId string for navigation:', postIdString);
-      console.log('PostCard: Navigation params object:', { id: postIdString });
-      console.log('PostCard: About to call router.push...');
-      
       router.push({
         pathname: '/post-detail',
-        params: { id: postIdString }
+        params: { id: postData.id.toString() }
       });
-      console.log('PostCard: Navigation successful!');
     } catch (error) {
       console.error('PostCard: Navigation failed:', error);
-      console.error('PostCard: Navigation error details:', error);
     }
   };
 
@@ -188,84 +147,80 @@ export default function PostCard({
   };
 
   const handleLikeToggle = async () => {
-    if (isLoading) return;
+    if (isLoading || isApiCalling) return;
     
-    // Lưu trạng thái ban đầu trước khi thay đổi UI
     const wasLiked = isLiked;
-    
-    console.log('PostCard: Starting like toggle...');
-    console.log('PostCard: Current isLiked state:', isLiked);
-    console.log('PostCard: wasLiked (original state):', wasLiked);
-    console.log('PostCard: Post ID:', postData.id);
-    console.log('PostCard: User ID:', user?.id);
+    console.log('PostCard: Toggling like for post:', postData.id, 'wasLiked:', wasLiked);
 
     try {
       setIsLoading(true);
+      setIsApiCalling(true);
       
       // Optimistically update UI
       if (isLiked) {
-        console.log('PostCard: Currently liked, switching to unliked...');
         setIsLiked(false);
         setLikesCount(prev => Math.max(0, prev - 1));
-        onLikeToggle?.(postData.id, false);
       } else {
-        console.log('PostCard: Currently unliked, switching to liked...');
         setIsLiked(true);
         setLikesCount(prev => prev + 1);
-        onLikeToggle?.(postData.id, true);
       }
 
-      // Make API call - sử dụng trạng thái ban đầu
+      // Make API call
       if (wasLiked) {
-        // Đang liked, gọi unlike
-        console.log('PostCard: Calling unlikePost API...');
-        console.log('PostCard: API call - wasLiked = true, calling unlikePost');
         await postAPI.unlikePost(postData.id, user?.id || 0);
-        console.log(`PostCard: Successfully unliked post ${postData.id}`);
       } else {
-        // Đang unliked, gọi like
-        console.log('PostCard: Calling likePost API...');
-        console.log('PostCard: API call - wasLiked = false, calling likePost');
         await postAPI.likePost(postData.id, user?.id || 0);
-        console.log(`PostCard: Successfully liked post ${postData.id}`);
       }
-    } catch (error: any) {
-      console.error('PostCard: Error toggling like:', error);
-      console.error('PostCard: Error details:', error.response?.data);
-      console.error('PostCard: Error status:', error.response?.status);
-      
-      // Revert the UI state on error - sử dụng trạng thái ban đầu
-      if (wasLiked) {
-        setLikesCount(prev => prev + 1);
-        setIsLiked(true);
-        onLikeToggle?.(postData.id, true);
-      } else {
-        setLikesCount(prev => Math.max(0, prev - 1));
-        setIsLiked(false);
-        onLikeToggle?.(postData.id, false);
-      }
-      
-      // Handle specific error cases
-      if (error.response?.status === 401) {
-        Alert.alert(
-          'Phiên đăng nhập hết hạn',
-          'Vui lòng đăng nhập lại để tiếp tục sử dụng.',
-          [
-            { text: 'Đăng nhập lại', onPress: () => {
-              console.log('PostCard: Redirecting to login due to 401 error');
-              router.push('/auth/login');
-            }}
-          ]
-        );
-      } else if (error.response?.status === 400) {
-        console.log('PostCard: 400 Bad Request - likely already liked/unliked');
-        // Don't show error for 400 - just silently handle it
-        console.log('PostCard: Silently handling 400 error - post may already be in desired state');
-      } else {
-        Alert.alert('Lỗi', 'Không thể thực hiện thao tác. Vui lòng thử lại.');
-      }
-    } finally {
+
+      // Update global state after successful API call
+      onLikeToggle?.(postData.id, !wasLiked);
+        } catch (error: any) {
+          console.error('PostCard: Error toggling like:', error);
+          
+          // Handle specific error cases
+          if (error.response?.status === 401) {
+            // Revert UI state for 401
+            if (wasLiked) {
+              setLikesCount(prev => prev + 1);
+              setIsLiked(true);
+            } else {
+              setLikesCount(prev => Math.max(0, prev - 1));
+              setIsLiked(false);
+            }
+            
+            Alert.alert(
+              'Phiên đăng nhập hết hạn',
+              'Vui lòng đăng nhập lại để tiếp tục sử dụng.',
+              [
+                { text: 'Đăng nhập lại', onPress: () => {
+                  router.push('/auth/login');
+                }}
+              ]
+            );
+          } else if (error.response?.status === 400) {
+            // For 400, the backend indicates the action was redundant (already liked/unliked)
+            // Don't revert UI state - just refresh data to ensure sync
+            console.log('PostCard: Handling 400 error - refreshing post data to sync state');
+            // The UI state is already correct, just refresh to ensure backend sync
+            setTimeout(() => {
+              // Trigger a refresh by calling onLikeToggle with current state
+              onLikeToggle?.(postData.id, !wasLiked);
+            }, 100);
+          } else {
+            // Revert UI state for other errors
+            if (wasLiked) {
+              setLikesCount(prev => prev + 1);
+              setIsLiked(true);
+            } else {
+              setLikesCount(prev => Math.max(0, prev - 1));
+              setIsLiked(false);
+            }
+            
+            Alert.alert('Lỗi', 'Không thể thực hiện thao tác. Vui lòng thử lại.');
+          }
+        } finally {
       setIsLoading(false);
+      setIsApiCalling(false);
     }
   };
 
@@ -302,11 +257,6 @@ export default function PostCard({
 
       {/* Display tags if available */}
       {(() => {
-        console.log('PostCard: Full postData:', JSON.stringify(postData, null, 2));
-        console.log('PostCard: tags from backend:', postData.tags);
-        console.log('PostCard: tags length:', postData.tags?.length);
-        console.log('PostCard: tags type:', typeof postData.tags);
-        
         if (postData.tags && Array.isArray(postData.tags) && postData.tags.length > 0) {
           return (
             <View style={styles.tagsContainer}>
@@ -360,7 +310,7 @@ export default function PostCard({
         <TouchableOpacity 
           style={styles.actionButton} 
           onPress={handleLikeToggle}
-          disabled={isLoading}
+          disabled={isLoading || isApiCalling}
         >
           <Heart 
             size={20} 

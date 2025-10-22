@@ -1,7 +1,7 @@
 // API Configuration
 export const API_CONFIG = {
   // Ngrok endpoint - cập nhật khi ngrok restart
-  BASE_URL: 'https://bobby-unpargeted-nicole.ngrok-free.dev/api',
+  BASE_URL: 'https://0eb536398401.ngrok-free.app/api',
   
   // Local development
   // BASE_URL: 'http://localhost:7097/api',

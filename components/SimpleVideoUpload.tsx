@@ -72,7 +72,7 @@ const SimpleVideoUpload: React.FC<SimpleVideoUploadProps> = ({
 
       // Upload URL - try multiple endpoints
       const uploadUrls = [
-        'https://bobby-unpargeted-nicole.ngrok-free.dev/api/blob-storage/media/upload',
+        'https://0eb536398401.ngrok-free.app/api/blob-storage/media/upload',
         'http://localhost:5000/api/blob-storage/media/upload',
         'https://your-backend-url.com/api/blob-storage/media/upload'
       ];
