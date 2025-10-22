@@ -24,6 +24,7 @@
     "axios": "^1.12.2",
     "expo": "^54.0.10",
     "expo-auth-session": "~7.0.8",
+    "expo-av": "~16.0.7",
     "expo-blur": "~15.0.7",
     "expo-camera": "~17.0.8",
     "expo-constants": "~18.0.9",
@@ -57,6 +58,7 @@
     "@babel/core": "^7.25.2",
     "@types/react": "~19.1.10",
     "cross-env": "^10.1.0",
+    "expo-module-scripts": "^5.0.7",
     "typescript": "~5.9.2"
   }
 }

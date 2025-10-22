@@ -4,7 +4,11 @@ import { Settings, MapPin, Calendar, Link as LinkIcon, Users, Grid2x2 as Grid, L
 import PostCard from '@/components/PostCard';
 import React, { useState } from 'react';
 import { userAPI, UpdateUserPayload } from '@/services/api';
+import { useState, useEffect, useCallback } from 'react';
+import { userAPI, UpdateUserPayload, postAPI, PostResponse } from '@/services/api';
+import { FileUploadResponse } from '@/services/mediaAPI';
 import ImageUploader from '@/components/ImageUploader';
+import SimpleImageUploader from '@/components/SimpleImageUploader';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -17,6 +21,8 @@ export default function ProfileScreen() {
   const router = useRouter();
   const [editVisible, setEditVisible] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [userPosts, setUserPosts] = useState<PostResponse[]>([]);
+  const [isLoadingPosts, setIsLoadingPosts] = useState(false);
   const [form, setForm] = useState<UpdateUserPayload>({
     fullName: user?.fullName || '',
     bio: user?.bio || '',
@@ -59,6 +65,44 @@ export default function ProfileScreen() {
   React.useEffect(() => {
     refreshUserData();
   }, [user?.id]);
+
+  const fetchUserPosts = useCallback(async () => {
+    if (!user?.id) return;
+    
+    try {
+      setIsLoadingPosts(true);
+      const posts = await postAPI.getPostsByUser(user.id);
+      setUserPosts(posts);
+    } catch (error) {
+      console.error('Error fetching user posts:', error);
+    } finally {
+      setIsLoadingPosts(false);
+    }
+  }, [user?.id]);
+
+  const handlePostDeleted = useCallback((postId: number) => {
+    setUserPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
+  }, []);
+
+  const handleLikeToggle = useCallback((postId: number, isLiked: boolean) => {
+    setUserPosts(prevPosts => 
+      prevPosts.map(post => 
+        post.id === postId 
+          ? { 
+              ...post, 
+              isLiked, 
+              likeCount: isLiked ? post.likeCount + 1 : Math.max(0, post.likeCount - 1)
+            }
+          : post
+      )
+    );
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'posts') {
+      fetchUserPosts();
+    }
+  }, [activeTab, fetchUserPosts]);
 
   const handleLogout = () => {
     Alert.alert(
@@ -188,6 +232,29 @@ export default function ProfileScreen() {
             <PostCard showImage={false} />
             <PostCard showImage={true} />
           </ScrollView>
+          <View>
+            {isLoadingPosts ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={COLORS.primary} />
+                <Text style={styles.loadingText}>Đang tải bài viết...</Text>
+              </View>
+            ) : userPosts.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>Bạn chưa có bài viết nào</Text>
+                <Text style={styles.emptySubtext}>Hãy tạo bài viết đầu tiên của bạn!</Text>
+              </View>
+            ) : (
+              userPosts.map((post) => (
+                <PostCard
+                  key={post.id}
+                  postData={post}
+                  onPostDeleted={handlePostDeleted}
+                  onLikeToggle={handleLikeToggle}
+                  showImage={!!post.imageUrl || !!post.videoUrl}
+                />
+              ))
+            )}
+          </View>
         ) : (
           <FollowingList userId={displayUser?.id || 0} />
         )}
@@ -225,23 +292,25 @@ export default function ProfileScreen() {
                 {form.avatarUrl ? (
                   <Image source={{ uri: form.avatarUrl }} style={styles.previewImage} />
                 ) : null}
-                <ImageUploader
-                  maxImages={1}
+                <SimpleImageUploader
                   folder="avatars"
-                  onUploadComplete={(res: any) => {
+                  onUploadComplete={(res: FileUploadResponse) => {
                     console.log('ProfileScreen: Upload response:', res);
+                    console.log('ProfileScreen: Extracted URL:', res.publicUrl);
+                    if (res.publicUrl) {
+                      setForm({ ...form, avatarUrl: res.publicUrl });
 
                     const url = Array.isArray(res) ? res[0]?.publicUrl : res?.publicUrl;
                     console.log('ProfileScreen: Extracted URL:', url);
                     if (url) {
                       setForm({ ...form, avatarUrl: url });
                     } else {
-                      console.error('ProfileScreen: No publicUrl found in response');
+                      console.error('ProfileScreen: No URL found in upload response');
                     }
                   }}
-                  onUploadError={(error) => {
-                    console.error('Avatar upload error:', error);
-                    Alert.alert('Lỗi', 'Không thể upload ảnh đại diện. Vui lòng thử lại.');
+                  onUploadError={(error: any) => {
+                    console.error('ProfileScreen: Upload error:', error);
+                    Alert.alert('Lỗi', 'Không thể tải lên ảnh đại diện');
                   }}
                 />
               </View>
@@ -251,23 +320,20 @@ export default function ProfileScreen() {
                 {form.coverImageUrl ? (
                   <Image source={{ uri: form.coverImageUrl }} style={styles.previewCover} />
                 ) : null}
-                <ImageUploader
-                  maxImages={1}
+                <SimpleImageUploader
                   folder="covers"
-                  onUploadComplete={(res: any) => {
+                  onUploadComplete={(res: FileUploadResponse) => {
                     console.log('ProfileScreen: Cover upload response:', res);
-                    // Sử dụng publicUrl thay vì url
-                    const url = Array.isArray(res) ? res[0]?.publicUrl : res?.publicUrl;
-                    console.log('ProfileScreen: Extracted cover URL:', url);
-                    if (url) {
-                      setForm({ ...form, coverImageUrl: url });
+                    console.log('ProfileScreen: Extracted cover URL:', res.publicUrl);
+                    if (res.publicUrl) {
+                      setForm({ ...form, coverImageUrl: res.publicUrl });
                     } else {
-                      console.error('ProfileScreen: No publicUrl found in cover response');
+                      console.error('ProfileScreen: No URL found in cover upload response');
                     }
                   }}
-                  onUploadError={(error) => {
-                    console.error('Cover upload error:', error);
-                    Alert.alert('Lỗi', 'Không thể upload ảnh bìa. Vui lòng thử lại.');
+                  onUploadError={(error: any) => {
+                    console.error('ProfileScreen: Cover upload error:', error);
+                    Alert.alert('Lỗi', 'Không thể tải lên ảnh bìa');
                   }}
                 />
               </View>
@@ -617,5 +683,27 @@ const styles = StyleSheet.create({
   saveText: {
     color: COLORS.white,
     fontWeight: '700',
+  },
+  loadingContainer: {
+    paddingVertical: RESPONSIVE_SPACING.xl,
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: RESPONSIVE_FONT_SIZES.md,
+    color: COLORS.gray,
+    marginTop: RESPONSIVE_SPACING.sm,
+  },
+  emptyContainer: {
+    paddingVertical: RESPONSIVE_SPACING.xl,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: RESPONSIVE_FONT_SIZES.md,
+    color: COLORS.gray,
+    marginBottom: RESPONSIVE_SPACING.xs,
+  },
+  emptySubtext: {
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    color: COLORS.gray,
   },
 });
