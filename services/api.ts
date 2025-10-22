@@ -92,6 +92,8 @@ export interface AuthResponse {
 
 // Cấu hình axios instance
 const api = axios.create({
+  baseURL: 'https://elane-unsweating-continuately.ngrok-free.dev/api',
+  timeout: 15000, // Tăng timeout cho ngrok
   baseURL: API_CONFIG.BASE_URL,
   timeout: API_CONFIG.TIMEOUT,
   headers: {
@@ -106,15 +108,8 @@ api.interceptors.request.use(
     // Lấy token từ AsyncStorage
     try {
       const token = await AsyncStorage.getItem('auth_token');
-      console.log('MainAPI: Getting token from storage:', token ? 'Token exists' : 'No token');
-      console.log('MainAPI: Token length:', token ? token.length : 0);
-      
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
-        console.log('MainAPI: Added Authorization header to request');
-        console.log('MainAPI: Request URL:', config.url);
-      } else {
-        console.log('MainAPI: No token found, request will be sent without Authorization header');
       }
     } catch (error) {
       console.error('Error getting token for main API:', error);
@@ -132,15 +127,6 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    console.log('MainAPI: Response error:', error.response?.status);
-    console.log('MainAPI: Error message:', error.message);
-    console.log('MainAPI: Error data:', error.response?.data);
-    
-    if (error.response?.status === 401) {
-      console.log('MainAPI: Token expired or invalid');
-      console.log('MainAPI: Request URL:', error.config?.url);
-      console.log('MainAPI: Request headers:', error.config?.headers);
-    }
     return Promise.reject(error);
   }
 );
@@ -232,6 +218,14 @@ export interface UpdateUserPayload {
   location: string;
 }
 
+// Interface cho người dùng được follow
+export interface FollowedUser {
+  id: number;
+  fullName: string;
+  avatarUrl: string | null;
+  isFollowing: boolean;
+}
+
 export const userAPI = {
   updateUser: async (id: number, data: UpdateUserPayload) => {
     try {
@@ -241,6 +235,12 @@ export const userAPI = {
       throw error;
     }
   },
+
+  // Lấy danh sách những người mà user đang follow
+  getFollowingList: async (userId: number) => {
+    try {
+      const response = await api.get(`/User/${userId}/following`);
+      return response.data as FollowedUser[];
 };
 
 // Post interfaces
@@ -410,6 +410,11 @@ export const postAPI = {
     }
   },
 
+  // Lấy thông tin chi tiết của một user
+  getUserById: async (userId: number) => {
+    try {
+      const response = await api.get(`/User/${userId}`);
+      return response.data as User;
   // Like a post
   likePost: async (postId: number, userId: number) => {
     try {
@@ -420,10 +425,28 @@ export const postAPI = {
     }
   },
 
+  // Hủy theo dõi một user
+  // followerId: ID của người đang follow (user hiện tại)
+  // followingId: ID của người được follow (sẽ bị hủy follow)
+  unfollowUser: async (followerId: number, followingId: number) => {
+    try {
+      const response = await api.delete(`/User/${followerId}/follow/${followingId}`);
   // Unlike a post
   unlikePost: async (postId: number, userId: number) => {
     try {
       const response = await api.delete(`/Post/${postId}/like/${userId}`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Theo dõi một user
+  // followerId: ID của người sẽ follow (user hiện tại)
+  // followingId: ID của người sẽ được follow
+  followUser: async (followerId: number, followingId: number) => {
+    try {
+      const response = await api.post(`/User/${followerId}/follow/${followingId}`);
       return response.data;
     } catch (error) {
       throw error;

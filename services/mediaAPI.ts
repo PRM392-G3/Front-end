@@ -72,6 +72,8 @@ export interface FileListResponse {
 
 // Cấu hình axios instance cho media API
 const mediaApi = axios.create({
+  baseURL: 'https://ba03ec5e177c.ngrok-free.app/api',
+  timeout: 30000, // Tăng timeout cho upload
   baseURL: API_CONFIG.BASE_URL,
   timeout: API_CONFIG.MEDIA_TIMEOUT, // Use MEDIA_TIMEOUT from API_CONFIG
   headers: {

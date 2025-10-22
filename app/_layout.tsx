@@ -41,6 +41,18 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
+      <AuthProvider>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="auth" />
+          <Stack.Screen name="following" />
+          <Stack.Screen name="profile" />
+          <Stack.Screen name="profile-test" />
+          <Stack.Screen name="+not-found" />
+        </Stack>
+        <StatusBar style="auto" />
+      </AuthProvider>
       <PostProvider>
         <AuthProvider>
           <Stack screenOptions={{ headerShown: false }}>

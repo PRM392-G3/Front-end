@@ -316,13 +316,7 @@ const styles = StyleSheet.create({
     marginBottom: RESPONSIVE_SPACING.md,
     borderRadius: BORDER_RADIUS.lg,
     paddingVertical: RESPONSIVE_SPACING.md,
-    shadowColor: COLORS.black,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
     elevation: 3,
   },
   header: {

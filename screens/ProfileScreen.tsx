@@ -1,7 +1,9 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES, SAFE_AREA, DIMENSIONS } from '@/constants/theme';
-import { Settings, MapPin, Calendar, Link as LinkIcon, Users, Grid2x2 as Grid, LogOut, Mail, Phone } from 'lucide-react-native';
+import { Settings, MapPin, Calendar, Link as LinkIcon, Users, Grid2x2 as Grid, LogOut, Mail, Phone, UserPlus } from 'lucide-react-native';
 import PostCard from '@/components/PostCard';
+import React, { useState } from 'react';
+import { userAPI, UpdateUserPayload } from '@/services/api';
 import { useState, useEffect, useCallback } from 'react';
 import { userAPI, UpdateUserPayload, postAPI, PostResponse } from '@/services/api';
 import { FileUploadResponse } from '@/services/mediaAPI';
@@ -9,11 +11,17 @@ import ImageUploader from '@/components/ImageUploader';
 import SimpleImageUploader from '@/components/SimpleImageUploader';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import FollowingList from '../components/FollowingList';
+import { FollowingDebugComponent } from '../components/FollowingDebugComponent';
+import { APIConnectionTest } from '../components/APIConnectionTest';
+import { APIConfigDisplay } from '../components/APIConfigDisplay';
 
 export default function ProfileScreen() {
   const [activeTab, setActiveTab] = useState<'posts' | 'friends'>('posts');
   const { user, logout, token } = useAuth();
   const [displayUser, setDisplayUser] = useState(user);
+  const router = useRouter();
   const [editVisible, setEditVisible] = useState(false);
   const [saving, setSaving] = useState(false);
   const [userPosts, setUserPosts] = useState<PostResponse[]>([]);
@@ -43,6 +51,23 @@ export default function ProfileScreen() {
     return d.getFullYear() ? String(d.getFullYear()) : '';
   });
   const insets = useSafeAreaInsets();
+
+  // Function để refresh dữ liệu user từ API
+  const refreshUserData = async () => {
+    if (user?.id) {
+      try {
+        const updatedUser = await userAPI.getUserById(user.id);
+        setDisplayUser(updatedUser);
+      } catch (error) {
+        console.error('Error refreshing user data:', error);
+      }
+    }
+  };
+
+  // Refresh dữ liệu khi component mount
+  React.useEffect(() => {
+    refreshUserData();
+  }, [user?.id]);
 
   const fetchUserPosts = useCallback(async () => {
     if (!user?.id) return;
@@ -99,7 +124,7 @@ export default function ProfileScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollView}>
         <View style={styles.header}>
           {displayUser?.coverImageUrl ? (
             <Image source={{ uri: displayUser.coverImageUrl }} style={styles.coverPhoto} />
@@ -162,10 +187,17 @@ export default function ProfileScreen() {
               <Text style={styles.statLabel}>Người theo dõi</Text>
             </View>
             <View style={styles.statDivider} />
-            <View style={styles.statItem}>
+            <TouchableOpacity 
+              style={styles.statItem}
+              onPress={() => {
+                if (displayUser?.id) {
+                  router.push(`/following?userId=${displayUser.id}`);
+                }
+              }}
+            >
               <Text style={styles.statNumber}>{displayUser?.followingCount || 0}</Text>
               <Text style={styles.statLabel}>Đang theo dõi</Text>
-            </View>
+            </TouchableOpacity>
           </View>
 
           <TouchableOpacity style={styles.editButton} onPress={() => setEditVisible(true)}>
@@ -193,8 +225,16 @@ export default function ProfileScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+      </ScrollView>
 
+      {/* Content area outside ScrollView to avoid nested VirtualizedList */}
+      <View style={styles.contentArea}>
         {activeTab === 'posts' ? (
+          <ScrollView showsVerticalScrollIndicator={false}>
+            <PostCard showImage={true} />
+            <PostCard showImage={false} />
+            <PostCard showImage={true} />
+          </ScrollView>
           <View>
             {isLoadingPosts ? (
               <View style={styles.loadingContainer}>
@@ -219,16 +259,14 @@ export default function ProfileScreen() {
             )}
           </View>
         ) : (
-          <View style={styles.friendsGrid}>
-            {[1, 2, 3, 4, 5, 6].map((item) => (
-              <View key={item} style={styles.friendCard}>
-                <View style={styles.friendAvatar} />
-                <Text style={styles.friendName}>Bạn bè {item}</Text>
-              </View>
-            ))}
+          <View style={styles.tabContent}>
+            <APIConfigDisplay />
+            <APIConnectionTest />
+            <FollowingDebugComponent />
+            <FollowingList userId={displayUser?.id || 0} />
           </View>
         )}
-      </ScrollView>
+      </View>
 
       <Modal visible={editVisible} transparent animationType="slide" onRequestClose={() => setEditVisible(false)}>
         <View style={styles.modalOverlay}>
@@ -430,6 +468,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.lightGray,
   },
+  scrollView: {
+    flex: 0,
+  },
+  contentArea: {
+    flex: 1,
+  },
   header: {
     position: 'relative',
   },
@@ -556,29 +600,6 @@ const styles = StyleSheet.create({
   activeTabText: {
     color: COLORS.primary,
     fontWeight: '600',
-  },
-  friendsGrid: {
-    backgroundColor: COLORS.white,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    padding: RESPONSIVE_SPACING.xs,
-  },
-  friendCard: {
-    width: '33.33%',
-    padding: RESPONSIVE_SPACING.xs,
-    alignItems: 'center',
-  },
-  friendAvatar: {
-    width: 80,
-    height: 80,
-    borderRadius: BORDER_RADIUS.md,
-    backgroundColor: COLORS.lightGray,
-    marginBottom: RESPONSIVE_SPACING.xs,
-  },
-  friendName: {
-    fontSize: RESPONSIVE_FONT_SIZES.xs,
-    color: COLORS.black,
-    textAlign: 'center',
   },
   modalOverlay: {
     flex: 1,

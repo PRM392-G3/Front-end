@@ -3,10 +3,10 @@ import axios from 'axios';
 // Test API connection
 export const testAPIConnection = async () => {
   try {
-    console.log('Testing API connection to https://localhost:7097...');
+    console.log('Testing API connection to https://ba03ec5e177c.ngrok-free.app...');
     
     // Test basic connection
-    const response = await axios.get('https://localhost:7097/swagger/index.html', {
+    const response = await axios.get('https://ba03ec5e177c.ngrok-free.app/swagger/index.html', {
       timeout: 5000,
       validateStatus: (status) => status < 500, // Accept any status < 500
     });
@@ -30,7 +30,7 @@ export const testAPIConnection = async () => {
 
 // Test auth endpoints
 export const testAuthEndpoints = async () => {
-  const baseURL = 'https://localhost:7097/api';
+  const baseURL = 'https://ba03ec5e177c.ngrok-free.app/api';
   
   try {
     console.log('Testing auth endpoints...');
