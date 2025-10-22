@@ -21,12 +21,10 @@ export default function HomeScreen() {
 
   const fetchPosts = useCallback(async () => {
     try {
-      console.log('HomeScreen: Fetching posts...');
       const fetchedPosts = await postAPI.getAllPosts();
-      console.log('HomeScreen: Posts fetched successfully:', fetchedPosts.length);
       initializePosts(fetchedPosts);
     } catch (error) {
-      console.error('HomeScreen: Error fetching posts:', error);
+      console.error('Error fetching posts:', error);
       Alert.alert('Lỗi', 'Không thể tải bài viết. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
@@ -50,12 +48,10 @@ export default function HomeScreen() {
 
   const handlePostLike = useCallback((postId: number, isLiked: boolean) => {
     // PostCard already calls updatePostLike, so we don't need to call it again
-    console.log('HomeScreen: Post like callback received:', postId, isLiked);
   }, []);
 
   const handlePostShare = useCallback((postId: number, isShared: boolean) => {
     // PostCard already calls updatePostShare, so we don't need to call it again
-    console.log('HomeScreen: Post share callback received:', postId, isShared);
   }, []);
 
   const handlePostUpdated = useCallback((updatedPost: PostResponse) => {

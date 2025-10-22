@@ -37,22 +37,17 @@ export default function EditPostScreen() {
   // Parse post data safely in useEffect
   useEffect(() => {
     try {
-      console.log('EditPostScreen: Raw post param:', postParam);
-      
       if (!postParam) {
-        console.error('EditPostScreen: No post parameter provided');
         setParseError('Không có dữ liệu bài viết');
         setIsLoading(false);
         return;
       }
 
       const parsedPost = JSON.parse(postParam as string) as PostResponse;
-      console.log('EditPostScreen: Successfully parsed post:', parsedPost);
-      
       setOriginalPost(parsedPost);
       setParseError(null);
     } catch (error) {
-      console.error('EditPostScreen: Error parsing post data:', error);
+      console.error('Error parsing post data:', error);
       setParseError('Không thể tải dữ liệu bài viết');
     } finally {
       setIsLoading(false);
@@ -167,17 +162,7 @@ export default function EditPostScreen() {
         tags: tags.length > 0 ? tags : undefined,
       };
 
-      console.log('EditPostScreen: Updating post with data:', updateData);
-      console.log('EditPostScreen: Post ID:', originalPost.id);
-      console.log('EditPostScreen: User ID:', user.id);
-      console.log('EditPostScreen: Content length:', content.trim().length);
-      console.log('EditPostScreen: Image URL:', imageUrl);
-      console.log('EditPostScreen: Video URL:', videoUrl);
-      console.log('EditPostScreen: Tags count:', tags.length);
-      
       const updatedPost = await postAPI.updatePost(originalPost.id, updateData);
-      
-      console.log('EditPostScreen: Post updated successfully:', updatedPost);
       
       Alert.alert('Thành công', 'Bài viết đã được cập nhật thành công!', [
         {
@@ -190,10 +175,7 @@ export default function EditPostScreen() {
       ]);
       
     } catch (error: any) {
-      console.error('EditPostScreen: Error updating post:', error);
-      console.error('EditPostScreen: Error response:', error.response?.data);
-      console.error('EditPostScreen: Error status:', error.response?.status);
-      console.error('EditPostScreen: Error message:', error.message);
+      console.error('Error updating post:', error);
       
       let errorMessage = 'Không thể cập nhật bài viết. Vui lòng thử lại.';
       

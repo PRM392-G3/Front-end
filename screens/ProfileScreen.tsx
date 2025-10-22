@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, StatusBar, TouchableOpacity, Image, ScrollView, ActivityIndicator, Alert, ViewStyle, TextStyle, ImageStyle, FlatList } from 'react-native';
 import { ArrowLeft, Users, Grid2x2 as Grid, Mail, Phone, MapPin, Calendar, LogOut, Share2 } from 'lucide-react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES } from '../constants/theme';
 import { userAPI, User, postAPI, PostResponse, shareAPI } from '../services/api';
 import FollowingList from '../components/FollowingList';
@@ -23,45 +23,40 @@ export default function UserProfileScreen() {
   const [sharedPosts, setSharedPosts] = useState<PostResponse[]>([]);
   const [sharedPostsLoading, setSharedPostsLoading] = useState(false);
 
-  // Debug: Log the userId parameter
-  console.log(`🚀 [UserProfile] Received userId from local params:`, userId);
-  console.log(`🚀 [UserProfile] userId type:`, typeof userId);
 
   useEffect(() => {
-    console.log(`🚀 [UserProfile] useEffect triggered with userId:`, userId);
-    console.log(`🚀 [UserProfile] currentUser:`, currentUser);
-    
     if (userId) {
       // Handle case where userId might be an array
       const actualUserId = Array.isArray(userId) ? userId[0] : userId;
-      console.log(`🚀 [UserProfile] Actual userId to use:`, actualUserId);
       fetchUserProfile(actualUserId);
     } else if (currentUser) {
       // If no userId provided, show current user's profile
-      console.log(`🚀 [UserProfile] No userId provided, showing current user profile:`, currentUser.id);
       fetchUserProfile(currentUser.id.toString());
     } else {
-      console.warn(`❌ [UserProfile] No userId provided and no current user`);
       setLoading(false);
     }
   }, [userId, currentUser]);
 
+  // Refresh profile data when screen comes back into focus (e.g., returning from edit screen)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (userId) {
+        const actualUserId = Array.isArray(userId) ? userId[0] : userId;
+        fetchUserProfile(actualUserId);
+      } else if (currentUser) {
+        fetchUserProfile(currentUser.id.toString());
+      }
+    }, [userId, currentUser])
+  );
+
   // Debug activeTab changes
   useEffect(() => {
-    console.log(`🔄 [Profile] Active tab changed to:`, activeTab);
-    
     // Load shared posts when switching to shared tab
     if (activeTab === 'shared' && user && sharedPosts.length === 0) {
       loadSharedPosts(user.id);
     }
   }, [activeTab, user]);
 
-  // Debug current user and profile user
-  useEffect(() => {
-    console.log(`👤 [Profile] Current user:`, currentUser);
-    console.log(`👤 [Profile] Profile user:`, user);
-    console.log(`👤 [Profile] Is own profile:`, currentUser && user && currentUser.id === user.id);
-  }, [currentUser, user]);
 
   const fetchUserProfile = async (targetUserId?: string) => {
     const userIdToFetch = targetUserId || userId;

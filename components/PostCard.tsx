@@ -174,7 +174,6 @@ export default function PostCard({
   };
 
   const handleEditPost = () => {
-    console.log('PostCard: Navigating to edit post with data:', postData);
     router.push({
       pathname: '/edit-post',
       params: {

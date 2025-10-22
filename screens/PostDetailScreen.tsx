@@ -9,7 +9,7 @@ import ImageUploader from '@/components/ImageUploader';
 import VideoUploader from '@/components/VideoUploader';
 import TagInput from '@/components/TagInput';
 import PostCard from '@/components/PostCard';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useFocusEffect } from 'expo-router';
 
 interface PostDetailScreenProps {
   postId?: number;
@@ -52,6 +52,15 @@ export default function PostDetailScreen({
     }
   }, [postId]);
 
+  // Refresh post data when screen comes back into focus (e.g., returning from edit screen)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (postId) {
+        loadPost();
+      }
+    }, [postId])
+  );
+
   const loadPost = async () => {
     if (!postId) {
       console.error('PostDetailScreen: No postId provided');
@@ -61,27 +70,22 @@ export default function PostDetailScreen({
 
     try {
       setIsLoading(true);
-      console.log(`🚀 [PostDetail] Loading post ${postId}`);
-      
       // Try to get post from context first
       const contextPost = getPost(postId);
       if (contextPost) {
-        console.log(`✅ [PostDetail] Found post in context:`, contextPost);
         setPost(contextPost);
         await loadComments(postId);
         return;
       }
 
       // If not in context, fetch from API
-      console.log(`🔄 [PostDetail] Post not in context, fetching from API...`);
       const fetchedPost = await postAPI.getPost(postId);
-      console.log(`✅ [PostDetail] Fetched post from API:`, fetchedPost);
       setPost(fetchedPost);
       await loadComments(postId);
       
     } catch (error: any) {
-      console.error('❌ [PostDetail] Error loading post:', error);
-      Alert.alert('Lỗi', 'Không thể tải bài viết. Vui lòng thử lại.');
+      console.error('Error loading post:', error);
+      Alert.alert('Lỗi', 'Không thể tải bài viết');
     } finally {
       setIsLoading(false);
     }
