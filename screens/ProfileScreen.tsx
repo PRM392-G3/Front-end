@@ -9,6 +9,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import FollowingList from '../components/FollowingList';
+import { FollowingDebugComponent } from '../components/FollowingDebugComponent';
+import { APIConnectionTest } from '../components/APIConnectionTest';
+import { APIConfigDisplay } from '../components/APIConfigDisplay';
 
 export default function ProfileScreen() {
   const [activeTab, setActiveTab] = useState<'posts' | 'friends'>('posts');
@@ -189,7 +192,12 @@ export default function ProfileScreen() {
             <PostCard showImage={true} />
           </ScrollView>
         ) : (
-          <FollowingList userId={displayUser?.id || 0} />
+          <View style={styles.tabContent}>
+            <APIConfigDisplay />
+            <APIConnectionTest />
+            <FollowingDebugComponent />
+            <FollowingList userId={displayUser?.id || 0} />
+          </View>
         )}
       </View>
 

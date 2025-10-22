@@ -1,31 +1,64 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, StatusBar, TouchableOpacity, Image, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { ArrowLeft, Users, Grid2x2 as Grid, Mail, Phone, MapPin, Calendar } from 'lucide-react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useGlobalSearchParams } from 'expo-router';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES } from '../constants/theme';
 import { userAPI, User } from '../services/api';
 import FollowingList from '../components/FollowingList';
+import { FollowersList } from '../components/FollowersList';
 
 export default function UserProfileScreen() {
-  const { userId } = useLocalSearchParams<{ userId: string }>();
+  const globalParams = useGlobalSearchParams<{ userId: string }>();
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'posts' | 'following'>('posts');
 
+  // Get userId from global params
+  const userId = globalParams.userId;
+
+  // Debug: Log the userId parameter
+  console.log(`🚀 [UserProfile] Received userId from global params:`, userId);
+  console.log(`🚀 [UserProfile] userId type:`, typeof userId);
+  console.log(`🚀 [UserProfile] All global search params:`, globalParams);
+
   useEffect(() => {
+    console.log(`🚀 [UserProfile] useEffect triggered with userId:`, userId);
+    
     if (userId) {
-      fetchUserProfile();
+      // Handle case where userId might be an array
+      const actualUserId = Array.isArray(userId) ? userId[0] : userId;
+      console.log(`🚀 [UserProfile] Actual userId to use:`, actualUserId);
+      fetchUserProfile(actualUserId);
+    } else {
+      console.warn(`❌ [UserProfile] No userId provided in params`);
+      setLoading(false);
     }
   }, [userId]);
 
-  const fetchUserProfile = async () => {
+  // Debug activeTab changes
+  useEffect(() => {
+    console.log(`🔄 [Profile] Active tab changed to:`, activeTab);
+  }, [activeTab]);
+
+  const fetchUserProfile = async (targetUserId?: string) => {
+    const userIdToFetch = targetUserId || userId;
     try {
       setLoading(true);
-      const userData = await userAPI.getUserById(parseInt(userId));
+      console.log(`🚀 [UserProfile] API CALL: Getting user ${userIdToFetch}`);
+      console.log(`🚀 [UserProfile] API URL: /User/${userIdToFetch}`);
+      const userData = await userAPI.getUserById(parseInt(userIdToFetch));
+      console.log(`✅ [UserProfile] API SUCCESS: Received user data:`, userData);
+      console.log(`✅ [UserProfile] User name: ${userData.fullName}, Email: ${userData.email}`);
       setUser(userData);
-    } catch (error) {
-      console.error('Error fetching user profile:', error);
+    } catch (error: any) {
+      console.error('❌ [UserProfile] API ERROR:', error);
+      console.error('[UserProfile] Error details:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+        url: error.config?.url
+      });
       Alert.alert('Lỗi', 'Không thể tải thông tin người dùng');
     } finally {
       setLoading(false);
@@ -72,7 +105,10 @@ export default function UserProfileScreen() {
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollView}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false} 
+        style={styles.scrollView}
+      >
         {/* Profile Info */}
         <View style={styles.profileInfo}>
           <View style={styles.avatarContainer}>
@@ -115,10 +151,17 @@ export default function UserProfileScreen() {
           </View>
 
           <View style={styles.stats}>
-            <View style={styles.statItem}>
+            <TouchableOpacity 
+              style={styles.statItem}
+              onPress={() => {
+                console.log('👆 [Profile] Posts stat pressed');
+                setActiveTab('posts');
+              }}
+              activeOpacity={0.7}
+            >
               <Text style={styles.statNumber}>{user.postsCount || 0}</Text>
               <Text style={styles.statLabel}>Bài viết</Text>
-            </View>
+            </TouchableOpacity>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={styles.statNumber}>{user.followersCount || 0}</Text>
@@ -128,10 +171,11 @@ export default function UserProfileScreen() {
             <TouchableOpacity 
               style={styles.statItem}
               onPress={() => {
-                if (user.id) {
-                  router.push(`/following?userId=${user.id}`);
-                }
+                console.log('👆 [Profile] Following stat pressed');
+                console.log('👆 [Profile] Setting activeTab to following');
+                setActiveTab('following');
               }}
+              activeOpacity={0.7}
             >
               <Text style={styles.statNumber}>{user.followingCount || 0}</Text>
               <Text style={styles.statLabel}>Đang theo dõi</Text>
@@ -143,7 +187,11 @@ export default function UserProfileScreen() {
         <View style={styles.tabs}>
           <TouchableOpacity
             style={[styles.tab, activeTab === 'posts' && styles.activeTab]}
-            onPress={() => setActiveTab('posts')}
+            onPress={() => {
+              console.log('👆 [Profile] Posts tab pressed');
+              setActiveTab('posts');
+            }}
+            activeOpacity={0.7}
           >
             <Grid size={20} color={activeTab === 'posts' ? COLORS.primary : COLORS.gray} />
             <Text style={[styles.tabText, activeTab === 'posts' && styles.activeTabText]}>
@@ -152,7 +200,11 @@ export default function UserProfileScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.tab, activeTab === 'following' && styles.activeTab]}
-            onPress={() => setActiveTab('following')}
+            onPress={() => {
+              console.log('👆 [Profile] Following tab pressed');
+              setActiveTab('following');
+            }}
+            activeOpacity={0.7}
           >
             <Users size={20} color={activeTab === 'following' ? COLORS.primary : COLORS.gray} />
             <Text style={[styles.tabText, activeTab === 'following' && styles.activeTabText]}>
@@ -160,18 +212,16 @@ export default function UserProfileScreen() {
             </Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
 
-      {/* Content area outside ScrollView to avoid nested VirtualizedList */}
-      <View style={styles.contentArea}>
+        {/* Tab Content */}
         {activeTab === 'posts' ? (
           <View style={styles.postsContainer}>
             <Text style={styles.emptyText}>Chưa có bài viết nào</Text>
           </View>
         ) : (
-          <FollowingList userId={user.id} />
+          <FollowingList userId={user.id} isOwnProfile={true} />
         )}
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -182,9 +232,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   scrollView: {
-    flex: 0,
-  },
-  contentArea: {
     flex: 1,
   },
   header: {
@@ -281,6 +328,10 @@ const styles = StyleSheet.create({
   },
   statItem: {
     alignItems: 'center',
+    paddingVertical: RESPONSIVE_SPACING.md,
+    paddingHorizontal: RESPONSIVE_SPACING.sm,
+    borderRadius: BORDER_RADIUS.sm,
+    backgroundColor: 'transparent',
   },
   statNumber: {
     fontSize: RESPONSIVE_FONT_SIZES.lg,
@@ -309,7 +360,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: RESPONSIVE_SPACING.md,
+    paddingHorizontal: RESPONSIVE_SPACING.sm,
     gap: RESPONSIVE_SPACING.xs,
+    borderRadius: BORDER_RADIUS.sm,
+    backgroundColor: 'transparent',
   },
   activeTab: {
     borderBottomWidth: 2,
@@ -325,10 +379,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   postsContainer: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: RESPONSIVE_SPACING.xl,
+    minHeight: 200,
   },
   emptyText: {
     fontSize: RESPONSIVE_FONT_SIZES.md,

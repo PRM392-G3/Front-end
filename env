@@ -1,7 +1,7 @@
 # Environment Configuration Template
 
 # API Configuration
-EXPO_PUBLIC_API_URL=https://elane-unsweating-continuately.ngrok-free.dev/api
+EXPO_PUBLIC_API_URL=https://ba03ec5e177c.ngrok-free.app/api
 
 # Google Sign-In Configuration  
 EXPO_PUBLIC_GOOGLE_CLIENT_ID=317895360043-ahjdk8h07qierl6p84qvhusmc8pgq17i.apps.googleusercontent.com

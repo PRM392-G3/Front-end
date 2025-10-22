@@ -47,6 +47,7 @@ export default function RootLayout() {
           <Stack.Screen name="auth" />
           <Stack.Screen name="following" />
           <Stack.Screen name="profile" />
+          <Stack.Screen name="profile-test" />
           <Stack.Screen name="+not-found" />
         </Stack>
         <StatusBar style="auto" />

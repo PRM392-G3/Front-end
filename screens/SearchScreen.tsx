@@ -1,11 +1,97 @@
-import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, StatusBar } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
 import { Search, TrendingUp, Filter, Sparkles } from 'lucide-react-native';
 import { useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
+import { UserSearchResults } from '@/components/UserSearchResults';
+import { SuggestedUsers } from '@/components/SuggestedUsers';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 
 export default function SearchScreen() {
   const [activeTab, setActiveTab] = useState<'users' | 'posts' | 'groups' | 'events'>('users');
+  const [searchQuery, setSearchQuery] = useState('');
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'users':
+        return (
+          <View style={styles.content}>
+            {searchQuery.trim() ? (
+                   <UserSearchResults 
+                     searchQuery={searchQuery}
+                     onUserPress={(userId) => {
+                       // Navigate to user profile test screen
+                       console.log(`🎯 [SearchScreen] UserSearchResults onUserPress called with userId: ${userId}`);
+                       console.log(`🎯 [SearchScreen] About to navigate to /profile-test?userId=${userId}`);
+                       router.push(`/profile-test?userId=${userId}`);
+                       console.log(`✅ [SearchScreen] Navigation command sent`);
+                     }}
+                   />
+            ) : (
+                     <SuggestedUsers 
+                       limit={20}
+                       onUserPress={(userId) => {
+                         // Navigate to user profile test screen
+                         console.log(`🎯 [SearchScreen] SuggestedUsers onUserPress called with userId: ${userId}`);
+                         console.log(`🎯 [SearchScreen] About to navigate to /profile-test?userId=${userId}`);
+                         router.push(`/profile-test?userId=${userId}`);
+                         console.log(`✅ [SearchScreen] Navigation command sent`);
+                       }}
+                     />
+            )}
+          </View>
+        );
+      case 'posts':
+        return (
+          <ScrollView style={styles.content}>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Bài viết nổi bật</Text>
+              <View style={styles.trendingCard}>
+                <View style={styles.trendingImage} />
+                <View style={styles.trendingContent}>
+                  <Text style={styles.trendingTitle}>
+                    Sự kiện công nghệ lớn nhất năm 2024
+                  </Text>
+                  <Text style={styles.trendingStats}>1.2K lượt thích • 234 bình luận</Text>
+                </View>
+              </View>
+              <View style={styles.trendingCard}>
+                <View style={styles.trendingImage} />
+                <View style={styles.trendingContent}>
+                  <Text style={styles.trendingTitle}>
+                    Những xu hướng thiết kế mới nhất
+                  </Text>
+                  <Text style={styles.trendingStats}>890 lượt thích • 156 bình luận</Text>
+                </View>
+              </View>
+            </View>
+          </ScrollView>
+        );
+      case 'groups':
+        return (
+          <ScrollView style={styles.content}>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Nhóm phổ biến</Text>
+              <Text style={styles.comingSoon}>Chức năng đang phát triển</Text>
+            </View>
+          </ScrollView>
+        );
+      case 'events':
+        return (
+          <ScrollView style={styles.content}>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Sự kiện sắp tới</Text>
+              <Text style={styles.comingSoon}>Chức năng đang phát triển</Text>
+            </View>
+          </ScrollView>
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -16,7 +102,7 @@ export default function SearchScreen() {
         colors={[COLORS.gradientStart, COLORS.gradientEnd]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
-        style={styles.headerGradient}
+        style={[styles.headerGradient, { paddingTop: insets.top + 60 }]}
       >
         <View style={styles.header}>
           <View style={styles.headerTop}>
@@ -35,6 +121,8 @@ export default function SearchScreen() {
               style={styles.searchInput}
               placeholder="Tìm kiếm người dùng, bài viết, nhóm..."
               placeholderTextColor={COLORS.gray}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
             />
           </View>
         </View>
@@ -75,71 +163,7 @@ export default function SearchScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content}>
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <TrendingUp size={18} color={COLORS.primary} />
-            <Text style={styles.sectionTitle}>Gợi ý kết bạn</Text>
-          </View>
-
-          <View style={styles.suggestionCard}>
-            <View style={styles.suggestionAvatar} />
-            <View style={styles.suggestionInfo}>
-              <Text style={styles.suggestionName}>Nguyễn Văn A</Text>
-              <Text style={styles.suggestionMutual}>12 bạn chung</Text>
-            </View>
-            <TouchableOpacity style={styles.addButton}>
-              <Text style={styles.addButtonText}>Kết bạn</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.suggestionCard}>
-            <View style={styles.suggestionAvatar} />
-            <View style={styles.suggestionInfo}>
-              <Text style={styles.suggestionName}>Trần Thị B</Text>
-              <Text style={styles.suggestionMutual}>8 bạn chung</Text>
-            </View>
-            <TouchableOpacity style={styles.addButton}>
-              <Text style={styles.addButtonText}>Kết bạn</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.suggestionCard}>
-            <View style={styles.suggestionAvatar} />
-            <View style={styles.suggestionInfo}>
-              <Text style={styles.suggestionName}>Lê Văn C</Text>
-              <Text style={styles.suggestionMutual}>5 bạn chung</Text>
-            </View>
-            <TouchableOpacity style={styles.addButton}>
-              <Text style={styles.addButtonText}>Kết bạn</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Bài viết nổi bật</Text>
-
-          <View style={styles.trendingCard}>
-            <View style={styles.trendingImage} />
-            <View style={styles.trendingContent}>
-              <Text style={styles.trendingTitle}>
-                Sự kiện công nghệ lớn nhất năm 2024
-              </Text>
-              <Text style={styles.trendingStats}>1.2K lượt thích • 234 bình luận</Text>
-            </View>
-          </View>
-
-          <View style={styles.trendingCard}>
-            <View style={styles.trendingImage} />
-            <View style={styles.trendingContent}>
-              <Text style={styles.trendingTitle}>
-                Những xu hướng thiết kế mới nhất
-              </Text>
-              <Text style={styles.trendingStats}>890 lượt thích • 156 bình luận</Text>
-            </View>
-          </View>
-        </View>
-      </ScrollView>
+      {renderContent()}
     </View>
   );
 }
@@ -150,7 +174,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   headerGradient: {
-    paddingTop: 60,
     paddingBottom: SPACING.lg,
     paddingHorizontal: SPACING.md,
   },
@@ -309,5 +332,12 @@ const styles = StyleSheet.create({
   trendingStats: {
     fontSize: FONT_SIZES.xs,
     color: COLORS.gray,
+  },
+  comingSoon: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.gray,
+    textAlign: 'center',
+    padding: SPACING.xl,
+    fontStyle: 'italic',
   },
 });
