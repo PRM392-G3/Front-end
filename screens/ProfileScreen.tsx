@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 export default function ProfileScreen() {
   const [activeTab, setActiveTab] = useState<'posts' | 'friends'>('posts');
   const { user, logout, token } = useAuth();
-  const { updatePostShare, getPostShareState } = usePostContext();
+  const { updatePostShare, getPostShareState, updatePost } = usePostContext();
   const [displayUser, setDisplayUser] = useState(user);
   const [editVisible, setEditVisible] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -107,6 +107,26 @@ export default function ProfileScreen() {
     updatePostShare(postId, isShared);
   }, [updatePostShare]);
 
+  const handleCommentCountUpdate = useCallback((postId: number, commentCount: number) => {
+    console.log('ProfileScreen: Received comment count update:', postId, commentCount);
+    // Update the post's comment count in local state
+    setUserPosts(prevPosts =>
+      prevPosts.map(post =>
+        post.id === postId
+          ? { 
+              ...post, 
+              commentCount: commentCount
+            }
+          : post
+      )
+    );
+    
+    // Also update in global context for sync with other screens
+    updatePost(postId, {
+      commentCount: commentCount
+    });
+  }, [updatePost]);
+
   const handleRefresh = useCallback(() => {
     fetchUserPosts();
   }, [fetchUserPosts]);
@@ -116,6 +136,12 @@ export default function ProfileScreen() {
       fetchUserPosts();
     }
   }, [activeTab, fetchUserPosts]);
+
+  // Sync comment counts from global context
+  useEffect(() => {
+    // This will be triggered when global context updates
+    // We'll add a mechanism to sync comment counts
+  }, []);
 
   // Sync share states from global context (only when share states change)
   useEffect(() => {
@@ -294,6 +320,7 @@ export default function ProfileScreen() {
                   onPostDeleted={handlePostDeleted}
                   onLikeToggle={handleLikeToggle}
                   onShareToggle={handleShareToggle}
+                  onCommentCountUpdate={handleCommentCountUpdate}
                   onRefresh={handleRefresh}
                   showImage={!!post.imageUrl || !!post.videoUrl}
                   isSharedPost={post.isShared || false}

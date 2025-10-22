@@ -61,6 +61,9 @@ export default function PostCard({
   const [isApiCalling, setIsApiCalling] = useState(false);
 
   const isOwnPost = user?.id === postData.userId;
+  
+  // Auto-detect if this is a shared post based on data
+  const isActuallySharedPost = postData.isSharedPost || (postData.shareCaption && postData.shareCaption.trim().length > 0);
 
   // Sync state when postData changes or global state changes
   useEffect(() => {
@@ -81,11 +84,14 @@ export default function PostCard({
     // Update comment count
     setCommentCount(postData.commentCount);
     
-    // Notify parent component about comment count change if needed
+  }, [postData.id, postData.isLiked, postData.likeCount, postData.shares, postData.shareCount, postData.commentCount, getPostLikeState, user?.id]);
+
+  // Separate useEffect for comment count updates to avoid infinite loops
+  useEffect(() => {
     if (onCommentCountUpdate && postData.commentCount !== commentCount) {
       onCommentCountUpdate(postData.id, postData.commentCount);
     }
-  }, [postData.isLiked, postData.likeCount, postData.shares, postData.shareCount, postData.commentCount, getPostLikeState, user?.id, onCommentCountUpdate, commentCount]);
+  }, [postData.commentCount, commentCount, onCommentCountUpdate, postData.id]);
 
   const formatTimestamp = (timestamp: string) => {
     const now = new Date();
@@ -327,7 +333,9 @@ export default function PostCard({
             )}
           </View>
           <View style={styles.userText}>
-            <Text style={styles.userName}>{postData.user.fullName}</Text>
+            <Text style={styles.userName}>
+              {isActuallySharedPost ? `${postData.user.fullName} đã chia sẻ` : postData.user.fullName}
+            </Text>
             <Text style={styles.timestamp}>{formatTimestamp(postData.createdAt)}</Text>
           </View>
         </View>
@@ -342,14 +350,34 @@ export default function PostCard({
         )}
       </View>
 
-      <Text style={styles.content}>{postData.content}</Text>
-      
-      {/* Share Caption for shared posts */}
-      {isSharedPost && postData.shareCaption && (
-        <View style={styles.shareCaptionContainer}>
-          <Text style={styles.shareCaptionLabel}>Ghi chú chia sẻ:</Text>
-          <Text style={styles.shareCaptionText}>{postData.shareCaption}</Text>
-        </View>
+      {/* For shared posts, show share caption first, then original post content */}
+      {isActuallySharedPost && postData.shareCaption ? (
+        <>
+          {/* Share Caption */}
+          <View style={styles.shareCaptionContainer}>
+            <Text style={styles.shareCaptionLabel}>Ghi chú chia sẻ:</Text>
+            <Text style={styles.shareCaptionText}>{postData.shareCaption}</Text>
+          </View>
+          
+          {/* Original Post Content (like Facebook) */}
+          <View style={styles.originalPostContainer}>
+            <View style={styles.originalPostHeader}>
+              <View style={styles.originalPostAvatar}>
+                {postData.user.avatarUrl && (
+                  <Image source={{ uri: postData.user.avatarUrl }} style={styles.originalPostAvatarImage} />
+                )}
+              </View>
+              <View style={styles.originalPostUserInfo}>
+                <Text style={styles.originalPostUserName}>{postData.user.fullName}</Text>
+                <Text style={styles.originalPostTimestamp}>{formatTimestamp(postData.createdAt)}</Text>
+              </View>
+            </View>
+            <Text style={styles.originalPostContent}>{postData.content}</Text>
+          </View>
+        </>
+      ) : (
+        /* Normal post content */
+        <Text style={styles.content}>{postData.content}</Text>
       )}
 
       {/* Display tags if available */}
@@ -386,7 +414,11 @@ export default function PostCard({
       {/* Display image or video */}
       {showImage && postData.imageUrl && (
         <View style={styles.imageContainer}>
-          <Image source={{ uri: postData.imageUrl }} style={styles.image} />
+          <Image 
+            source={{ uri: postData.imageUrl }} 
+            style={styles.image}
+            resizeMode="cover"
+          />
         </View>
       )}
       
@@ -398,7 +430,9 @@ export default function PostCard({
               player.muted = false;
             })}
             style={styles.video}
-            allowsFullscreen
+            fullscreenOptions={{
+              allowsFullscreen: true
+            }}
             allowsPictureInPicture
           />
         </View>
@@ -569,6 +603,52 @@ const styles = StyleSheet.create({
     marginBottom: RESPONSIVE_SPACING.xs,
   },
   shareCaptionText: {
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    color: COLORS.text,
+    lineHeight: 20,
+  },
+  originalPostContainer: {
+    backgroundColor: COLORS.background,
+    marginHorizontal: RESPONSIVE_SPACING.md,
+    marginBottom: RESPONSIVE_SPACING.sm,
+    padding: RESPONSIVE_SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  originalPostHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: RESPONSIVE_SPACING.sm,
+  },
+  originalPostAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.primary,
+    marginRight: RESPONSIVE_SPACING.sm,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  originalPostAvatarImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  originalPostUserInfo: {
+    flex: 1,
+  },
+  originalPostUserName: {
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  originalPostTimestamp: {
+    fontSize: RESPONSIVE_FONT_SIZES.xs,
+    color: COLORS.gray,
+    marginTop: 2,
+  },
+  originalPostContent: {
     fontSize: RESPONSIVE_FONT_SIZES.sm,
     color: COLORS.text,
     lineHeight: 20,

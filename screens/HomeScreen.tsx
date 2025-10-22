@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, RefreshControl, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, RefreshControl, Alert, FlatList } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, FONT_SIZES, BORDER_RADIUS, SAFE_AREA, DIMENSIONS } from '@/constants/theme';
 import PostCard from '@/components/PostCard';
 import CreatePostScreen from '@/screens/CreatePostScreen';
@@ -144,32 +144,41 @@ export default function HomeScreen() {
 
   const fetchPosts = useCallback(async () => {
     try {
+      setIsLoading(true);
+      
       // Thử load từ API trước
       if (user) {
         try {
+          console.log('HomeScreen: Fetching posts from API...');
           const fetchedPosts = await postAPI.getAllPosts();
           
           // Validate posts before setting
           const validPosts = fetchedPosts.filter(post => post && post.id);
           
           if (validPosts.length === 0) {
-            setPosts(mockPosts);
+            console.log('HomeScreen: No valid posts from API, using mock data');
+            setPosts(mockPosts.slice(0, 5)); // Limit mock posts
             return;
           }
           
-          setPosts(validPosts);
+          // Limit posts for better performance
+          const limitedPosts = validPosts.slice(0, 10);
+          console.log('HomeScreen: Loaded', limitedPosts.length, 'posts from API');
+          setPosts(limitedPosts);
           return;
         } catch (apiError) {
+          console.warn('HomeScreen: API failed, using mock data:', apiError.message);
           // API failed, fallback to mock data
         }
       }
       
       // Nếu API fail hoặc không có user, dùng dữ liệu mẫu
-      setPosts(mockPosts);
+      console.log('HomeScreen: Using mock data');
+      setPosts(mockPosts.slice(0, 5)); // Limit mock posts
     } catch (error) {
       console.error('HomeScreen: Error fetching posts:', error);
       // Fallback to mock data
-      setPosts(mockPosts);
+      setPosts(mockPosts.slice(0, 5)); // Limit mock posts
     } finally {
       setIsLoading(false);
     }
@@ -212,6 +221,7 @@ export default function HomeScreen() {
   }, [updatePostShare]);
 
   const handleCommentCountUpdate = useCallback((postId: number, commentCount: number) => {
+    console.log('HomeScreen: Received comment count update:', postId, commentCount);
     // Update the post's comment count in both local state and global context
     setPosts(prevPosts => 
       prevPosts.map(post => 
@@ -231,17 +241,13 @@ export default function HomeScreen() {
   }, [updatePost]);
 
 
-  // Fetch posts when component mounts
+  // Fetch posts when component mounts only
   useEffect(() => {
     fetchPosts();
-  }, [fetchPosts]);
+  }, []); // Remove fetchPosts dependency to prevent re-fetching
 
-  // Refresh posts when screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      fetchPosts();
-    }, [fetchPosts])
-  );
+  // Only refresh when explicitly requested
+  // Removed useFocusEffect to prevent automatic re-fetching
 
   // Sync share states from global context (only when share states change)
   useEffect(() => {
@@ -289,79 +295,72 @@ export default function HomeScreen() {
       </View>
       
       {/* Content Feed */}
-      <ScrollView
-        style={styles.feed}
-        contentContainerStyle={styles.feedContent}
-        showsVerticalScrollIndicator={false}
-        bounces={true}
-        alwaysBounceVertical={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            colors={[COLORS.primary]}
-            tintColor={COLORS.primary}
-          />
-        }
-      >
-        <View style={styles.storiesSection}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.storiesContainer}
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Đang tải bài viết...</Text>
+        </View>
+      ) : posts.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>Chưa có bài viết nào</Text>
+          <TouchableOpacity 
+            style={styles.emptyButton}
+            onPress={() => setShowCreatePost(true)}
           >
-            {/* Story items would go here */}
-            <View style={styles.storyItem}>
-              <View style={styles.storyAvatar}>
-                <Plus size={20} color={COLORS.white} />
-              </View>
-              <Text style={styles.storyText}>Tạo tin</Text>
-            </View>
-          </ScrollView>
+            <Text style={styles.emptyButtonText}>Tạo bài viết đầu tiên</Text>
+          </TouchableOpacity>
         </View>
-
-        <View style={styles.postsSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Bài viết mới nhất</Text>
-            <TouchableOpacity onPress={handleRefresh} disabled={isRefreshing}>
-              <RefreshCw 
-                size={16} 
-                color={COLORS.gray} 
-                style={isRefreshing ? styles.refreshingIcon : undefined}
-              />
-            </TouchableOpacity>
-          </View>
-          
-          {isLoading ? (
-            <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Đang tải bài viết...</Text>
-            </View>
-          ) : posts.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>Chưa có bài viết nào</Text>
-              <TouchableOpacity 
-                style={styles.emptyButton}
-                onPress={() => setShowCreatePost(true)}
-              >
-                <Text style={styles.emptyButtonText}>Tạo bài viết đầu tiên</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            posts.map((post, index) => (
-              <PostCard
-                key={`post-${post.id}-${index}`}
-                postData={post}
-                onPostDeleted={handlePostDeleted}
-                onLikeToggle={handleLikeToggle}
-                onShareToggle={handleShareToggle}
-                onCommentCountUpdate={handleCommentCountUpdate}
-                onRefresh={handleRefresh}
-                showImage={!!post.imageUrl || !!post.videoUrl}
-              />
-            ))
+      ) : (
+        <FlatList
+          data={posts}
+          keyExtractor={(item, index) => `post-${item.id}-${index}`}
+          renderItem={({ item: post, index }) => (
+            <PostCard
+              key={`post-${post.id}-${index}`}
+              postData={post}
+              onPostDeleted={handlePostDeleted}
+              onLikeToggle={handleLikeToggle}
+              onShareToggle={handleShareToggle}
+              onCommentCountUpdate={handleCommentCountUpdate}
+              onRefresh={handleRefresh}
+              showImage={!!post.imageUrl || !!post.videoUrl}
+            />
           )}
-        </View>
-      </ScrollView>
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              colors={[COLORS.primary]}
+              tintColor={COLORS.primary}
+            />
+          }
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={5}
+          windowSize={10}
+          initialNumToRender={5}
+          getItemLayout={(data, index) => ({
+            length: 200, // Approximate height of each post
+            offset: 200 * index,
+            index,
+          })}
+          ListHeaderComponent={() => (
+            <View style={styles.storiesSection}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.storiesContainer}
+              >
+                {/* Story items would go here */}
+                <View style={styles.storyItem}>
+                  <View style={styles.storyAvatar}>
+                    <Plus size={20} color={COLORS.white} />
+                  </View>
+                  <Text style={styles.storyText}>Tạo tin</Text>
+                </View>
+              </ScrollView>
+            </View>
+          )}
+        />
+      )}
     </View>
   );
 }

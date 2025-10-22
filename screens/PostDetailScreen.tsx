@@ -231,6 +231,7 @@ export default function PostDetailScreen({ onLikeToggle, onShareToggle, onCommen
       });
 
       // Notify parent component about comment count change
+      console.log('PostDetailScreen: Notifying comment count update:', post.id, newCommentCount);
       onCommentCountUpdate?.(post.id, newCommentCount);
 
       // Clear comment input
@@ -353,6 +354,7 @@ export default function PostDetailScreen({ onLikeToggle, onShareToggle, onCommen
               });
 
               // Notify parent component about comment count change
+              console.log('PostDetailScreen: Notifying comment count update (delete):', post.id, newCommentCount);
               onCommentCountUpdate?.(post.id, newCommentCount);
               
               Alert.alert('Thành công', 'Bình luận đã được xóa.');
@@ -462,6 +464,9 @@ export default function PostDetailScreen({ onLikeToggle, onShareToggle, onCommen
   }
 
   const isOwner = user?.id === post.userId;
+  
+  // Auto-detect if this is a shared post based on data
+  const isActuallySharedPost = post.isSharedPost || (post.shareCaption && post.shareCaption.trim().length > 0);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -519,10 +524,12 @@ export default function PostDetailScreen({ onLikeToggle, onShareToggle, onCommen
               )}
             </View>
             <View style={styles.userDetails}>
-              <Text style={styles.userName}>{post.user.fullName}</Text>
+              <Text style={styles.userName}>
+                {isActuallySharedPost ? `${post.user.fullName} đã chia sẻ` : post.user.fullName}
+              </Text>
               <Text style={styles.postDate}>
                 <Calendar size={12} color={COLORS.gray} /> 
-                Tạo lúc: {formatDate(post.createdAt)}
+                {isActuallySharedPost ? 'Chia sẻ lúc' : 'Tạo lúc'}: {formatDate(post.createdAt)}
                 {post.updatedAt !== post.createdAt && (
                   <Text style={styles.editDate}>
                     {'\n'}Chỉnh sửa lúc: {formatDate(post.updatedAt)}
@@ -532,15 +539,36 @@ export default function PostDetailScreen({ onLikeToggle, onShareToggle, onCommen
             </View>
           </View>
 
-          {/* Post Text */}
-          <Text style={styles.postContent}>{post.content}</Text>
-          
-          {/* Share Caption for shared posts */}
-          {post.isSharedPost && post.shareCaption && (
-            <View style={styles.shareCaptionContainer}>
-              <Text style={styles.shareCaptionLabel}>Ghi chú chia sẻ:</Text>
-              <Text style={styles.shareCaptionText}>{post.shareCaption}</Text>
-            </View>
+          {/* For shared posts, show share caption first, then original post content */}
+          {isActuallySharedPost && post.shareCaption ? (
+            <>
+              {/* Share Caption */}
+              <View style={styles.shareCaptionContainer}>
+                <Text style={styles.shareCaptionLabel}>Ghi chú chia sẻ:</Text>
+                <Text style={styles.shareCaptionText}>{post.shareCaption}</Text>
+              </View>
+              
+              {/* Original Post Content (like Facebook) */}
+              <View style={styles.originalPostContainer}>
+                <View style={styles.originalPostHeader}>
+                  <View style={styles.originalPostAvatar}>
+                    {post.user.avatarUrl ? (
+                      <Image source={{ uri: post.user.avatarUrl }} style={styles.originalPostAvatarImage} />
+                    ) : (
+                      <User size={20} color={COLORS.white} />
+                    )}
+                  </View>
+                  <View style={styles.originalPostUserInfo}>
+                    <Text style={styles.originalPostUserName}>{post.user.fullName}</Text>
+                    <Text style={styles.originalPostTimestamp}>{formatDate(post.createdAt)}</Text>
+                  </View>
+                </View>
+                <Text style={styles.originalPostContent}>{post.content}</Text>
+              </View>
+            </>
+          ) : (
+            /* Normal post content */
+            <Text style={styles.postContent}>{post.content}</Text>
           )}
 
           {/* Post Image */}
@@ -559,7 +587,9 @@ export default function PostDetailScreen({ onLikeToggle, onShareToggle, onCommen
                   player.muted = false;
                 })}
                 style={styles.video}
-                allowsFullscreen
+                fullscreenOptions={{
+                  allowsFullscreen: true
+                }}
                 allowsPictureInPicture
               />
             </View>
@@ -1095,6 +1125,52 @@ const styles = StyleSheet.create({
     marginBottom: RESPONSIVE_SPACING.xs,
   },
   shareCaptionText: {
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    color: COLORS.text,
+    lineHeight: 20,
+  },
+  originalPostContainer: {
+    backgroundColor: COLORS.background,
+    marginHorizontal: RESPONSIVE_SPACING.md,
+    marginBottom: RESPONSIVE_SPACING.sm,
+    padding: RESPONSIVE_SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  originalPostHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: RESPONSIVE_SPACING.sm,
+  },
+  originalPostAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.primary,
+    marginRight: RESPONSIVE_SPACING.sm,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  originalPostAvatarImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  originalPostUserInfo: {
+    flex: 1,
+  },
+  originalPostUserName: {
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  originalPostTimestamp: {
+    fontSize: RESPONSIVE_FONT_SIZES.xs,
+    color: COLORS.gray,
+    marginTop: 2,
+  },
+  originalPostContent: {
     fontSize: RESPONSIVE_FONT_SIZES.sm,
     color: COLORS.text,
     lineHeight: 20,
