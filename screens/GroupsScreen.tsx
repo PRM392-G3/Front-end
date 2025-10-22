@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
+import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
 import { Plus, Users, Lock, Globe } from 'lucide-react-native';
 
 export default function GroupsScreen() {
@@ -93,11 +93,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: COLORS.white,
-    paddingHorizontal: SPACING.md,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
     paddingTop: 60,
-    paddingBottom: SPACING.md,
+    paddingBottom: RESPONSIVE_SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: COLORS.border.primary,
   },
   headerTitle: {
     fontSize: FONT_SIZES.xl,
@@ -117,27 +117,27 @@ const styles = StyleSheet.create({
   },
   section: {
     backgroundColor: COLORS.white,
-    paddingVertical: SPACING.md,
-    marginBottom: SPACING.sm,
+    paddingVertical: RESPONSIVE_SPACING.md,
+    marginBottom: RESPONSIVE_SPACING.sm,
   },
   sectionTitle: {
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
     color: COLORS.black,
-    paddingHorizontal: SPACING.md,
-    marginBottom: SPACING.md,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    marginBottom: RESPONSIVE_SPACING.md,
   },
   groupCard: {
     flexDirection: 'row',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.sm,
   },
   groupImage: {
     width: 80,
     height: 80,
     borderRadius: BORDER_RADIUS.md,
     backgroundColor: COLORS.lightGray,
-    marginRight: SPACING.sm,
+    marginRight: RESPONSIVE_SPACING.sm,
   },
   groupInfo: {
     flex: 1,
@@ -147,13 +147,13 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
     color: COLORS.black,
-    marginBottom: SPACING.xs,
+    marginBottom: RESPONSIVE_SPACING.xs,
   },
   groupMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.xs,
-    marginBottom: SPACING.xs,
+    gap: RESPONSIVE_SPACING.xs,
+    marginBottom: RESPONSIVE_SPACING.xs,
   },
   groupMetaText: {
     fontSize: FONT_SIZES.xs,
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
   groupPrivacy: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.xs,
+    gap: RESPONSIVE_SPACING.xs,
   },
   groupPrivacyText: {
     fontSize: FONT_SIZES.xs,
@@ -170,11 +170,11 @@ const styles = StyleSheet.create({
   },
   joinButton: {
     backgroundColor: COLORS.primary,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.xs,
     borderRadius: BORDER_RADIUS.sm,
     alignSelf: 'flex-start',
-    marginTop: SPACING.xs,
+    marginTop: RESPONSIVE_SPACING.xs,
   },
   joinButtonText: {
     fontSize: FONT_SIZES.sm,

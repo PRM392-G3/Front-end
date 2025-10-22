@@ -6,6 +6,8 @@ import { PostResponse, postAPI } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import ImageUploader from '@/components/ImageUploader';
 import VideoUploader from '@/components/VideoUploader';
+import SimpleImageUploader from '@/components/SimpleImageUploader';
+import SimpleVideoUploader from '@/components/SimpleVideoUploader';
 import TagInput from '@/components/TagInput';
 
 interface CreatePostScreenProps {
@@ -30,7 +32,7 @@ export default function CreatePostScreen({ onClose, onPostCreated }: CreatePostS
         userId: user.id,
         content: content.trim(),
         imageUrl: selectedImages[0],
-        videoUrl: selectedVideo,
+        videoUrl: selectedVideo || undefined,
         tags: selectedTags,
       };
 
@@ -55,11 +57,13 @@ export default function CreatePostScreen({ onClose, onPostCreated }: CreatePostS
   };
 
   const handleImageUpload = (result: any) => {
+    console.log('CreatePostScreen: Image upload result:', result);
     setSelectedImages([result.publicUrl]);
   };
 
-  const handleVideoUpload = (result: any) => {
-    setSelectedVideo(result.publicUrl);
+  const handleVideoUpload = (url: string) => {
+    console.log('CreatePostScreen: Video upload result:', url);
+    setSelectedVideo(url);
   };
 
   const canCreatePost = content.trim().length > 0 && !isCreating;
@@ -68,11 +72,12 @@ export default function CreatePostScreen({ onClose, onPostCreated }: CreatePostS
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={onClose}>
+        <TouchableOpacity style={styles.headerButton} onPress={onClose}>
           <X size={24} color={COLORS.text.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Tạo bài viết</Text>
         <TouchableOpacity
+          style={styles.headerButton}
           onPress={handleCreatePost}
           disabled={!canCreatePost}
         >
@@ -116,16 +121,14 @@ export default function CreatePostScreen({ onClose, onPostCreated }: CreatePostS
         <View style={styles.mediaSection}>
           <Text style={styles.sectionTitle}>Thêm phương tiện</Text>
           
-          <ImageUploader
+          <SimpleImageUploader
             onUploadComplete={handleImageUpload}
             folder="posts"
-            maxImages={1}
           />
 
-          <VideoUploader
+          <SimpleVideoUploader
             onUploadComplete={handleVideoUpload}
             folder="posts"
-            maxVideos={1}
           />
         </View>
 
@@ -169,14 +172,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: RESPONSIVE_SPACING.md,
-    paddingVertical: RESPONSIVE_SPACING.sm,
+    paddingVertical: RESPONSIVE_SPACING.xs,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border.primary,
+    height: 50,
+  },
+  headerButton: {
+    minWidth: 50,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: RESPONSIVE_SPACING.sm,
   },
   headerTitle: {
     fontSize: FONT_SIZES.lg,
     fontWeight: '600',
     color: COLORS.text.primary,
+    flex: 1,
+    textAlign: 'center',
   },
   postButton: {
     fontSize: FONT_SIZES.md,

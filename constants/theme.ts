@@ -1,46 +1,58 @@
-import { Dimensions, Platform } from 'react-native';
-
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+// Theme Configuration
+import { ViewStyle, TextStyle, ImageStyle } from 'react-native';
 
 export const COLORS = {
-  // Nexora Brand Colors
-  primary: '#6366F1', // Indigo
-  primaryLight: '#818CF8',
-  primaryDark: '#4F46E5',
+  // Background colors
+  background: {
+    primary: '#FFFFFF',
+    secondary: '#F8F9FA',
+  },
   
-  // Secondary Colors
-  secondary: '#EC4899', // Pink
-  secondaryLight: '#F472B6',
-  secondaryDark: '#DB2777',
+  // Text colors
+  text: {
+    primary: '#1A1A1A',
+    secondary: '#6B7280',
+    white: '#FFFFFF',
+    gray: '#6B7280',
+    lightGray: '#F3F4F6',
+    darkGray: '#374151',
+  },
   
-  // Neutral Colors
+  // Border colors
+  border: {
+    primary: '#E5E7EB',
+    secondary: '#F3F4F6',
+  },
+  
+  // Accent colors
+  accent: {
+    primary: '#6366F1',
+    danger: '#EF4444',
+  },
+  
+  // Shadow colors
+  shadow: {
+    primary: '#000000',
+  },
+  
+  // Additional colors for compatibility
   white: '#FFFFFF',
-  lightGray: '#F8FAFC',
-  gray: '#64748B',
-  darkGray: '#334155',
-  black: '#0F172A',
-  
-  // Background Colors
-  background: '#F1F5F9',
-  surface: '#FFFFFF',
-  surfaceSecondary: '#F8FAFC',
-  
-  // Border & Divider
-  border: '#E2E8F0',
-  borderLight: '#F1F5F9',
-  
-  // Status Colors
-  success: '#10B981',
-  warning: '#F59E0B',
+  black: '#000000',
+  gray: '#6B7280',
+  lightGray: '#F3F4F6',
+  darkGray: '#374151',
+  primary: '#6366F1',
+  primaryDark: '#4F46E5',
   error: '#EF4444',
+  success: '#10B981',
+  warning: '#FBBF24',
   info: '#3B82F6',
-  
-  // Gradient Colors
   gradientStart: '#6366F1',
-  gradientEnd: '#EC4899',
+  gradientEnd: '#4F46E5',
+  secondary: '#F8F9FA',
 };
 
-export const SPACING = {
+export const RESPONSIVE_SPACING = {
   xs: 4,
   sm: 8,
   md: 16,
@@ -49,56 +61,41 @@ export const SPACING = {
   xxl: 40,
 };
 
-export const BORDER_RADIUS = {
-  sm: 8,
-  md: 12,
-  lg: 20,
-  xl: 24,
-  full: 9999,
-};
+// Alias for backward compatibility
+export const SPACING = RESPONSIVE_SPACING;
 
 export const FONT_SIZES = {
   xs: 12,
   sm: 14,
   md: 16,
   lg: 18,
-  xl: 24,
-  xxl: 32,
+  xl: 20,
+  xxl: 24,
 };
 
-// Responsive dimensions
-export const DIMENSIONS = {
-  screenWidth,
-  screenHeight,
-  isSmallDevice: screenWidth < 375,
-  isMediumDevice: screenWidth >= 375 && screenWidth < 414,
-  isLargeDevice: screenWidth >= 414,
-  isTablet: screenWidth >= 768,
+// Alias for backward compatibility
+export const RESPONSIVE_FONT_SIZES = FONT_SIZES;
+
+export const BORDER_RADIUS = {
+  sm: 4,
+  md: 8,
+  lg: 12,
+  xl: 16,
+  full: 999,
 };
 
-// Safe area helpers
 export const SAFE_AREA = {
-  top: Platform.OS === 'ios' ? 44 : 24,
-  bottom: Platform.OS === 'ios' ? 34 : 0,
-  horizontal: Platform.OS === 'ios' ? 20 : 16,
+  top: 44,
+  bottom: 34,
 };
 
-// Responsive spacing based on screen size
-export const RESPONSIVE_SPACING = {
-  xs: DIMENSIONS.isSmallDevice ? 2 : 4,
-  sm: DIMENSIONS.isSmallDevice ? 4 : 8,
-  md: DIMENSIONS.isSmallDevice ? 8 : DIMENSIONS.isLargeDevice ? 20 : 16,
-  lg: DIMENSIONS.isSmallDevice ? 12 : DIMENSIONS.isLargeDevice ? 28 : 24,
-  xl: DIMENSIONS.isSmallDevice ? 16 : DIMENSIONS.isLargeDevice ? 36 : 32,
-  xxl: DIMENSIONS.isSmallDevice ? 20 : DIMENSIONS.isLargeDevice ? 44 : 40,
+export const DIMENSIONS = {
+  screenWidth: 375,
+  screenHeight: 812,
+  isLargeDevice: false,
 };
 
-// Responsive font sizes
-export const RESPONSIVE_FONT_SIZES = {
-  xs: DIMENSIONS.isSmallDevice ? 10 : 12,
-  sm: DIMENSIONS.isSmallDevice ? 12 : 14,
-  md: DIMENSIONS.isSmallDevice ? 14 : DIMENSIONS.isLargeDevice ? 18 : 16,
-  lg: DIMENSIONS.isSmallDevice ? 16 : DIMENSIONS.isLargeDevice ? 20 : 18,
-  xl: DIMENSIONS.isSmallDevice ? 20 : DIMENSIONS.isLargeDevice ? 28 : 24,
-  xxl: DIMENSIONS.isSmallDevice ? 24 : DIMENSIONS.isLargeDevice ? 36 : 32,
-};
+// Type-safe style helpers
+export const createViewStyle = (style: ViewStyle): ViewStyle => style;
+export const createTextStyle = (style: TextStyle): TextStyle => style;
+export const createImageStyle = (style: ImageStyle): ImageStyle => style;

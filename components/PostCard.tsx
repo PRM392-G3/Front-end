@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, ActivityIndicator } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES } from '@/constants/theme';
 import { Heart, MessageCircle, Share2, MoveHorizontal as MoreHorizontal, Trash2, Edit } from 'lucide-react-native';
@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { usePostContext } from '@/contexts/PostContext';
 import { useRouter } from 'expo-router';
 import ShareButton from './ShareButton';
+import PostLikesModal from './PostLikesModal';
 
 interface PostCardProps {
   postData: PostResponse;
@@ -33,31 +34,63 @@ export default function PostCard({
   isSharedPost = false
 }: PostCardProps) {
   const { user } = useAuth();
-  const { refreshPosts } = usePostContext();
+  const { refreshPosts, updatePostLike, getPostLikeState, updatePostShare, getPostShareState } = usePostContext();
   const router = useRouter();
   
-  const [isLiked, setIsLiked] = useState(() => {
-    // Check if current user has liked this post
-    if (user?.id && postData.likes && Array.isArray(postData.likes)) {
-      return postData.likes.some(like => like.userId === user.id);
-    }
-    return postData.isLiked || false;
-  });
+  // Get like state from context, fallback to postData
+  const contextLikeState = getPostLikeState(postData.id);
+  const [actualIsLiked, setActualIsLiked] = useState<boolean | null>(null);
+  const isLiked = actualIsLiked ?? contextLikeState?.isLiked ?? postData.isLiked ?? false;
+  const likeCount = contextLikeState?.likeCount ?? postData.likeCount ?? 0;
 
-  const [isShared, setIsShared] = useState(() => {
-    return postData.isShared || false;
-  });
+  // Get share state from context, fallback to postData
+  const contextShareState = getPostShareState(postData.id);
+  const isShared = contextShareState?.isShared ?? postData.isShared ?? false;
+  const shareCount = contextShareState?.shareCount ?? postData.shareCount ?? 0;
 
   const [isLiking, setIsLiking] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showFullContent, setShowFullContent] = useState(false);
+  const [showLikesModal, setShowLikesModal] = useState(false);
+  const [isCheckingLikeStatus, setIsCheckingLikeStatus] = useState(false);
 
   // Video player setup
   const player = useVideoPlayer(postData.videoUrl || '', (player) => {
     player.loop = true;
     player.muted = true;
   });
+
+  // Check actual like status from API - only once per post
+  useEffect(() => {
+    const checkLikeStatus = async () => {
+      if (!user || actualIsLiked !== null) return; // Already checked or no user
+      
+      try {
+        setIsCheckingLikeStatus(true);
+        console.log(`🔍 [PostCard] Checking like status for post ${postData.id}`);
+        
+        const likesData = await postAPI.getPostLikes(postData.id);
+        const userLiked = likesData.some(likeUser => likeUser.id === user.id);
+        
+        console.log(`✅ [PostCard] Like status for post ${postData.id}:`, userLiked);
+        setActualIsLiked(userLiked);
+        
+        // Update context with correct status
+        if (userLiked !== (postData.isLiked ?? false)) {
+          updatePostLike(postData.id, userLiked);
+        }
+      } catch (error: any) {
+        console.error(`❌ [PostCard] Error checking like status for post ${postData.id}:`, error);
+        // If API fails, fall back to postData.isLiked
+        setActualIsLiked(postData.isLiked ?? false);
+      } finally {
+        setIsCheckingLikeStatus(false);
+      }
+    };
+
+    checkLikeStatus();
+  }, [postData.id, user?.id]); // Removed actualIsLiked from dependencies to prevent infinite loop
 
   const handleLikeToggle = async () => {
     if (!user || isLiking) return;
@@ -66,18 +99,26 @@ export default function PostCard({
     try {
       if (isLiked) {
         await postAPI.unlikePost(postData.id, user.id);
-        setIsLiked(false);
-        onLikeToggle?.(postData.id, false);
+        setActualIsLiked(false); // Update local state
+        updatePostLike(postData.id, false); // Update context
+        onLikeToggle?.(postData.id, false); // Callback for parent (no duplicate updatePostLike)
       } else {
         await postAPI.likePost(postData.id, user.id);
-        setIsLiked(true);
-        onLikeToggle?.(postData.id, true);
+        setActualIsLiked(true); // Update local state
+        updatePostLike(postData.id, true); // Update context
+        onLikeToggle?.(postData.id, true); // Callback for parent (no duplicate updatePostLike)
       }
     } catch (error) {
       console.error('Error toggling like:', error);
       Alert.alert('Lỗi', 'Không thể thực hiện thao tác này');
     } finally {
       setIsLiking(false);
+    }
+  };
+
+  const handleLikeCountPress = () => {
+    if (likeCount > 0) {
+      setShowLikesModal(true);
     }
   };
 
@@ -88,11 +129,11 @@ export default function PostCard({
     try {
       if (isShared) {
         await shareAPI.unsharePost(user.id, postData.id);
-        setIsShared(false);
+        updatePostShare(postData.id, false); // Update context
         onShareToggle?.(postData.id, false);
       } else {
         await shareAPI.sharePost(user.id, postData.id);
-        setIsShared(true);
+        updatePostShare(postData.id, true); // Update context
         onShareToggle?.(postData.id, true);
       }
     } catch (error) {
@@ -133,15 +174,21 @@ export default function PostCard({
   };
 
   const handleEditPost = () => {
-    router.push(`/edit-post/${postData.id}`);
+    console.log('PostCard: Navigating to edit post with data:', postData);
+    router.push({
+      pathname: '/edit-post',
+      params: {
+        post: JSON.stringify(postData)
+      }
+    } as any);
   };
 
   const handleCommentPress = () => {
-    router.push(`/post-detail/${postData.id}`);
+    router.push(`/post-detail?id=${postData.id}` as any);
   };
 
   const handleUserPress = () => {
-    router.push(`/profile/${postData.userId}`);
+    router.push(`/profile?id=${postData.userId}` as any);
   };
 
   const formatDate = (dateString: string) => {
@@ -234,20 +281,32 @@ export default function PostCard({
 
       {/* Actions */}
       <View style={styles.actions}>
-        <TouchableOpacity 
-          style={styles.actionButton} 
-          onPress={handleLikeToggle}
-          disabled={isLiking}
-        >
-          <Heart 
-            size={20} 
-            color={isLiked ? COLORS.accent.primary : COLORS.text.secondary}
-            fill={isLiked ? COLORS.accent.primary : 'none'}
-          />
-          <Text style={[styles.actionText, isLiked && styles.actionTextActive]}>
-            {postData.likeCount}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.actionButton}>
+          <TouchableOpacity 
+            style={styles.actionIcon}
+            onPress={handleLikeToggle}
+            disabled={isLiking || isCheckingLikeStatus}
+          >
+            {isCheckingLikeStatus ? (
+              <ActivityIndicator size={16} color={COLORS.text.secondary} />
+            ) : (
+              <Heart 
+                size={20} 
+                color={isLiked ? COLORS.accent.primary : COLORS.text.secondary}
+                fill={isLiked ? COLORS.accent.primary : 'none'}
+              />
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.actionTextContainer}
+            onPress={handleLikeCountPress}
+            disabled={likeCount === 0}
+          >
+            <Text style={[styles.actionText, isLiked && styles.actionTextActive]}>
+              {likeCount}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity style={styles.actionButton} onPress={handleCommentPress}>
           <MessageCircle size={20} color={COLORS.text.secondary} />
@@ -256,7 +315,7 @@ export default function PostCard({
 
         <ShareButton
           postId={postData.id}
-          userId={user?.id || 0}
+          shareCount={shareCount}
           isShared={isShared}
           onShareToggle={onShareToggle}
           disabled={isSharing}
@@ -286,6 +345,14 @@ export default function PostCard({
           </TouchableOpacity>
         </View>
       )}
+
+      {/* Likes Modal */}
+      <PostLikesModal
+        visible={showLikesModal}
+        onClose={() => setShowLikesModal(false)}
+        postId={postData.id}
+        likeCount={likeCount}
+      />
     </View>
   );
 }
@@ -397,6 +464,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: RESPONSIVE_SPACING.sm,
     paddingHorizontal: RESPONSIVE_SPACING.md,
+  },
+  actionIcon: {
+    padding: RESPONSIVE_SPACING.xs,
+  },
+  actionTextContainer: {
+    padding: RESPONSIVE_SPACING.xs,
   },
   actionText: {
     fontSize: RESPONSIVE_FONT_SIZES.sm,

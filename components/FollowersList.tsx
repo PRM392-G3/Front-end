@@ -36,7 +36,7 @@ export const FollowersList: React.FC<FollowersListProps> = ({ userId }) => {
         return;
       }
 
-      const data = await userAPI.getFollowersList(userId);
+      const data = await userAPI.getFollowersList(userId) as any;
       console.log(`👤 [FollowersList] Received data:`, data);
       setFollowers(data);
     } catch (err: any) {

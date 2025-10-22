@@ -1,5 +1,5 @@
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, StatusBar } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, StatusBar, ScrollView } from 'react-native';
+import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
 import { Search, TrendingUp, Filter, Sparkles } from 'lucide-react-native';
 import { useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -99,7 +99,7 @@ export default function SearchScreen() {
       
       {/* Enhanced Header with Gradient */}
       <LinearGradient
-        colors={[COLORS.gradientStart, COLORS.gradientEnd]}
+        colors={[COLORS.primary, COLORS.primaryDark]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={[styles.headerGradient, { paddingTop: insets.top + 60 }]}
@@ -107,20 +107,20 @@ export default function SearchScreen() {
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <View style={styles.logoContainer}>
-              <Sparkles size={24} color={COLORS.white} />
+              <Sparkles size={24} color={COLORS.text.white} />
               <Text style={styles.logoText}>Tìm kiếm</Text>
             </View>
             <TouchableOpacity style={styles.filterButton}>
-              <Filter size={20} color={COLORS.white} />
+              <Filter size={20} color={COLORS.text.white} />
             </TouchableOpacity>
           </View>
           
           <View style={styles.searchContainer}>
-            <Search size={20} color={COLORS.gray} style={styles.searchIcon} />
+            <Search size={20} color={COLORS.text.gray} style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
               placeholder="Tìm kiếm người dùng, bài viết, nhóm..."
-              placeholderTextColor={COLORS.gray}
+              placeholderTextColor={COLORS.text.gray}
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
@@ -171,30 +171,30 @@ export default function SearchScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.background.primary,
   },
   headerGradient: {
-    paddingBottom: SPACING.lg,
-    paddingHorizontal: SPACING.md,
+    paddingBottom: RESPONSIVE_SPACING.lg,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
   },
   header: {
-    paddingTop: SPACING.sm,
+    paddingTop: RESPONSIVE_SPACING.sm,
   },
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.md,
+    marginBottom: RESPONSIVE_SPACING.md,
   },
   logoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.sm,
+    gap: RESPONSIVE_SPACING.sm,
   },
   logoText: {
     fontSize: FONT_SIZES.xl,
     fontWeight: '800',
-    color: COLORS.white,
+    color: COLORS.text.white,
     letterSpacing: 0.5,
   },
   filterButton: {
@@ -208,31 +208,31 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.white,
-    paddingHorizontal: SPACING.md,
+    backgroundColor: COLORS.background.secondary,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
     borderRadius: BORDER_RADIUS.lg,
     height: 48,
     boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
     elevation: 3,
   },
   searchIcon: {
-    marginRight: SPACING.sm,
+    marginRight: RESPONSIVE_SPACING.sm,
   },
   searchInput: {
     flex: 1,
     fontSize: FONT_SIZES.md,
-    color: COLORS.black,
+    color: COLORS.text.primary,
   },
   tabs: {
     flexDirection: 'row',
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.background.secondary,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    paddingHorizontal: SPACING.xs,
+    borderBottomColor: COLORS.border.primary,
+    paddingHorizontal: RESPONSIVE_SPACING.xs,
   },
   tab: {
     flex: 1,
-    paddingVertical: SPACING.sm,
+    paddingVertical: RESPONSIVE_SPACING.sm,
     alignItems: 'center',
   },
   activeTab: {
@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.gray,
+    color: COLORS.text.gray,
     fontWeight: '500',
   },
   activeTabText: {
@@ -252,36 +252,36 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   section: {
-    backgroundColor: COLORS.white,
-    marginBottom: SPACING.sm,
-    paddingVertical: SPACING.md,
+    backgroundColor: COLORS.background.secondary,
+    marginBottom: RESPONSIVE_SPACING.sm,
+    paddingVertical: RESPONSIVE_SPACING.md,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: SPACING.md,
-    marginBottom: SPACING.md,
-    gap: SPACING.xs,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    marginBottom: RESPONSIVE_SPACING.md,
+    gap: RESPONSIVE_SPACING.xs,
   },
   sectionTitle: {
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
-    color: COLORS.black,
-    paddingHorizontal: SPACING.md,
-    marginBottom: SPACING.md,
+    color: COLORS.text.primary,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    marginBottom: RESPONSIVE_SPACING.md,
   },
   suggestionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.sm,
   },
   suggestionAvatar: {
     width: 56,
     height: 56,
     borderRadius: BORDER_RADIUS.full,
-    backgroundColor: COLORS.lightGray,
-    marginRight: SPACING.sm,
+    backgroundColor: COLORS.text.lightGray,
+    marginRight: RESPONSIVE_SPACING.sm,
   },
   suggestionInfo: {
     flex: 1,
@@ -289,35 +289,35 @@ const styles = StyleSheet.create({
   suggestionName: {
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
-    color: COLORS.black,
+    color: COLORS.text.primary,
     marginBottom: 4,
   },
   suggestionMutual: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.gray,
+    color: COLORS.text.gray,
   },
   addButton: {
     backgroundColor: COLORS.primary,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.xs,
     borderRadius: BORDER_RADIUS.sm,
   },
   addButtonText: {
-    color: COLORS.white,
+    color: COLORS.text.white,
     fontSize: FONT_SIZES.sm,
     fontWeight: '600',
   },
   trendingCard: {
     flexDirection: 'row',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.sm,
   },
   trendingImage: {
     width: 100,
     height: 80,
     borderRadius: BORDER_RADIUS.sm,
-    backgroundColor: COLORS.lightGray,
-    marginRight: SPACING.sm,
+    backgroundColor: COLORS.text.lightGray,
+    marginRight: RESPONSIVE_SPACING.sm,
   },
   trendingContent: {
     flex: 1,
@@ -326,18 +326,18 @@ const styles = StyleSheet.create({
   trendingTitle: {
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
-    color: COLORS.black,
-    marginBottom: SPACING.xs,
+    color: COLORS.text.primary,
+    marginBottom: RESPONSIVE_SPACING.xs,
   },
   trendingStats: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.gray,
+    color: COLORS.text.gray,
   },
   comingSoon: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.gray,
+    color: COLORS.text.gray,
     textAlign: 'center',
-    padding: SPACING.xl,
+    padding: RESPONSIVE_SPACING.xl,
     fontStyle: 'italic',
   },
 });

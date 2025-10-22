@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, ActivityIndicator } from 'react-native';
-import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES } from '@/constants/theme';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, ActivityIndicator, ViewStyle, TextStyle, ImageStyle } from 'react-native';
+import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
 import { UserPlus, UserMinus, User } from 'lucide-react-native';
 import { User as UserType, userAPI } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -154,12 +154,12 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.background.secondary,
     padding: RESPONSIVE_SPACING.md,
     marginBottom: RESPONSIVE_SPACING.sm,
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: COLORS.border.primary,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -168,50 +168,50 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
-  },
+  } as ViewStyle,
   avatarContainer: {
     marginRight: RESPONSIVE_SPACING.md,
-  },
+  } as ViewStyle,
   avatar: {
     width: 60,
     height: 60,
     borderRadius: BORDER_RADIUS.full,
-    backgroundColor: COLORS.lightGray,
-  },
+    backgroundColor: COLORS.text.lightGray,
+  } as ImageStyle,
   userInfo: {
     flex: 1,
-  },
+  } as ViewStyle,
   fullName: {
-    fontSize: RESPONSIVE_FONT_SIZES.md,
+    fontSize: FONT_SIZES.md,
     fontWeight: '600',
-    color: COLORS.black,
+    color: COLORS.text.primary,
     marginBottom: 4,
-  },
+  } as TextStyle,
   email: {
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
-    color: COLORS.gray,
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.text.gray,
     marginBottom: 4,
-  },
+  } as TextStyle,
   bio: {
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
-    color: COLORS.darkGray,
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.text.darkGray,
     marginBottom: 8,
     lineHeight: 18,
-  },
+  } as TextStyle,
   stats: {
     flexDirection: 'row',
     gap: RESPONSIVE_SPACING.md,
     marginBottom: 4,
-  },
+  } as ViewStyle,
   statText: {
-    fontSize: RESPONSIVE_FONT_SIZES.xs,
-    color: COLORS.gray,
-  },
+    fontSize: FONT_SIZES.xs,
+    color: COLORS.text.gray,
+  } as TextStyle,
   mutualFriends: {
-    fontSize: RESPONSIVE_FONT_SIZES.xs,
+    fontSize: FONT_SIZES.xs,
     color: COLORS.primary,
     fontWeight: '500',
-  },
+  } as TextStyle,
   followButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -222,16 +222,16 @@ const styles = StyleSheet.create({
     gap: RESPONSIVE_SPACING.xs,
     minWidth: 100,
     justifyContent: 'center',
-  },
+  } as ViewStyle,
   followingButton: {
-    backgroundColor: COLORS.gray,
-  },
+    backgroundColor: COLORS.text.gray,
+  } as ViewStyle,
   loadingButton: {
-    backgroundColor: COLORS.gray,
-  },
+    backgroundColor: COLORS.text.gray,
+  } as ViewStyle,
   followButtonText: {
-    color: COLORS.white,
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    color: COLORS.text.white,
+    fontSize: FONT_SIZES.sm,
     fontWeight: '600',
-  },
+  } as TextStyle,
 });

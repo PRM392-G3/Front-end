@@ -260,6 +260,36 @@ export const userAPI = {
       throw error;
     }
   },
+
+  // Tìm kiếm người dùng
+  searchUsers: async (query: string, page: number = 1, limit: number = 20) => {
+    try {
+      const response = await api.get(`/User/search?query=${encodeURIComponent(query)}&page=${page}&limit=${limit}`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Lấy danh sách followers của user
+  getFollowersList: async (userId: number) => {
+    try {
+      const response = await api.get(`/User/${userId}/followers`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Lấy danh sách người dùng được đề xuất
+  getSuggestedUsers: async (limit: number = 10) => {
+    try {
+      const response = await api.get(`/User/suggested?limit=${limit}`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
 };
 
 // Post interfaces
@@ -473,6 +503,17 @@ export const postAPI = {
       return response.data;
     } catch (error) {
       console.error('Error unliking post:', error);
+      throw error;
+    }
+  },
+
+  // Get list of users who liked a post
+  getPostLikes: async (postId: number) => {
+    try {
+      const response = await api.get(`/Post/${postId}/likes`);
+      return response.data as User[];
+    } catch (error) {
+      console.error('Error getting post likes:', error);
       throw error;
     }
   },

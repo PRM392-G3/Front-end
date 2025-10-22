@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
 import { authAPI, User, AuthResponse } from '@/services/api';
 import { googleSignInService } from '@/services/googleSignIn'; // Disabled for Expo Go
+import { usePostContext } from './PostContext';
 
 interface AuthContextType {
   user: User | null;
@@ -46,6 +47,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [token, setToken] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Get PostContext to clear states on logout
+  let postContext: any = null;
+  try {
+    postContext = usePostContext();
+  } catch (error) {
+    // PostContext might not be available yet
+    console.log('PostContext not available in AuthProvider');
+  }
 
   const isAuthenticated = !!user && !!token;
 
@@ -296,6 +306,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       // Google Sign-In disabled in Expo Go
       console.log('Google Sign-Out disabled in Expo Go');
+      
+      // Clear PostContext states
+      if (postContext?.clearStates) {
+        await postContext.clearStates();
+      }
       
       // Xóa tất cả dữ liệu authentication
       await clearAuthData();

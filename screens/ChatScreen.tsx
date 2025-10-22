@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
+import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
 import { ArrowLeft, Image as ImageIcon, Mic, Send } from 'lucide-react-native';
 
 export default function ChatScreen() {
@@ -89,15 +89,15 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: SPACING.md,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
     paddingTop: 60,
-    paddingBottom: SPACING.md,
+    paddingBottom: RESPONSIVE_SPACING.md,
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: COLORS.border.primary,
   },
   backButton: {
-    marginRight: SPACING.sm,
+    marginRight: RESPONSIVE_SPACING.sm,
   },
   headerInfo: {
     flex: 1,
@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: BORDER_RADIUS.full,
     backgroundColor: COLORS.lightGray,
-    marginRight: SPACING.sm,
+    marginRight: RESPONSIVE_SPACING.sm,
   },
   headerName: {
     fontSize: FONT_SIZES.md,
@@ -126,41 +126,41 @@ const styles = StyleSheet.create({
   messages: {
     flex: 1,
     backgroundColor: COLORS.lightGray,
-    paddingHorizontal: SPACING.md,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
   },
   dateSeparator: {
     alignItems: 'center',
-    marginVertical: SPACING.md,
+    marginVertical: RESPONSIVE_SPACING.md,
   },
   dateText: {
     fontSize: FONT_SIZES.xs,
     color: COLORS.gray,
     backgroundColor: COLORS.white,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.xs,
     borderRadius: BORDER_RADIUS.md,
   },
   receivedMessageContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    marginBottom: SPACING.sm,
+    marginBottom: RESPONSIVE_SPACING.sm,
   },
   sentMessageContainer: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    marginBottom: SPACING.sm,
+    marginBottom: RESPONSIVE_SPACING.sm,
   },
   messageAvatar: {
     width: 32,
     height: 32,
     borderRadius: BORDER_RADIUS.full,
     backgroundColor: COLORS.gray,
-    marginRight: SPACING.xs,
+    marginRight: RESPONSIVE_SPACING.xs,
   },
   messageBubble: {
     maxWidth: '70%',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.sm,
     borderRadius: BORDER_RADIUS.lg,
   },
   receivedBubble: {
@@ -189,11 +189,11 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.sm,
     backgroundColor: COLORS.white,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: COLORS.border.primary,
   },
   iconButton: {
     width: 40,
@@ -205,8 +205,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.lightGray,
     borderRadius: BORDER_RADIUS.lg,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.sm,
     maxHeight: 100,
   },
   textInput: {
@@ -220,6 +220,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: SPACING.xs,
+    marginLeft: RESPONSIVE_SPACING.xs,
   },
 });

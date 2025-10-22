@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: RESPONSIVE_SPACING.md,
     paddingVertical: RESPONSIVE_SPACING.sm,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: COLORS.border.primary,
   },
   backButton: {
     width: 40,
@@ -341,7 +341,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     paddingVertical: RESPONSIVE_SPACING.lg,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: COLORS.border.primary,
   },
   statItem: {
     flex: 1,
@@ -366,7 +366,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: RESPONSIVE_SPACING.lg,
     paddingVertical: RESPONSIVE_SPACING.lg,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: COLORS.border.primary,
   },
   contactItem: {
     flexDirection: 'row',
@@ -382,7 +382,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: COLORS.border.primary,
   },
   tab: {
     flex: 1,

@@ -9,13 +9,14 @@ import { postAPI, PostResponse } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePostContext } from '@/contexts/PostContext';
 import { useFocusEffect } from '@react-navigation/native';
+import { PostLikesTestComponent } from '@/components/PostLikesTestComponent';
 
 export default function HomeScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const { user } = useAuth();
-  const { posts, setPosts, updatePostLike, updatePostShare, updatePost, getPostShareState } = usePostContext();
+  const { posts, setPosts, updatePostLike, updatePostShare, updatePost, getPostShareState, initializePosts } = usePostContext();
   const insets = useSafeAreaInsets();
 
   const fetchPosts = useCallback(async () => {
@@ -23,7 +24,7 @@ export default function HomeScreen() {
       console.log('HomeScreen: Fetching posts...');
       const fetchedPosts = await postAPI.getAllPosts();
       console.log('HomeScreen: Posts fetched successfully:', fetchedPosts.length);
-      setPosts(fetchedPosts);
+      initializePosts(fetchedPosts);
     } catch (error) {
       console.error('HomeScreen: Error fetching posts:', error);
       Alert.alert('Lỗi', 'Không thể tải bài viết. Vui lòng thử lại.');
@@ -31,9 +32,9 @@ export default function HomeScreen() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [setPosts]);
+  }, [initializePosts]);
 
-  // Load posts when screen focuses
+  // Load posts when screen focuses (only useFocusEffect, remove useEffect to prevent duplicate calls)
   useFocusEffect(
     useCallback(() => {
       if (user) {
@@ -42,25 +43,20 @@ export default function HomeScreen() {
     }, [user, fetchPosts])
   );
 
-  // Initial load
-  useEffect(() => {
-    if (user) {
-      fetchPosts();
-    }
-  }, [user, fetchPosts]);
-
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
     fetchPosts();
   }, [fetchPosts]);
 
   const handlePostLike = useCallback((postId: number, isLiked: boolean) => {
-    updatePostLike(postId, isLiked);
-  }, [updatePostLike]);
+    // PostCard already calls updatePostLike, so we don't need to call it again
+    console.log('HomeScreen: Post like callback received:', postId, isLiked);
+  }, []);
 
   const handlePostShare = useCallback((postId: number, isShared: boolean) => {
-    updatePostShare(postId, isShared);
-  }, [updatePostShare]);
+    // PostCard already calls updatePostShare, so we don't need to call it again
+    console.log('HomeScreen: Post share callback received:', postId, isShared);
+  }, []);
 
   const handlePostUpdated = useCallback((updatedPost: PostResponse) => {
     updatePost(updatedPost.id, updatedPost);

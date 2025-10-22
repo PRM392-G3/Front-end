@@ -3,16 +3,17 @@ import { View, Text, StyleSheet, SafeAreaView, StatusBar, TouchableOpacity, Scro
 import { ArrowLeft, Users } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
-import { userAPI, User, FollowedUser } from '../services/api';
+import { userAPI, User } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 
-export default function FollowingScreen() {
+export default function FollowersScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user: currentUser } = useAuth();
-  const [following, setFollowing] = useState<FollowedUser[]>([]);
+  const [followers, setFollowers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
+  const [followingStatus, setFollowingStatus] = useState<{[key: number]: boolean}>({});
 
   useEffect(() => {
     if (id) {
@@ -28,16 +29,16 @@ export default function FollowingScreen() {
       const userData = await userAPI.getUserById(parseInt(id));
       setUser(userData);
       
-      // Load following list
-      const followingData = await userAPI.getFollowingList(parseInt(id));
-      console.log('✅ [Following] API SUCCESS: Received following data:', followingData);
+      // Load followers list
+      const followersData = await userAPI.getFollowersList(parseInt(id));
+      console.log('✅ [Followers] API SUCCESS: Received followers data:', followersData);
       
       // Handle different response formats
-      const followingList = Array.isArray(followingData) ? followingData : (followingData as any)?.data || (followingData as any)?.following || [];
-      setFollowing(followingList);
+      const followersList = Array.isArray(followersData) ? followersData : (followersData as any)?.data || (followersData as any)?.followers || [];
+      setFollowers(followersList);
     } catch (error: any) {
-      console.error('❌ [Following] API ERROR:', error);
-      Alert.alert('Lỗi', 'Không thể tải danh sách đang theo dõi');
+      console.error('❌ [Followers] API ERROR:', error);
+      Alert.alert('Lỗi', 'Không thể tải danh sách người theo dõi');
     } finally {
       setLoading(false);
     }
@@ -51,18 +52,42 @@ export default function FollowingScreen() {
     router.push(`/profile?id=${userId}` as any);
   };
 
-  const handleUnfollow = async (followingId: number) => {
+  const handleFollow = async (followerId: number) => {
+    if (!currentUser) {
+      Alert.alert('Lỗi', 'Vui lòng đăng nhập để theo dõi');
+      return;
+    }
+
+    try {
+      await userAPI.followUser(currentUser.id, followerId);
+      // Update following status
+      setFollowingStatus(prev => ({
+        ...prev,
+        [followerId]: true
+      }));
+      Alert.alert('Thành công', 'Đã theo dõi người dùng');
+    } catch (error: any) {
+      console.error('❌ [Followers] Follow error:', error);
+      Alert.alert('Lỗi', 'Không thể theo dõi người dùng này');
+    }
+  };
+
+  const handleUnfollow = async (followerId: number) => {
     if (!currentUser) {
       Alert.alert('Lỗi', 'Vui lòng đăng nhập để bỏ theo dõi');
       return;
     }
 
     try {
-      await userAPI.unfollowUser(currentUser.id, followingId);
+      await userAPI.unfollowUser(currentUser.id, followerId);
+      // Update following status
+      setFollowingStatus(prev => ({
+        ...prev,
+        [followerId]: false
+      }));
       Alert.alert('Thành công', 'Đã bỏ theo dõi người dùng');
-      loadData(); // Refresh data
     } catch (error: any) {
-      console.error('❌ [Following] Unfollow error:', error);
+      console.error('❌ [Followers] Unfollow error:', error);
       Alert.alert('Lỗi', 'Không thể bỏ theo dõi người dùng này');
     }
   };
@@ -89,7 +114,7 @@ export default function FollowingScreen() {
           <ArrowLeft size={24} color={COLORS.black} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
-          Đang theo dõi {user?.fullName}
+          Người theo dõi {user?.fullName}
         </Text>
         <View style={styles.placeholder} />
       </View>
@@ -98,60 +123,86 @@ export default function FollowingScreen() {
         showsVerticalScrollIndicator={false} 
         style={styles.scrollView}
       >
-        {/* Following Count */}
+        {/* Followers Count */}
         <View style={styles.countContainer}>
           <Users size={24} color={COLORS.primary} />
           <Text style={styles.countText}>
-            {following.length} người đang theo dõi
+            {followers.length} người theo dõi
           </Text>
         </View>
 
-        {/* Following List */}
-        {following.length > 0 ? (
+        {/* Followers List */}
+        {followers.length > 0 ? (
           <View style={styles.listContainer}>
-            {following.map((followedUser) => (
+            {followers.map((follower) => (
               <TouchableOpacity
-                key={followedUser.id}
+                key={follower.id}
                 style={styles.userItem}
-                onPress={() => handleUserPress(followedUser.id)}
+                onPress={() => handleUserPress(follower.id)}
                 activeOpacity={0.7}
               >
                 <View style={styles.avatarContainer}>
-                  {followedUser.avatarUrl ? (
-                    <Image source={{ uri: followedUser.avatarUrl }} style={styles.avatar} />
+                  {follower.avatarUrl ? (
+                    <Image source={{ uri: follower.avatarUrl }} style={styles.avatar} />
                   ) : (
                     <View style={styles.avatarPlaceholder}>
                       <Text style={styles.avatarText}>
-                        {followedUser.fullName.charAt(0).toUpperCase()}
+                        {follower.fullName.charAt(0).toUpperCase()}
                       </Text>
                     </View>
                   )}
                 </View>
                 <View style={styles.userInfo}>
-                  <Text style={styles.userName}>{followedUser.fullName}</Text>
-                  <Text style={styles.followStatus}>
-                    {/* If viewing own following list, all users are being followed */}
-                    {currentUser && user && currentUser.id === user.id 
-                      ? 'Đang theo dõi' 
-                      : (followedUser.isFollowing ? 'Đang theo dõi' : 'Chưa theo dõi')
-                    }
-                  </Text>
+                  <Text style={styles.userName}>{follower.fullName}</Text>
+                  <Text style={styles.userEmail}>{follower.email}</Text>
+                  {follower.bio && (
+                    <Text style={styles.userBio}>{follower.bio}</Text>
+                  )}
+                  {/* Show follow status if viewing own followers list */}
+                  {currentUser && user && currentUser.id === user.id && (
+                    <Text style={styles.followStatus}>
+                      {followingStatus[follower.id] ? 'Đang theo dõi' : 'Chưa theo dõi'}
+                    </Text>
+                  )}
                 </View>
-                {/* Only show unfollow button if viewing own following list */}
-                {currentUser && user && currentUser.id === user.id && currentUser.id !== followedUser.id && (
+                {/* Only show follow button if viewing own followers list and not following this user */}
+                {currentUser && user && currentUser.id === user.id && currentUser.id !== follower.id && !followingStatus[follower.id] && (
+                  <TouchableOpacity
+                    style={styles.followButton}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      Alert.alert(
+                        'Theo dõi',
+                        `Bạn có chắc chắn muốn theo dõi ${follower.fullName}?`,
+                        [
+                          { text: 'Hủy', style: 'cancel' },
+                          { 
+                            text: 'Theo dõi', 
+                            onPress: () => handleFollow(follower.id)
+                          }
+                        ]
+                      );
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.followButtonText}>Theo dõi</Text>
+                  </TouchableOpacity>
+                )}
+                {/* Show unfollow button if viewing own followers list and already following this user */}
+                {currentUser && user && currentUser.id === user.id && currentUser.id !== follower.id && followingStatus[follower.id] && (
                   <TouchableOpacity
                     style={styles.unfollowButton}
                     onPress={(e) => {
                       e.stopPropagation();
                       Alert.alert(
                         'Bỏ theo dõi',
-                        `Bạn có chắc chắn muốn bỏ theo dõi ${followedUser.fullName}?`,
+                        `Bạn có chắc chắn muốn bỏ theo dõi ${follower.fullName}?`,
                         [
                           { text: 'Hủy', style: 'cancel' },
                           { 
                             text: 'Bỏ theo dõi', 
                             style: 'destructive',
-                            onPress: () => handleUnfollow(followedUser.id)
+                            onPress: () => handleUnfollow(follower.id)
                           }
                         ]
                       );
@@ -167,7 +218,7 @@ export default function FollowingScreen() {
         ) : (
           <View style={styles.emptyContainer}>
             <Users size={48} color={COLORS.gray} />
-            <Text style={styles.emptyText}>Chưa theo dõi ai</Text>
+            <Text style={styles.emptyText}>Chưa có người theo dõi nào</Text>
           </View>
         )}
       </ScrollView>
@@ -295,6 +346,18 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
     color: COLORS.primary,
     fontWeight: '500',
+    marginTop: 2,
+  } as TextStyle,
+  followButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+  } as ViewStyle,
+  followButtonText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+    color: COLORS.text.white,
   } as TextStyle,
   unfollowButton: {
     backgroundColor: COLORS.accent.danger,

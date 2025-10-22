@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { COLORS, RESPONSIVE_FONT_SIZES, DIMENSIONS } from '@/constants/theme';
+import { COLORS, FONT_SIZES, DIMENSIONS } from '@/constants/theme';
 import { Hop as Home, Search, SquarePlus as PlusSquare, Bell, User } from 'lucide-react-native';
 import { AuthGuard } from '@/components/AuthGuard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,13 +17,13 @@ export default function TabLayout() {
           tabBarStyle: {
             backgroundColor: COLORS.white,
             borderTopWidth: 1,
-            borderTopColor: COLORS.border,
+            borderTopColor: COLORS.border.primary,
             height: DIMENSIONS.isLargeDevice ? 70 + insets.bottom : 60 + insets.bottom,
             paddingBottom: insets.bottom,
             paddingTop: 8,
           },
           tabBarLabelStyle: {
-            fontSize: RESPONSIVE_FONT_SIZES.xs,
+            fontSize: FONT_SIZES.xs,
             fontWeight: '500',
           },
         }}

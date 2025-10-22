@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
+import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
 import ChatListItem from '@/components/ChatListItem';
 import { Search, CreditCard as Edit3 } from 'lucide-react-native';
 
@@ -43,11 +43,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: SPACING.md,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
     paddingTop: 60,
-    paddingBottom: SPACING.md,
+    paddingBottom: RESPONSIVE_SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: COLORS.border.primary,
   },
   headerTitle: {
     fontSize: FONT_SIZES.xl,
@@ -58,14 +58,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.lightGray,
-    marginHorizontal: SPACING.md,
-    marginVertical: SPACING.md,
-    paddingHorizontal: SPACING.md,
+    marginHorizontal: RESPONSIVE_SPACING.md,
+    marginVertical: RESPONSIVE_SPACING.md,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
     borderRadius: BORDER_RADIUS.md,
     height: 44,
   },
   searchIcon: {
-    marginRight: SPACING.sm,
+    marginRight: RESPONSIVE_SPACING.sm,
   },
   searchInput: {
     flex: 1,

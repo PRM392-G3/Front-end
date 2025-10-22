@@ -52,6 +52,7 @@ export interface FileUploadResponse {
   fileName: string;
   filePath: string;
   publicUrl: string;
+  url: string; // Alias for publicUrl for backward compatibility
   fileSize: number;
   contentType: string;
   uploadedAt: string;
@@ -236,6 +237,27 @@ export const mediaAPI = {
       return response.data as FileUploadResponse;
     } catch (error: any) {
       console.error('MediaAPI: Error getting file info:', error);
+      throw error;
+    }
+  },
+
+  // Generic file upload (for backward compatibility)
+  uploadFile: async (fileUri: string, folder?: string): Promise<FileUploadResponse> => {
+    try {
+      console.log('MediaAPI: Generic file upload:', fileUri);
+      
+      // Determine file type based on extension
+      const extension = fileUri.split('.').pop()?.toLowerCase();
+      
+      if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(extension || '')) {
+        return await mediaAPI.uploadImage(fileUri, folder);
+      } else if (['mp4', 'mov', 'avi', 'mkv'].includes(extension || '')) {
+        return await mediaAPI.uploadVideo(fileUri, folder);
+      } else {
+        throw new Error('Unsupported file type');
+      }
+    } catch (error: any) {
+      console.error('MediaAPI: Error in generic file upload:', error);
       throw error;
     }
   },

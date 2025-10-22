@@ -48,6 +48,7 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="auth" />
             <Stack.Screen name="following" />
+            <Stack.Screen name="followers" />
             <Stack.Screen name="profile" />
             <Stack.Screen name="post-detail" />
             <Stack.Screen name="edit-post" />

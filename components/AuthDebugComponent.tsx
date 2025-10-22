@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ViewStyle, TextStyle } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -77,41 +77,41 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.md,
     margin: SPACING.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
-  },
+    borderColor: COLORS.border.primary,
+  } as ViewStyle,
   title: {
     fontSize: FONT_SIZES.lg,
     fontWeight: '700',
     color: COLORS.black,
     marginBottom: SPACING.md,
-  },
+  } as TextStyle,
   info: {
     backgroundColor: COLORS.lightGray,
     borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md,
     marginBottom: SPACING.lg,
-  },
+  } as ViewStyle,
   infoText: {
     fontSize: FONT_SIZES.sm,
     color: COLORS.darkGray,
     marginBottom: SPACING.xs,
-  },
+  } as TextStyle,
   buttons: {
     gap: SPACING.sm,
-  },
+  } as ViewStyle,
   button: {
     backgroundColor: COLORS.primary,
     borderRadius: BORDER_RADIUS.md,
     height: 44,
     justifyContent: 'center',
     alignItems: 'center',
-  },
+  } as ViewStyle,
   logoutButton: {
     backgroundColor: COLORS.error,
-  },
+  } as ViewStyle,
   buttonText: {
     color: COLORS.white,
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
-  },
+  } as TextStyle,
 });
