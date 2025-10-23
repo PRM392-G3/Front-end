@@ -1,7 +1,7 @@
 // API Configuration - Unified Configuration
 export const API_CONFIG = {
   // Ngrok URL - cần cập nhật khi restart ngrok
-  BASE_URL: 'https://selenographical-ashlynn-moonily.ngrok-free.dev/api',
+  BASE_URL: 'https://f15e5d642cbd.ngrok-free.app/api',
   
   // Local development URL (nếu chạy local)
   LOCAL_URL: 'http://localhost:5000/api',

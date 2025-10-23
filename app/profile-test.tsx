@@ -3,9 +3,10 @@ import { View, Text, StyleSheet, SafeAreaView, StatusBar, TouchableOpacity, Imag
 import { ArrowLeft, Users, Grid2x2 as Grid, Mail, Phone, MapPin, Calendar } from 'lucide-react-native';
 import { useGlobalSearchParams, useRouter } from 'expo-router';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES } from '../constants/theme';
-import { userAPI, User } from '../services/api';
+import { userAPI, User, postAPI, PostResponse } from '../services/api';
 import FollowingList from '../components/FollowingList';
 import { FollowersList } from '../components/FollowersList';
+import PostCard from '../components/PostCard';
 
 export default function OtherUserProfileScreen() {
   const globalParams = useGlobalSearchParams<{ userId: string }>();
@@ -13,6 +14,8 @@ export default function OtherUserProfileScreen() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'posts' | 'following'>('posts');
+  const [posts, setPosts] = useState<PostResponse[]>([]);
+  const [postsLoading, setPostsLoading] = useState(false);
 
   // Get userId from global params
   const userId = globalParams.userId;
@@ -32,10 +35,29 @@ export default function OtherUserProfileScreen() {
       setLoading(true);
       const userData = await userAPI.getUserById(parseInt(userIdToFetch));
       setUser(userData);
+      
+      // Load user posts to get accurate count
+      await loadUserPosts(parseInt(userIdToFetch));
     } catch (error: any) {
       Alert.alert('Lỗi', 'Không thể tải thông tin người dùng');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadUserPosts = async (userId: number) => {
+    try {
+      setPostsLoading(true);
+      console.log(`🚀 [ProfileTest] Loading posts for user ${userId}`);
+      const postsData = await postAPI.getPostsByUser(userId);
+      console.log(`✅ [ProfileTest] Posts loaded:`, postsData);
+      console.log(`📊 [ProfileTest] Posts count: ${postsData.length}`);
+      setPosts(postsData);
+    } catch (error: any) {
+      console.error('❌ [ProfileTest] Posts loading error:', error);
+      setPosts([]);
+    } finally {
+      setPostsLoading(false);
     }
   };
 
@@ -72,6 +94,71 @@ export default function OtherUserProfileScreen() {
       Alert.alert('Lỗi', 'Không thể bỏ theo dõi người dùng này');
     }
   };
+
+  const handlePostUpdated = (updatedPost: PostResponse) => {
+    console.log(`🔄 [ProfileTest] Post updated:`, updatedPost);
+    setPosts(prevPosts => 
+      prevPosts.map(post => 
+        post.id === updatedPost.id ? updatedPost : post
+      )
+    );
+  };
+
+  const handlePostDeleted = (postId: number) => {
+    console.log(`🗑️ [ProfileTest] Post deleted:`, postId);
+    setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
+  };
+
+  const handlePostLikeToggle = (postId: number, isLiked: boolean) => {
+    console.log(`❤️ [ProfileTest] Post ${postId} like toggled:`, isLiked);
+    setPosts(prevPosts => 
+      prevPosts.map(post => 
+        post.id === postId 
+          ? { 
+              ...post, 
+              isLiked, 
+              likeCount: isLiked ? post.likeCount + 1 : post.likeCount - 1 
+            }
+          : post
+      )
+    );
+  };
+
+  const handlePostShareToggle = (postId: number, isShared: boolean) => {
+    console.log(`🔄 [ProfileTest] Post ${postId} share toggled:`, isShared);
+    setPosts(prevPosts => 
+      prevPosts.map(post => 
+        post.id === postId 
+          ? { 
+              ...post, 
+              isShared, 
+              shareCount: isShared ? post.shareCount + 1 : post.shareCount - 1 
+            }
+          : post
+      )
+    );
+  };
+
+  const handleCommentCountUpdate = (postId: number, commentCount: number) => {
+    console.log(`💬 [ProfileTest] Post ${postId} comment count updated:`, commentCount);
+    setPosts(prevPosts => 
+      prevPosts.map(post => 
+        post.id === postId ? { ...post, commentCount } : post
+      )
+    );
+  };
+
+  const renderPostItem = ({ item }: { item: PostResponse }) => (
+    <PostCard
+      postData={item}
+      onPostUpdated={handlePostUpdated}
+      onPostDeleted={handlePostDeleted}
+      onLikeToggle={handlePostLikeToggle}
+      onShareToggle={handlePostShareToggle}
+      onCommentCountUpdate={handleCommentCountUpdate}
+      showImage={true}
+    />
+  );
 
   if (loading) {
     return (
@@ -173,7 +260,7 @@ export default function OtherUserProfileScreen() {
                 onPress={() => setActiveTab('posts')}
                 activeOpacity={0.7}
               >
-                <Text style={styles.statNumber}>0</Text>
+                <Text style={styles.statNumber}>{posts.length}</Text>
                 <Text style={styles.statLabel}>Bài viết</Text>
               </TouchableOpacity>
             </View>
@@ -232,10 +319,26 @@ export default function OtherUserProfileScreen() {
         )}
         ListFooterComponent={() => (
           activeTab === 'posts' ? (
-            <View style={styles.emptyState}>
-              <Grid size={48} color={COLORS.gray} />
-              <Text style={styles.emptyStateText}>Chưa có bài viết nào</Text>
-            </View>
+            postsLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={COLORS.primary} />
+                <Text style={styles.loadingText}>Đang tải bài viết...</Text>
+              </View>
+            ) : posts.length > 0 ? (
+              <FlatList
+                data={posts}
+                renderItem={renderPostItem}
+                keyExtractor={(item) => item.id.toString()}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.postsList}
+                style={styles.postsFlatList}
+              />
+            ) : (
+              <View style={styles.emptyState}>
+                <Grid size={48} color={COLORS.gray} />
+                <Text style={styles.emptyStateText}>Chưa có bài viết nào</Text>
+              </View>
+            )
           ) : (
             <FollowingList userId={user.id} isOwnProfile={false} />
           )
@@ -423,6 +526,18 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingVertical: RESPONSIVE_SPACING.xl,
+  },
+  loadingText: {
+    marginTop: RESPONSIVE_SPACING.sm,
+    fontSize: RESPONSIVE_FONT_SIZES.md,
+    color: COLORS.gray,
+  },
+  postsList: {
+    paddingBottom: RESPONSIVE_SPACING.lg,
+  },
+  postsFlatList: {
+    flex: 1,
   },
   loadingText: {
     marginTop: RESPONSIVE_SPACING.sm,

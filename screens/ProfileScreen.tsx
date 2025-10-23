@@ -129,13 +129,14 @@ export default function UserProfileScreen() {
   const loadUserPosts = async (userId: number) => {
     try {
       setPostsLoading(true);
-      console.log(`🚀 [UserProfile] Loading posts for user ${userId}`);
+      console.log(`🚀 [ProfileScreen] Loading posts for user ${userId}`);
       const postsData = await postAPI.getPostsByUser(userId);
-      console.log(`✅ [UserProfile] Posts loaded:`, postsData);
+      console.log(`✅ [ProfileScreen] Posts loaded:`, postsData);
+      console.log(`📊 [ProfileScreen] Posts count: ${postsData.length}`);
       initializePosts(postsData);
       setPosts(postsData);
     } catch (error: any) {
-      console.error('❌ [UserProfile] Posts loading error:', error);
+      console.error('❌ [ProfileScreen] Posts loading error:', error);
       // Don't show alert for posts loading error, just log it
     } finally {
       setPostsLoading(false);
@@ -432,8 +433,14 @@ export default function UserProfileScreen() {
             }}
             activeOpacity={0.7}
           >
-            <Text style={styles.statNumber}>{user?.postsCount || 0}</Text>
+            <Text style={styles.statNumber}>{posts.length}</Text>
             <Text style={styles.statLabel}>Bài viết</Text>
+            {/* Debug: Show posts count */}
+            {__DEV__ && (
+              <Text style={{ fontSize: 10, color: 'red' }}>
+                Debug: {posts.length} posts loaded
+              </Text>
+            )}
           </TouchableOpacity>
           <View style={styles.statDivider} />
           <TouchableOpacity 

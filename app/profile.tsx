@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, StatusBar, TouchableOpacity, Image, ScrollView, ActivityIndicator, Alert, ViewStyle, TextStyle, ImageStyle, FlatList } from 'react-native';
 import { ArrowLeft, Users, Grid2x2 as Grid, Mail, Phone, MapPin, Calendar, LogOut, Share2 } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter, useGlobalSearchParams } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES } from '../constants/theme';
 import { userAPI, User, postAPI, PostResponse, shareAPI } from '../services/api';
 import FollowingList from '../components/FollowingList';
@@ -62,6 +63,16 @@ export default function UserProfileScreen() {
     console.log(`👤 [Profile] Is own profile:`, currentUser && user && currentUser.id === user.id);
   }, [currentUser, user]);
 
+  // Refresh posts when screen comes into focus (useful when returning from create post)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (user && currentUser && currentUser.id === user.id) {
+        console.log(`🔄 [Profile] Screen focused, refreshing posts for current user`);
+        loadUserPosts(user.id);
+      }
+    }, [user, currentUser])
+  );
+
   const fetchUserProfile = async (targetUserId?: string) => {
     const userIdToFetch = targetUserId || userId;
     try {
@@ -117,6 +128,7 @@ export default function UserProfileScreen() {
       console.log(`🚀 [UserProfile] Loading posts for user ${userId}`);
       const postsData = await postAPI.getPostsByUser(userId);
       console.log(`✅ [UserProfile] Posts loaded:`, postsData);
+      console.log(`📊 [UserProfile] Posts count: ${postsData.length}`);
       initializePosts(postsData);
       setPosts(postsData);
     } catch (error: any) {
@@ -156,6 +168,7 @@ export default function UserProfileScreen() {
     setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
     // Update PostContext to mark post as deleted
     updatePost(postId, { isDeleted: true });
+    // Posts count will automatically update since it uses posts.length
   };
 
   const handlePostLikeToggle = (postId: number, isLiked: boolean) => {
@@ -377,7 +390,7 @@ export default function UserProfileScreen() {
               }}
               activeOpacity={0.7}
             >
-              <Text style={styles.statNumber}>{user.postsCount || 0}</Text>
+              <Text style={styles.statNumber}>{posts.length}</Text>
               <Text style={styles.statLabel}>Bài viết</Text>
             </TouchableOpacity>
             <View style={styles.statDivider} />
