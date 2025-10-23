@@ -23,7 +23,7 @@ export const SimpleDebug = () => {
           }
         ]
       );
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Cannot check auth data');
     }
   };

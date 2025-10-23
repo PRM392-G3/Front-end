@@ -13,10 +13,12 @@ import {
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES } from '@/constants/theme';
+import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
 import { ArrowLeft, Send, Hash, X, Image as ImageIcon } from 'lucide-react-native';
+import ImageUploader from '@/components/ImageUploader';
+import VideoUploader from '@/components/VideoUploader';
 import SimpleImageUploader from '@/components/SimpleImageUploader';
-import SimpleVideoUpload from '@/components/SimpleVideoUpload';
+import SimpleVideoUploader from '@/components/SimpleVideoUploader';
 import TagInput from '@/components/TagInput';
 import { postAPI, PostResponse, UpdatePostRequest } from '@/services/api';
 import { FileUploadResponse } from '@/services/mediaAPI';
@@ -27,52 +29,109 @@ export default function EditPostScreen() {
   const { post: postParam } = useLocalSearchParams();
   const router = useRouter();
   
-  const originalPost = JSON.parse(postParam as string) as PostResponse;
+  // State for post data and loading
+  const [originalPost, setOriginalPost] = useState<PostResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [parseError, setParseError] = useState<string | null>(null);
 
-  const [content, setContent] = useState(
-    typeof originalPost.content === 'string' ? originalPost.content : ''
-  );
-  const [imageUrl, setImageUrl] = useState<string | null>(
-    typeof originalPost.imageUrl === 'string' && originalPost.imageUrl
-      ? originalPost.imageUrl
-      : null
-  );
-  const [videoUrl, setVideoUrl] = useState<string | null>(
-    typeof originalPost.videoUrl === 'string' && originalPost.videoUrl
-      ? originalPost.videoUrl
-      : null
-  );
-  const [tags, setTags] = useState<string[]>(
-    Array.isArray(originalPost.tags)
-      ? originalPost.tags
-          .filter(tag => tag && typeof tag.name === 'string')
-          .map(tag => tag.name)
-      : []
-  );
+  // Parse post data safely in useEffect
+  useEffect(() => {
+    try {
+      if (!postParam) {
+        setParseError('Không có dữ liệu bài viết');
+        setIsLoading(false);
+        return;
+      }
+
+      const parsedPost = JSON.parse(postParam as string) as PostResponse;
+      setOriginalPost(parsedPost);
+      setParseError(null);
+    } catch (error) {
+      console.error('Error parsing post data:', error);
+      setParseError('Không thể tải dữ liệu bài viết');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [postParam]);
+
+  // Initialize form data when originalPost is loaded
+  const [content, setContent] = useState('');
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [tags, setTags] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (originalPost) {
+      console.log('EditPostScreen: Initializing form with post data:', originalPost);
+      
+      setContent(typeof originalPost.content === 'string' ? originalPost.content : '');
+      setImageUrl(
+        typeof originalPost.imageUrl === 'string' && originalPost.imageUrl
+          ? originalPost.imageUrl
+          : null
+      );
+      setVideoUrl(
+        typeof originalPost.videoUrl === 'string' && originalPost.videoUrl
+          ? originalPost.videoUrl
+          : null
+      );
+      setTags(
+        Array.isArray(originalPost.tags)
+          ? originalPost.tags
+              .filter(tag => tag && typeof tag.name === 'string')
+              .map(tag => tag.name)
+          : []
+      );
+    }
+  }, [originalPost]);
 
   const [isUpdating, setIsUpdating] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isUploadingVideo, setIsUploadingVideo] = useState(false);
   
   // Media type: 'image' | 'video' | null
-  const [mediaType, setMediaType] = useState<'image' | 'video' | null>(
-    originalPost.imageUrl ? 'image' : originalPost.videoUrl ? 'video' : null
-  );
+  const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
+
+  useEffect(() => {
+    if (originalPost) {
+      const newMediaType = originalPost.imageUrl ? 'image' : originalPost.videoUrl ? 'video' : null;
+      setMediaType(newMediaType);
+      console.log('EditPostScreen: Media type set to:', newMediaType);
+    }
+  }, [originalPost]);
   
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
+
+  // Debug: Log loaded data
+  useEffect(() => {
+    console.log('EditPostScreen: Initial data loaded:');
+    console.log('- Content:', content);
+    console.log('- Image URL:', imageUrl);
+    console.log('- Video URL:', videoUrl);
+    console.log('- Tags:', tags);
+    console.log('- Media Type:', mediaType);
+  }, []);
 
   const handleImageUploadStart = () => {
     console.log('EditPostScreen: Image upload started...');
     setIsUploadingImage(true);
   };
 
-  const handleImageUploadComplete = (result: FileUploadResponse) => {
+  const handleImageUploadComplete = (result: any) => {
     console.log('EditPostScreen: Image upload complete:', result);
     setImageUrl(result.publicUrl);
     setVideoUrl(null); // Clear video if image is uploaded
     setMediaType('image');
     setIsUploadingImage(false);
+  };
+
+  const handleVideoUploadComplete = (url: string) => {
+    console.log('EditPostScreen: Video upload complete:', url);
+    setVideoUrl(url);
+    setImageUrl(null); // Clear image if video is uploaded
+    setMediaType('video');
+    setIsUploadingVideo(false);
   };
 
   const handleImageUploadError = (error: any) => {
@@ -103,17 +162,7 @@ export default function EditPostScreen() {
         tags: tags.length > 0 ? tags : undefined,
       };
 
-      console.log('EditPostScreen: Updating post with data:', updateData);
-      console.log('EditPostScreen: Post ID:', originalPost.id);
-      console.log('EditPostScreen: User ID:', user.id);
-      console.log('EditPostScreen: Content length:', content.trim().length);
-      console.log('EditPostScreen: Image URL:', imageUrl);
-      console.log('EditPostScreen: Video URL:', videoUrl);
-      console.log('EditPostScreen: Tags count:', tags.length);
-      
       const updatedPost = await postAPI.updatePost(originalPost.id, updateData);
-      
-      console.log('EditPostScreen: Post updated successfully:', updatedPost);
       
       Alert.alert('Thành công', 'Bài viết đã được cập nhật thành công!', [
         {
@@ -126,10 +175,7 @@ export default function EditPostScreen() {
       ]);
       
     } catch (error: any) {
-      console.error('EditPostScreen: Error updating post:', error);
-      console.error('EditPostScreen: Error response:', error.response?.data);
-      console.error('EditPostScreen: Error status:', error.response?.status);
-      console.error('EditPostScreen: Error message:', error.message);
+      console.error('Error updating post:', error);
       
       let errorMessage = 'Không thể cập nhật bài viết. Vui lòng thử lại.';
       
@@ -152,6 +198,11 @@ export default function EditPostScreen() {
   };
 
   const handleBack = () => {
+    if (!originalPost) {
+      router.back();
+      return;
+    }
+
     if (content !== originalPost.content || imageUrl !== originalPost.imageUrl || 
         videoUrl !== originalPost.videoUrl ||
         JSON.stringify(tags) !== JSON.stringify(originalPost.tags || [])) {
@@ -175,6 +226,28 @@ export default function EditPostScreen() {
   const removeVideo = () => {
     setVideoUrl(null);
   };
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.centerContent, { paddingTop: insets.top }]}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={styles.loadingText}>Đang tải dữ liệu bài viết...</Text>
+      </View>
+    );
+  }
+
+  // Show error state
+  if (parseError || !originalPost) {
+    return (
+      <View style={[styles.container, styles.centerContent, { paddingTop: insets.top }]}>
+        <Text style={styles.errorText}>{parseError || 'Không thể tải dữ liệu bài viết'}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={() => router.back()}>
+          <Text style={styles.retryButtonText}>Quay lại</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView 
@@ -289,17 +362,11 @@ export default function EditPostScreen() {
           <Text style={styles.sectionTitle}>
             {videoUrl ? 'Thay đổi video' : 'Thêm video'}
           </Text>
-          <SimpleVideoUpload
+          <SimpleVideoUploader
             folder="posts"
             disabled={isUpdating || mediaType === 'image'}
-            onUploadComplete={(url) => {
-              console.log('EditPostScreen: Video upload complete:', url);
-              setVideoUrl(url);
-              setImageUrl(null); // Clear image if video is uploaded
-              setMediaType('video');
-              setIsUploadingVideo(false);
-            }}
-            onUploadError={(error) => {
+            onUploadComplete={handleVideoUploadComplete}
+            onUploadError={(error: any) => {
               console.error('EditPostScreen: Video upload error:', error);
               setIsUploadingVideo(false);
             }}
@@ -360,15 +427,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: RESPONSIVE_SPACING.md,
-    paddingVertical: RESPONSIVE_SPACING.sm,
+    paddingVertical: RESPONSIVE_SPACING.xs,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: COLORS.border.primary,
+    height: 50,
   },
   backButton: {
     padding: RESPONSIVE_SPACING.xs,
   },
   headerTitle: {
-    fontSize: RESPONSIVE_FONT_SIZES.lg,
+    fontSize: FONT_SIZES.lg,
     fontWeight: '600',
     color: COLORS.black,
   },
@@ -386,7 +454,7 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     color: COLORS.white,
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    fontSize: FONT_SIZES.sm,
     fontWeight: '600',
     marginLeft: RESPONSIVE_SPACING.xs,
   },
@@ -396,22 +464,22 @@ const styles = StyleSheet.create({
   contentSection: {
     padding: RESPONSIVE_SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: COLORS.border.primary,
   },
   sectionTitle: {
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    fontSize: FONT_SIZES.sm,
     fontWeight: '600',
     color: COLORS.black,
     marginBottom: RESPONSIVE_SPACING.sm,
   },
   contentInput: {
-    fontSize: RESPONSIVE_FONT_SIZES.md,
+    fontSize: FONT_SIZES.md,
     color: COLORS.black,
     minHeight: 120,
     textAlignVertical: 'top',
   },
   characterCount: {
-    fontSize: RESPONSIVE_FONT_SIZES.xs,
+    fontSize: FONT_SIZES.xs,
     color: COLORS.gray,
     textAlign: 'right',
     marginTop: RESPONSIVE_SPACING.xs,
@@ -419,12 +487,12 @@ const styles = StyleSheet.create({
   imageSection: {
     padding: RESPONSIVE_SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: COLORS.border.primary,
   },
   videoSection: {
     padding: RESPONSIVE_SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: COLORS.border.primary,
   },
   currentImageContainer: {
     position: 'relative',
@@ -461,13 +529,13 @@ const styles = StyleSheet.create({
     padding: RESPONSIVE_SPACING.sm,
   },
   videoPlaceholderText: {
-    fontSize: RESPONSIVE_FONT_SIZES.md,
+    fontSize: FONT_SIZES.md,
     fontWeight: '600',
     color: COLORS.primary,
     marginBottom: RESPONSIVE_SPACING.xs,
   },
   videoUrlText: {
-    fontSize: RESPONSIVE_FONT_SIZES.xs,
+    fontSize: FONT_SIZES.xs,
     color: COLORS.gray,
     textAlign: 'center',
   },
@@ -492,7 +560,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   uploadingText: {
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    fontSize: FONT_SIZES.sm,
     color: COLORS.primary,
     fontWeight: '600',
     marginLeft: RESPONSIVE_SPACING.xs,
@@ -500,7 +568,7 @@ const styles = StyleSheet.create({
   tagsSection: {
     padding: RESPONSIVE_SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: COLORS.border.primary,
   },
   originalInfoSection: {
     padding: RESPONSIVE_SPACING.md,
@@ -511,15 +579,43 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.sm,
   },
   originalInfoText: {
-    fontSize: RESPONSIVE_FONT_SIZES.xs,
+    fontSize: FONT_SIZES.xs,
     color: COLORS.gray,
     marginBottom: RESPONSIVE_SPACING.xs,
   },
   disabledText: {
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    fontSize: FONT_SIZES.sm,
     color: COLORS.gray,
     fontStyle: 'italic',
     marginTop: RESPONSIVE_SPACING.xs,
     textAlign: 'center',
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+  },
+  loadingText: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.gray,
+    marginTop: RESPONSIVE_SPACING.md,
+    textAlign: 'center',
+  },
+  errorText: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.error,
+    textAlign: 'center',
+    marginBottom: RESPONSIVE_SPACING.lg,
+  },
+  retryButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: RESPONSIVE_SPACING.lg,
+    paddingVertical: RESPONSIVE_SPACING.md,
+    borderRadius: BORDER_RADIUS.sm,
+  },
+  retryButtonText: {
+    color: COLORS.white,
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
   },
 });

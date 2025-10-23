@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
 import { authAPI, User, AuthResponse } from '@/services/api';
 import { googleSignInService } from '@/services/googleSignIn'; // Disabled for Expo Go
+import { usePostContext } from './PostContext';
 
 interface AuthContextType {
   user: User | null;
@@ -46,6 +47,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [token, setToken] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Get PostContext to clear states on logout
+  let postContext: any = null;
+  try {
+    postContext = usePostContext();
+  } catch (error) {
+    // PostContext might not be available yet
+    console.log('PostContext not available in AuthProvider');
+  }
 
   const isAuthenticated = !!user && !!token;
 
@@ -81,11 +91,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           // Kiểm tra token có format hợp lệ không (ít nhất 10 ký tự)
           if (storedToken.length > 10 && userData.email) {
             console.log('AuthContext: Valid token and user data found');
+            console.log('AuthContext: Setting user:', userData.email);
+            console.log('AuthContext: Setting token length:', storedToken.length);
             setToken(storedToken);
             setRefreshToken(storedRefreshToken);
             setUser(userData);
+            console.log('AuthContext: Authentication state set successfully');
           } else {
             console.log('AuthContext: Invalid token or user data, clearing...');
+            console.log('AuthContext: Token length:', storedToken.length);
+            console.log('AuthContext: User email:', userData.email);
             // Token hoặc user data không hợp lệ, xóa dữ liệu cũ
             await clearAuthData();
           }
@@ -95,6 +110,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       } else {
         console.log('AuthContext: No stored token or user data');
+        console.log('AuthContext: Token exists:', !!storedToken);
+        console.log('AuthContext: User exists:', !!storedUser);
       }
     } catch (error) {
       console.error('AuthContext: Error checking auth status:', error);
@@ -131,8 +148,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('AuthContext: API Response:', JSON.stringify(response, null, 2));
       
       // Backend trả về trực tiếp { token, user, expiresAt }
-      if (response.token && response.user) {
-        const { user: userData, token: accessToken, expiresAt } = response;
+      const authResponse = response as AuthResponse;
+      if (authResponse.token && authResponse.user) {
+        const { user: userData, token: accessToken, expiresAt } = authResponse;
 
         console.log('AuthContext: Login successful, saving data...');
         console.log('AuthContext: Token to save:', accessToken ? 'Token exists' : 'No token');
@@ -194,8 +212,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
       
       // Backend trả về trực tiếp { token, user, expiresAt }
-      if (response.token && response.user) {
-        const { user: newUser, token: accessToken, expiresAt } = response;
+      const authResponse = response as AuthResponse;
+      if (authResponse.token && authResponse.user) {
+        const { user: newUser, token: accessToken, expiresAt } = authResponse;
 
         // Lưu token và user data
         await AsyncStorage.setItem('auth_token', accessToken);
@@ -238,8 +257,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         console.log('AuthContext: Google API Response:', JSON.stringify(response, null, 2));
         
-        if (response.token && response.user) {
-          const { user: userData, token: accessToken, expiresAt } = response;
+        const authResponse = response as AuthResponse;
+        if (authResponse.token && authResponse.user) {
+          const { user: userData, token: accessToken, expiresAt } = authResponse;
 
           // Lưu token và user data
           await AsyncStorage.setItem('auth_token', accessToken);
@@ -286,6 +306,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       // Google Sign-In disabled in Expo Go
       console.log('Google Sign-Out disabled in Expo Go');
+      
+      // Clear PostContext states
+      if (postContext?.clearStates) {
+        await postContext.clearStates();
+      }
       
       // Xóa tất cả dữ liệu authentication
       await clearAuthData();

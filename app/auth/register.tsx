@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, ViewStyle, TextStyle } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
 import { User, Mail, Phone, Lock, Eye, EyeOff } from 'lucide-react-native';
 import { useState } from 'react';
@@ -218,26 +218,26 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.white,
-  },
+  } as ViewStyle,
   content: {
     paddingHorizontal: RESPONSIVE_SPACING.lg,
     paddingTop: 60,
     paddingBottom: RESPONSIVE_SPACING.xl,
-  },
+  } as ViewStyle,
   title: {
     fontSize: FONT_SIZES.xxl,
     fontWeight: '700',
     color: COLORS.black,
     marginBottom: RESPONSIVE_SPACING.xs,
-  },
+  } as TextStyle,
   subtitle: {
     fontSize: FONT_SIZES.md,
     color: COLORS.darkGray,
     marginBottom: RESPONSIVE_SPACING.xl,
-  },
+  } as TextStyle,
   form: {
     marginBottom: RESPONSIVE_SPACING.lg,
-  },
+  } as ViewStyle,
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -246,20 +246,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: RESPONSIVE_SPACING.md,
     marginBottom: RESPONSIVE_SPACING.md,
     height: 56,
-  },
+  } as ViewStyle,
   icon: {
     marginRight: RESPONSIVE_SPACING.sm,
-  },
+  } as ViewStyle,
   input: {
     flex: 1,
     fontSize: FONT_SIZES.md,
     color: COLORS.black,
-  },
+  } as TextStyle,
   checkboxContainer: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     marginBottom: RESPONSIVE_SPACING.lg,
-  },
+  } as ViewStyle,
   checkbox: {
     width: 20,
     height: 20,
@@ -270,26 +270,26 @@ const styles = StyleSheet.create({
     marginTop: 2,
     justifyContent: 'center',
     alignItems: 'center',
-  },
+  } as ViewStyle,
   checkboxChecked: {
     backgroundColor: COLORS.primary,
     borderColor: COLORS.primary,
-  },
+  } as ViewStyle,
   checkmark: {
     color: COLORS.white,
     fontSize: 12,
     fontWeight: 'bold',
-  },
+  } as TextStyle,
   checkboxText: {
     flex: 1,
     fontSize: FONT_SIZES.sm,
     color: COLORS.darkGray,
     lineHeight: 20,
-  },
+  } as TextStyle,
   link: {
     color: COLORS.primary,
     fontWeight: '500',
-  },
+  } as TextStyle,
   registerButton: {
     backgroundColor: COLORS.primary,
     borderRadius: BORDER_RADIUS.md,
@@ -297,15 +297,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: RESPONSIVE_SPACING.lg,
-  },
+  } as ViewStyle,
   registerButtonDisabled: {
     backgroundColor: COLORS.gray,
-  },
+  } as ViewStyle,
   registerButtonText: {
     color: COLORS.white,
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
-  },
+  } as TextStyle,
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -314,7 +314,7 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: COLORS.border,
+    backgroundColor: COLORS.border.primary,
   },
   dividerText: {
     marginHorizontal: RESPONSIVE_SPACING.md,
@@ -328,7 +328,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: COLORS.border.primary,
     marginBottom: RESPONSIVE_SPACING.lg,
   },
   googleButtonDisabled: {

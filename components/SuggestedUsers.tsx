@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl, ViewStyle, TextStyle } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, RESPONSIVE_FONT_SIZES } from '@/constants/theme';
 import { UserSearchCard } from './UserSearchCard';
 import { userAPI, User } from '@/services/api';
@@ -32,7 +32,7 @@ export const SuggestedUsers: React.FC<SuggestedUsersProps> = ({
 
       console.log(`[SuggestedUsers] Fetching suggested users, limit: ${limit}`);
       
-      const suggestedUsers = await userAPI.getSuggestedUsers(limit);
+      const suggestedUsers = await userAPI.getSuggestedUsers(limit) as any;
       
       console.log(`[SuggestedUsers] Suggested users result:`, suggestedUsers);
       
@@ -154,9 +154,9 @@ const styles = StyleSheet.create({
     paddingVertical: RESPONSIVE_SPACING.sm,
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: COLORS.border.primary,
     gap: RESPONSIVE_SPACING.sm,
-  },
+  } as ViewStyle,
   headerTitle: {
     fontSize: RESPONSIVE_FONT_SIZES.md,
     fontWeight: '600',

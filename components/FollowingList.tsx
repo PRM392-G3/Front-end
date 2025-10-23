@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: COLORS.border.primary,
     paddingHorizontal: RESPONSIVE_SPACING.md,
   },
   subTab: {

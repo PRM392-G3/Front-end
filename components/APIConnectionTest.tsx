@@ -13,7 +13,7 @@ export const APIConnectionTest = () => {
       console.log('[APITest] Testing API connection...');
       
       // Test 1: Basic connectivity
-      const baseURL = 'https://ba03ec5e177c.ngrok-free.app/api';
+      const baseURL = 'https://2c934862db4e.ngrok-free.app/api';
       console.log('[APITest] Base URL:', baseURL);
       
       // Test 2: Check if server is reachable
@@ -81,7 +81,7 @@ export const APIConnectionTest = () => {
         errorDetails = {
           code: error.code,
           message: error.message,
-          baseURL: 'https://ba03ec5e177c.ngrok-free.app/api'
+          baseURL: 'https://2c934862db4e.ngrok-free.app/api'
         };
       } else if (error.response) {
         errorMessage = `Server error: ${error.response.status}`;
@@ -102,7 +102,7 @@ export const APIConnectionTest = () => {
       setResult({
         error: errorMessage,
         details: errorDetails,
-        baseURL: 'https://ba03ec5e177c.ngrok-free.app/api'
+        baseURL: 'https://2c934862db4e.ngrok-free.app/api'
       });
       
       Alert.alert('Lỗi', errorMessage);

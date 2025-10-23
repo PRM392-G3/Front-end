@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
+import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
 import { useState, useRef } from 'react';
 
 export default function OTPScreen() {
@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: SPACING.lg,
+    paddingHorizontal: RESPONSIVE_SPACING.lg,
     paddingTop: 80,
     alignItems: 'center',
   },
@@ -81,13 +81,13 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.xxl,
     fontWeight: '700',
     color: COLORS.black,
-    marginBottom: SPACING.sm,
+    marginBottom: RESPONSIVE_SPACING.sm,
   },
   subtitle: {
     fontSize: FONT_SIZES.md,
     color: COLORS.darkGray,
     textAlign: 'center',
-    marginBottom: SPACING.xl,
+    marginBottom: RESPONSIVE_SPACING.xl,
     lineHeight: 24,
   },
   phone: {
@@ -97,8 +97,8 @@ const styles = StyleSheet.create({
   otpContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: SPACING.lg,
-    gap: SPACING.sm,
+    marginBottom: RESPONSIVE_SPACING.lg,
+    gap: RESPONSIVE_SPACING.sm,
   },
   otpInput: {
     width: 52,
@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
   resendText: {
     fontSize: FONT_SIZES.sm,
     color: COLORS.darkGray,
-    marginBottom: SPACING.xl,
+    marginBottom: RESPONSIVE_SPACING.xl,
   },
   resendLink: {
     color: COLORS.primary,
@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     width: '100%',
-    marginBottom: SPACING.md,
+    marginBottom: RESPONSIVE_SPACING.md,
   },
   verifyButtonText: {
     color: COLORS.white,

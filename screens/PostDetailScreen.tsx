@@ -1,169 +1,165 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  Image,
-  ActivityIndicator,
-  RefreshControl,
-  TextInput,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES } from '@/constants/theme';
-import { ArrowLeft, Heart, MessageCircle, Share, MoreVertical, Edit, Trash2, Calendar, User } from 'lucide-react-native';
-import { Video } from 'expo-av';
-import { postAPI, commentAPI, PostResponse } from '@/services/api';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput, Image } from 'react-native';
+import { COLORS, RESPONSIVE_SPACING, FONT_SIZES, BORDER_RADIUS } from '@/constants/theme';
+import { X, Send, Edit, Trash2 } from 'lucide-react-native';
+import { PostResponse, commentAPI, Comment, postAPI } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePostContext } from '@/contexts/PostContext';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import ImageUploader from '@/components/ImageUploader';
+import VideoUploader from '@/components/VideoUploader';
+import TagInput from '@/components/TagInput';
+import PostCard from '@/components/PostCard';
+import { useLocalSearchParams, useFocusEffect } from 'expo-router';
 
 interface PostDetailScreenProps {
-  onLikeToggle?: (postId: number, isLiked: boolean) => void;
+  postId?: number;
+  onShareToggle?: (postId: number, isShared: boolean) => void;
+  onRefresh?: () => void;
+  onCommentCountUpdate?: (postId: number, commentCount: number) => void;
 }
 
-export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps = {}) {
-  const { postId } = useLocalSearchParams();
-  const router = useRouter();
-  const [post, setPost] = useState<PostResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isLiked, setIsLiked] = useState(false);
-  const [likesCount, setLikesCount] = useState(0);
-  const [isLoadingLike, setIsLoadingLike] = useState(false);
-  const [commentText, setCommentText] = useState('');
-  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  
+export default function PostDetailScreen({
+  postId: propPostId,
+  onShareToggle,
+  onRefresh,
+  onCommentCountUpdate,
+}: PostDetailScreenProps) {
+  const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
-  const { updatePostLike } = usePostContext();
-  const insets = useSafeAreaInsets();
+  const { updatePost, updatePostLike, updatePostShare, getPost } = usePostContext();
+  const [post, setPost] = useState<PostResponse | null>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isCommenting, setIsCommenting] = useState(false);
+  const [newComment, setNewComment] = useState('');
+  const [showCreatePost, setShowCreatePost] = useState(false);
+  const [editingComment, setEditingComment] = useState<number | null>(null);
+  const [editCommentText, setEditCommentText] = useState('');
 
-  // Tags are already provided by backend in postData.tags
-  // No need to fetch them separately
+  // Get postId from URL params or props
+  const postId = propPostId || (id ? parseInt(id) : null);
 
-  const fetchPost = async () => {
-    try {
-      console.log('PostDetailScreen: Fetching post with ID:', postId);
-      const postData = await postAPI.getPost(Number(postId));
-      setPost(postData);
-      
-      // Initialize like state
-      if (user?.id && postData.likes && Array.isArray(postData.likes)) {
-        setIsLiked(postData.likes.some(like => like.userId === user.id));
-      } else {
-        setIsLiked(postData.isLiked || false);
+  // Create post state
+  const [postContent, setPostContent] = useState('');
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [isCreating, setIsCreating] = useState(false);
+
+  useEffect(() => {
+    if (postId) {
+      loadPost();
+    }
+  }, [postId]);
+
+  // Refresh post data when screen comes back into focus (e.g., returning from edit screen)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (postId) {
+        loadPost();
       }
-      setLikesCount(postData.likeCount || 0);
+    }, [postId])
+  );
+
+  const loadPost = async () => {
+    if (!postId) {
+      console.error('PostDetailScreen: No postId provided');
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      // Try to get post from context first
+      const contextPost = getPost(postId);
+      if (contextPost) {
+        setPost(contextPost);
+        await loadComments(postId);
+        return;
+      }
+
+      // If not in context, fetch from API
+      const fetchedPost = await postAPI.getPost(postId);
+      setPost(fetchedPost);
+      await loadComments(postId);
       
-      console.log('PostDetailScreen: Post fetched successfully:', postData);
-    } catch (error) {
-      console.error('PostDetailScreen: Error fetching post:', error);
-      Alert.alert('Lỗi', 'Không thể tải bài viết. Vui lòng thử lại.');
+    } catch (error: any) {
+      console.error('Error loading post:', error);
+      Alert.alert('Lỗi', 'Không thể tải bài viết');
     } finally {
       setIsLoading(false);
-      setIsRefreshing(false);
     }
   };
 
-  const handleLike = async () => {
-    if (!post || !user?.id || isLoadingLike) return;
-
+  const loadComments = async (postId: number) => {
     try {
-      setIsLoadingLike(true);
-      
-      if (isLiked) {
-        console.log(`PostDetailScreen: Unliking post ${post.id} for user ${user.id}`);
-        await postAPI.unlikePost(post.id, user.id);
-        setIsLiked(false);
-        setLikesCount(prev => Math.max(0, prev - 1));
-        onLikeToggle?.(post.id, false);
-        updatePostLike(post.id, false);
-        console.log(`PostDetailScreen: Successfully unliked post ${post.id}`);
-      } else {
-        console.log(`PostDetailScreen: Liking post ${post.id} for user ${user.id}`);
-        await postAPI.likePost(post.id, user.id);
-        setIsLiked(true);
-        setLikesCount(prev => prev + 1);
-        onLikeToggle?.(post.id, true);
-        updatePostLike(post.id, true);
-        console.log(`PostDetailScreen: Successfully liked post ${post.id}`);
-      }
+      console.log(`🚀 [PostDetail] Loading comments for post ${postId}`);
+      const commentsData = await commentAPI.getCommentsByPost(postId);
+      console.log(`✅ [PostDetail] Comments loaded:`, commentsData);
+      setComments(commentsData);
     } catch (error: any) {
-      console.error('PostDetailScreen: Error toggling like:', error);
-      console.error('PostDetailScreen: Error details:', error.response?.data);
-      console.error('PostDetailScreen: Error status:', error.response?.status);
-      
-      // Revert the UI state on error
-      if (isLiked) {
-        setLikesCount(prev => prev + 1);
-        setIsLiked(true);
-      } else {
-        setLikesCount(prev => Math.max(0, prev - 1));
-        setIsLiked(false);
-      }
-      
-      Alert.alert('Lỗi', 'Không thể thực hiện hành động này. Vui lòng thử lại.');
-    } finally {
-      setIsLoadingLike(false);
+      console.error('❌ [PostDetail] Error loading comments:', error);
+      // Don't show alert for comments loading error, just log it
     }
   };
 
-  const handleSubmitComment = async () => {
-    if (!post || !user?.id || !commentText.trim() || isSubmittingComment) return;
+  const handleAddComment = async () => {
+    if (!user || !post || !newComment.trim() || isCommenting) return;
 
+    setIsCommenting(true);
     try {
-      setIsSubmittingComment(true);
-      
-      console.log('PostDetailScreen: Submitting comment:', {
+      const comment = await commentAPI.createComment({
         postId: post.id,
+        content: newComment.trim(),
         userId: user.id,
-        content: commentText.trim()
       });
 
-      const commentData = {
-        postId: post.id,
-        userId: user.id,
-        content: commentText.trim()
-      };
-
-      console.log('PostDetailScreen: Comment data to send:', commentData);
-
-      const newComment = await commentAPI.createComment(commentData);
-
-      console.log('PostDetailScreen: Comment created successfully:', newComment);
-
-      // Update post with new comment
-      setPost(prev => prev ? {
-        ...prev,
-        comments: [...(prev.comments || []), newComment],
-        commentCount: prev.commentCount + 1
-      } : null);
-
-      // Clear comment input
-      setCommentText('');
+      setComments(prev => [comment, ...prev]);
+      setNewComment('');
       
-      Alert.alert('Thành công', 'Bình luận đã được thêm!');
-    } catch (error: any) {
-      console.error('PostDetailScreen: Error submitting comment:', error);
-      console.error('PostDetailScreen: Error details:', error.response?.data);
-      console.error('PostDetailScreen: Error status:', error.response?.status);
-      console.error('PostDetailScreen: Error message:', error.message);
-      
-      Alert.alert('Lỗi', 'Không thể thêm bình luận. Vui lòng thử lại.');
+      // Update comment count
+      const newCommentCount = comments.length + 1;
+      onCommentCountUpdate?.(post.id, newCommentCount);
+      updatePost(post.id, { commentCount: newCommentCount });
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      Alert.alert('Lỗi', 'Không thể thêm bình luận');
     } finally {
-      setIsSubmittingComment(false);
+      setIsCommenting(false);
     }
   };
 
-  const handleDelete = async () => {
-    if (!post || !user?.id) return;
+  const handleEditComment = async (commentId: number) => {
+    if (!editCommentText.trim() || !user || isCommenting) return;
+
+    setIsCommenting(true);
+    try {
+      const updatedComment = await commentAPI.updateComment(commentId, {
+        content: editCommentText.trim()
+      });
+
+      setComments(prev => 
+        prev.map(comment => 
+          comment.id === commentId ? updatedComment : comment
+        )
+      );
+      
+      setEditingComment(null);
+      setEditCommentText('');
+    } catch (error: any) {
+      console.error('Error editing comment:', error);
+      Alert.alert('Lỗi', 'Không thể chỉnh sửa bình luận');
+    } finally {
+      setIsCommenting(false);
+    }
+  };
+
+  const handleDeleteComment = async (commentId: number) => {
+    if (!user) return;
 
     Alert.alert(
-      'Xóa bài viết',
-      'Bạn có chắc chắn muốn xóa bài viết này?',
+      'Xóa bình luận',
+      'Bạn có chắc chắn muốn xóa bình luận này?',
       [
         { text: 'Hủy', style: 'cancel' },
         {
@@ -171,16 +167,20 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
           style: 'destructive',
           onPress: async () => {
             try {
-              setIsDeleting(true);
-              await postAPI.deletePost(post.id);
-              console.log('PostDetailScreen: Post deleted successfully');
-              Alert.alert('Thành công', 'Bài viết đã được xóa.');
-              router.back();
-            } catch (error) {
-              console.error('PostDetailScreen: Error deleting post:', error);
-              Alert.alert('Lỗi', 'Không thể xóa bài viết. Vui lòng thử lại.');
-            } finally {
-              setIsDeleting(false);
+              await commentAPI.deleteComment(commentId);
+              
+              setComments(prev => prev.filter(comment => comment.id !== commentId));
+              
+              // Update comment count
+              if (post) {
+                const updatedPost = { ...post, commentCount: Math.max(0, post.commentCount - 1) };
+                setPost(updatedPost);
+                updatePost(post.id, updatedPost);
+                onCommentCountUpdate?.(post.id, updatedPost.commentCount);
+              }
+            } catch (error: any) {
+              console.error('Error deleting comment:', error);
+              Alert.alert('Lỗi', 'Không thể xóa bình luận');
             }
           }
         }
@@ -188,332 +188,287 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
     );
   };
 
-  const handleEdit = () => {
-    if (!post) return;
-    router.push({
-      pathname: '/edit-post',
-      params: { post: JSON.stringify(post) }
-    });
+  const startEditComment = (comment: Comment) => {
+    setEditingComment(comment.id);
+    setEditCommentText(comment.content);
   };
 
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    fetchPost();
+  const cancelEditComment = () => {
+    setEditingComment(null);
+    setEditCommentText('');
   };
 
-  const formatDate = (dateString: string) => {
+  const handleCreatePost = async () => {
+    if (!user || !postContent.trim() || isCreating) return;
+
+    setIsCreating(true);
     try {
-      console.log('PostDetailScreen: Raw date string from backend:', dateString);
-      
-      // Parse the date string
-      let date = new Date(dateString);
-      
-      // Check if date is valid
-      if (isNaN(date.getTime())) {
-        console.error('PostDetailScreen: Invalid date string:', dateString);
-        return 'Thời gian không hợp lệ';
-      }
-      
-      console.log('PostDetailScreen: Parsed date (UTC):', date.toISOString());
-      console.log('PostDetailScreen: Parsed date (Local):', date.toLocaleString('vi-VN'));
-      
-      // Based on the format "2025-10-15 13:40:29.414779", this appears to be UTC time
-      // without timezone indicator, so we need to add 7 hours to get Vietnam time
-      console.log('PostDetailScreen: Backend time appears to be UTC without timezone indicator');
-      console.log('PostDetailScreen: Converting to Vietnam time (UTC+7)');
-      
-      // Add 7 hours to get Vietnam time
-      const vietnamTime = new Date(date.getTime() + (7 * 60 * 60 * 1000));
-      date = vietnamTime;
-      
-      console.log('PostDetailScreen: Final date (Vietnam time):', date.toLocaleString('vi-VN'));
-      
-      // Show actual time in Vietnamese format
-      return date.toLocaleString('vi-VN', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false // Use 24-hour format
-      });
+      // Mock post creation - in real app, you'd call postAPI.createPost
+      const newPost: PostResponse = {
+        id: Date.now(),
+        userId: user.id,
+        content: postContent,
+        imageUrl: selectedImages[0],
+        videoUrl: selectedVideo || undefined,
+        likeCount: 0,
+        commentCount: 0,
+        shareCount: 0,
+        isPublic: true,
+        isDeleted: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        user: user,
+        comments: [],
+        likes: [],
+        shares: [],
+        tags: selectedTags.map(tag => ({
+          id: Date.now(),
+          name: tag,
+          description: '',
+          usageCount: 1,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })),
+        isLiked: false,
+        isShared: false,
+      };
+
+      // Reset form
+      setPostContent('');
+      setSelectedImages([]);
+      setSelectedVideo(null);
+      setSelectedTags([]);
+      setShowCreatePost(false);
+
+      Alert.alert('Thành công', 'Bài viết đã được tạo');
+      onRefresh?.();
     } catch (error) {
-      console.error('PostDetailScreen: Error formatting date:', error);
-      return 'Thời gian không hợp lệ';
+      console.error('Error creating post:', error);
+      Alert.alert('Lỗi', 'Không thể tạo bài viết');
+    } finally {
+      setIsCreating(false);
     }
   };
 
-  useEffect(() => {
-    fetchPost();
-  }, [postId]);
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('vi-VN', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={() => router.back()}
-          >
-            <ArrowLeft size={24} color={COLORS.black} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Chi tiết bài viết</Text>
-          <View style={styles.placeholder} />
-        </View>
-        
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>Đang tải bài viết...</Text>
-        </View>
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Đang tải...</Text>
       </View>
     );
   }
 
   if (!post) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={() => router.back()}
-          >
-            <ArrowLeft size={24} color={COLORS.black} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Chi tiết bài viết</Text>
-          <View style={styles.placeholder} />
-        </View>
-        
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Không tìm thấy bài viết</Text>
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={fetchPost}
-          >
-            <Text style={styles.retryButtonText}>Thử lại</Text>
-          </TouchableOpacity>
-        </View>
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>Không tìm thấy bài viết</Text>
       </View>
     );
   }
 
-  const isOwner = user?.id === post.userId;
+  if (showCreatePost) {
+    return (
+      <View style={styles.createPostContainer}>
+        <View style={styles.createPostHeader}>
+          <TouchableOpacity onPress={() => setShowCreatePost(false)}>
+            <X size={24} color={COLORS.text.primary} />
+          </TouchableOpacity>
+          <Text style={styles.createPostTitle}>Tạo bài viết</Text>
+          <TouchableOpacity
+            onPress={handleCreatePost}
+            disabled={!postContent.trim() || isCreating}
+          >
+            <Text style={[
+              styles.createPostButton,
+              (!postContent.trim() || isCreating) && styles.createPostButtonDisabled
+            ]}>
+              {isCreating ? 'Đang tạo...' : 'Đăng'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView style={styles.createPostContent}>
+          <TextInput
+            style={styles.postInput}
+            value={postContent}
+            onChangeText={setPostContent}
+            placeholder="Bạn đang nghĩ gì?"
+            multiline
+            textAlignVertical="top"
+          />
+
+          <ImageUploader
+            onUploadComplete={(result) => setSelectedImages([result.publicUrl])}
+            folder="posts"
+            maxImages={1}
+          />
+
+          <VideoUploader
+            onUploadComplete={(result) => setSelectedVideo(result.publicUrl)}
+            folder="posts"
+            maxVideos={1}
+          />
+
+          <TagInput
+            selectedTags={selectedTags}
+            onTagsChange={setSelectedTags}
+            placeholder="Thêm hashtag..."
+            maxTags={5}
+          />
+        </ScrollView>
+      </View>
+    );
+  }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={() => router.back()}
-        >
-          <ArrowLeft size={24} color={COLORS.black} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Chi tiết bài viết</Text>
-        {isOwner ? (
-          <TouchableOpacity
-            style={styles.moreButton}
-            onPress={() => {
-              Alert.alert(
-                'Tùy chọn',
-                'Chọn hành động',
-                [
-                  { text: 'Hủy', style: 'cancel' },
-                  { text: 'Chỉnh sửa', onPress: handleEdit },
-                  { text: 'Xóa', style: 'destructive', onPress: handleDelete },
-                ]
-              );
+    <View style={styles.container}>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Post Card */}
+        {post && (
+          <PostCard
+            postData={post}
+            onPostUpdated={(updatedPost) => {
+              setPost(updatedPost);
+              updatePost(updatedPost.id, updatedPost);
             }}
-          >
-            <MoreVertical size={24} color={COLORS.black} />
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.placeholder} />
-        )}
-      </View>
-
-      {/* Content */}
-      <ScrollView
-        style={styles.content}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            colors={[COLORS.primary]}
+            onPostDeleted={(postId) => {
+              // Handle post deletion if needed
+            }}
+            onLikeToggle={(postId, isLiked) => {
+              setPost(prev => prev ? {
+                ...prev,
+                isLiked,
+                likeCount: isLiked ? prev.likeCount + 1 : prev.likeCount - 1
+              } : null);
+              // PostCard already calls updatePostLike, so we don't need to call it again
+            }}
+            onShareToggle={(postId, isShared) => {
+              setPost(prev => prev ? {
+                ...prev,
+                isShared,
+                shareCount: isShared ? prev.shareCount + 1 : prev.shareCount - 1
+              } : null);
+              // PostCard already calls updatePostShare, so we don't need to call it again
+              onShareToggle?.(postId, isShared);
+            }}
+            onCommentCountUpdate={onCommentCountUpdate}
+            showImage={true}
           />
-        }
-      >
-        {/* Post Content */}
-        <View style={styles.postContainer}>
-          {/* User Info */}
-          <View style={styles.userInfo}>
-            <View style={styles.userAvatar}>
-              {post.user.avatarUrl ? (
-                <Image source={{ uri: post.user.avatarUrl }} style={styles.avatarImage} />
-              ) : (
-                <User size={24} color={COLORS.white} />
-              )}
-            </View>
-            <View style={styles.userDetails}>
-              <Text style={styles.userName}>{post.user.fullName}</Text>
-              <Text style={styles.postDate}>
-                <Calendar size={12} color={COLORS.gray} /> 
-                Tạo lúc: {formatDate(post.createdAt)}
-                {post.updatedAt !== post.createdAt && (
-                  <Text style={styles.editDate}>
-                    {'\n'}Chỉnh sửa lúc: {formatDate(post.updatedAt)}
-                  </Text>
-                )}
-              </Text>
-            </View>
-          </View>
-
-          {/* Post Text */}
-          <Text style={styles.postContent}>{post.content}</Text>
-
-          {/* Post Image */}
-          {post.imageUrl && (
-            <View style={styles.imageContainer}>
-              <Image source={{ uri: post.imageUrl }} style={styles.postImage} />
-            </View>
-          )}
-
-          {/* Post Video */}
-          {post.videoUrl && (
-            <View style={styles.videoContainer}>
-              <Video
-                source={{ uri: post.videoUrl }}
-                style={styles.video}
-                useNativeControls
-                resizeMode="contain"
-                isLooping={false}
-                shouldPlay={false}
-              />
-            </View>
-          )}
-
-          {/* Tags */}
-          {(() => {
-            console.log('PostDetailScreen: Full post:', JSON.stringify(post, null, 2));
-            console.log('PostDetailScreen: tags from backend:', post.tags);
-            console.log('PostDetailScreen: tags length:', post.tags?.length);
-            console.log('PostDetailScreen: tags type:', typeof post.tags);
-            
-            if (post.tags && Array.isArray(post.tags) && post.tags.length > 0) {
-              return (
-                <View style={styles.tagsContainer}>
-                  {post.tags.map((tag, index) => (
-                    <Text key={index} style={styles.tag}>
-                      #{tag?.name || 'Unknown Tag'}
-                    </Text>
-                  ))}
-                </View>
-              );
-            }
-            
-            // Fallback: try to extract tags from content
-            const tagMatches = post.content?.match(/#\w+/g);
-            if (tagMatches && tagMatches.length > 0) {
-              return (
-                <View style={styles.tagsContainer}>
-                  {tagMatches.map((tag, index) => (
-                    <Text key={index} style={styles.tag}>
-                      {tag}
-                    </Text>
-                  ))}
-                </View>
-              );
-            }
-            
-            return null;
-          })()}
-
-          {/* Actions */}
-          <View style={styles.actionsContainer}>
-            <TouchableOpacity
-              style={[styles.actionButton, isLiked && styles.actionButtonActive]}
-              onPress={handleLike}
-              disabled={isLoadingLike}
-            >
-              <Heart 
-                size={20} 
-                color={isLiked ? COLORS.error : COLORS.gray} 
-                fill={isLiked ? COLORS.error : 'none'}
-              />
-              <Text style={[styles.actionText, isLiked && styles.actionTextActive]}>
-                {likesCount}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={() => {
-                // Scroll to comments section
-                console.log('Scroll to comments');
-              }}
-            >
-              <MessageCircle size={20} color={COLORS.gray} />
-              <Text style={styles.actionText}>{post.commentCount}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.actionButton}>
-              <Share size={20} color={COLORS.gray} />
-              <Text style={styles.actionText}>{post.shareCount}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        )}
 
         {/* Comments Section */}
         <View style={styles.commentsSection}>
-          <Text style={styles.commentsTitle}>Bình luận ({post.commentCount})</Text>
+          <Text style={styles.commentsTitle}>Bình luận ({comments.length})</Text>
           
-          {/* Comment Input */}
-          <View style={styles.commentInputContainer}>
-            <TextInput
-              style={styles.commentInput}
-              placeholder="Viết bình luận..."
-              placeholderTextColor={COLORS.gray}
-              multiline
-              value={commentText}
-              onChangeText={setCommentText}
-              editable={!isSubmittingComment}
-            />
-            <TouchableOpacity 
-              style={[styles.sendCommentButton, (!commentText.trim() || isSubmittingComment) && styles.sendCommentButtonDisabled]}
-              onPress={handleSubmitComment}
-              disabled={!commentText.trim() || isSubmittingComment}
-            >
-              {isSubmittingComment ? (
-                <ActivityIndicator size="small" color={COLORS.white} />
-              ) : (
-                <Text style={styles.sendCommentText}>Gửi</Text>
-              )}
-            </TouchableOpacity>
-          </View>
+          {/* Add Comment */}
+          {user && (
+            <View style={styles.addCommentContainer}>
+              <Image
+                source={{ uri: user.avatarUrl || 'https://via.placeholder.com/32' }}
+                style={styles.commentAvatar}
+              />
+              <View style={styles.commentInputContainer}>
+                <TextInput
+                  style={styles.commentInput}
+                  value={newComment}
+                  onChangeText={setNewComment}
+                  placeholder="Viết bình luận..."
+                  multiline
+                  maxLength={500}
+                />
+                <TouchableOpacity
+                  style={[
+                    styles.sendButton,
+                    (!newComment.trim() || isCommenting) && styles.sendButtonDisabled
+                  ]}
+                  onPress={handleAddComment}
+                  disabled={!newComment.trim() || isCommenting}
+                >
+                  <Send size={16} color={COLORS.text.white} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
           {/* Comments List */}
-          {post.comments && post.comments.length > 0 ? (
+          {comments.length > 0 ? (
             <View style={styles.commentsList}>
-              {post.comments.map((comment) => (
+              {comments.map((comment) => (
                 <View key={comment.id} style={styles.commentItem}>
-                  <View style={styles.commentAvatar}>
-                    {comment.user.avatarUrl ? (
-                      <Image source={{ uri: comment.user.avatarUrl }} style={styles.commentAvatarImage} />
-                    ) : (
-                      <User size={16} color={COLORS.white} />
-                    )}
-                  </View>
+                  <Image
+                    source={{ uri: comment.user.avatarUrl || 'https://via.placeholder.com/32' }}
+                    style={styles.commentAvatar}
+                  />
                   <View style={styles.commentContent}>
-                    <Text style={styles.commentUserName}>{comment.user.fullName}</Text>
-                    <Text style={styles.commentText}>{comment.content}</Text>
-                    <Text style={styles.commentTime}>{formatDate(comment.createdAt)}</Text>
+                    <View style={styles.commentHeader}>
+                      <Text style={styles.commentUserName}>{comment.user.fullName}</Text>
+                      <Text style={styles.commentDate}>{formatDate(comment.createdAt)}</Text>
+                      {user && comment.user.id === user.id && (
+                        <View style={styles.commentActions}>
+                          <TouchableOpacity 
+                            onPress={() => startEditComment(comment)}
+                            style={styles.commentActionButton}
+                          >
+                            <Edit size={14} color={COLORS.text.secondary} />
+                          </TouchableOpacity>
+                          <TouchableOpacity 
+                            onPress={() => handleDeleteComment(comment.id)}
+                            style={styles.commentActionButton}
+                          >
+                            <Trash2 size={14} color={COLORS.accent.danger} />
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                    
+                    {editingComment === comment.id ? (
+                      <View style={styles.editCommentContainer}>
+                        <TextInput
+                          style={styles.editCommentInput}
+                          value={editCommentText}
+                          onChangeText={setEditCommentText}
+                          multiline
+                          maxLength={500}
+                        />
+                        <View style={styles.editCommentButtons}>
+                          <TouchableOpacity 
+                            onPress={cancelEditComment}
+                            style={styles.editCommentButton}
+                          >
+                            <Text style={styles.editCommentButtonText}>Hủy</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity 
+                            onPress={() => handleEditComment(comment.id)}
+                            disabled={!editCommentText.trim() || isCommenting}
+                            style={[styles.editCommentButton, styles.editCommentButtonPrimary]}
+                          >
+                            <Text style={[styles.editCommentButtonText, styles.editCommentButtonTextPrimary]}>
+                              Lưu
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ) : (
+                      <Text style={styles.commentText}>{comment.content}</Text>
+                    )}
                   </View>
                 </View>
               ))}
             </View>
           ) : (
-            <View style={styles.noCommentsContainer}>
-              <Text style={styles.noCommentsText}>Chưa có bình luận nào</Text>
-              <Text style={styles.noCommentsSubtext}>Hãy là người đầu tiên bình luận!</Text>
+            <View style={styles.emptyComments}>
+              <Text style={styles.emptyCommentsText}>Chưa có bình luận nào</Text>
             </View>
           )}
         </View>
@@ -525,34 +480,7 @@ export default function PostDetailScreen({ onLikeToggle }: PostDetailScreenProps
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.white,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: RESPONSIVE_SPACING.md,
-    paddingVertical: RESPONSIVE_SPACING.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  headerTitle: {
-    fontSize: RESPONSIVE_FONT_SIZES.lg,
-    fontWeight: '600',
-    color: COLORS.black,
-  },
-  headerButton: {
-    padding: RESPONSIVE_SPACING.xs,
-    borderRadius: BORDER_RADIUS.sm,
-  },
-  moreButton: {
-    padding: RESPONSIVE_SPACING.xs,
-  },
-  placeholder: {
-    width: 40,
-  },
-  content: {
-    flex: 1,
+    backgroundColor: COLORS.background.primary,
   },
   loadingContainer: {
     flex: 1,
@@ -560,232 +488,296 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
-    color: COLORS.gray,
-    marginTop: RESPONSIVE_SPACING.sm,
+    fontSize: FONT_SIZES.md,
+    color: COLORS.text.secondary,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: RESPONSIVE_SPACING.lg,
   },
   errorText: {
-    fontSize: RESPONSIVE_FONT_SIZES.md,
-    color: COLORS.gray,
-    textAlign: 'center',
-    marginBottom: RESPONSIVE_SPACING.md,
+    fontSize: FONT_SIZES.md,
+    color: COLORS.text.secondary,
   },
-  retryButton: {
-    backgroundColor: COLORS.primary,
+  postHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: RESPONSIVE_SPACING.md,
     paddingVertical: RESPONSIVE_SPACING.sm,
-    borderRadius: BORDER_RADIUS.sm,
-  },
-  retryButtonText: {
-    color: COLORS.white,
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
-    fontWeight: '600',
-  },
-  postContainer: {
-    padding: RESPONSIVE_SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border.primary,
   },
   userInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: RESPONSIVE_SPACING.md,
+    flex: 1,
   },
-  userAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     marginRight: RESPONSIVE_SPACING.sm,
-  },
-  avatarImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
   },
   userDetails: {
     flex: 1,
   },
   userName: {
-    fontSize: RESPONSIVE_FONT_SIZES.md,
+    fontSize: FONT_SIZES.md,
     fontWeight: '600',
-    color: COLORS.black,
+    color: COLORS.text.primary,
   },
   postDate: {
-    fontSize: RESPONSIVE_FONT_SIZES.xs,
-    color: COLORS.gray,
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.text.secondary,
     marginTop: 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  editDate: {
-    fontSize: RESPONSIVE_FONT_SIZES.xs,
-    color: COLORS.primary,
-    fontStyle: 'italic',
   },
   postContent: {
-    fontSize: RESPONSIVE_FONT_SIZES.md,
-    color: COLORS.black,
-    lineHeight: 24,
-    marginBottom: RESPONSIVE_SPACING.md,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.sm,
   },
-  imageContainer: {
-    marginBottom: RESPONSIVE_SPACING.md,
+  postText: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.text.primary,
+    lineHeight: 22,
+    marginBottom: RESPONSIVE_SPACING.sm,
   },
   postImage: {
     width: '100%',
-    height: 300,
-    borderRadius: BORDER_RADIUS.sm,
-    backgroundColor: COLORS.lightGray,
+    height: 200,
+    borderRadius: BORDER_RADIUS.md,
+    marginBottom: RESPONSIVE_SPACING.sm,
   },
   videoContainer: {
-    marginBottom: RESPONSIVE_SPACING.md,
-    borderRadius: BORDER_RADIUS.sm,
+    width: '100%',
+    height: 200,
+    borderRadius: BORDER_RADIUS.md,
+    marginBottom: RESPONSIVE_SPACING.sm,
     overflow: 'hidden',
   },
   video: {
     width: '100%',
-    height: 300,
-    borderRadius: BORDER_RADIUS.sm,
+    height: '100%',
+  },
+  videoText: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.text.secondary,
+    textAlign: 'center',
+    paddingVertical: RESPONSIVE_SPACING.md,
   },
   tagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: RESPONSIVE_SPACING.md,
+    marginTop: RESPONSIVE_SPACING.sm,
   },
   tag: {
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
-    color: COLORS.primary,
-    backgroundColor: COLORS.primary + '20',
+    backgroundColor: COLORS.accent.primary + '20',
     paddingHorizontal: RESPONSIVE_SPACING.sm,
     paddingVertical: RESPONSIVE_SPACING.xs,
     borderRadius: BORDER_RADIUS.sm,
     marginRight: RESPONSIVE_SPACING.xs,
     marginBottom: RESPONSIVE_SPACING.xs,
   },
-  actionsContainer: {
+  tagText: {
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.accent.primary,
+    fontWeight: '500',
+  },
+  postActions: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: RESPONSIVE_SPACING.md,
+    justifyContent: 'space-around',
+    paddingVertical: RESPONSIVE_SPACING.sm,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: COLORS.border.primary,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border.primary,
   },
   actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: RESPONSIVE_SPACING.lg,
-    paddingVertical: RESPONSIVE_SPACING.xs,
-  },
-  actionButtonActive: {
-    // Active state styling
+    paddingVertical: RESPONSIVE_SPACING.sm,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
   },
   actionText: {
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
-    color: COLORS.gray,
-    marginLeft: RESPONSIVE_SPACING.xs,
-  },
-  actionTextActive: {
-    color: COLORS.error,
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.text.secondary,
   },
   commentsSection: {
-    padding: RESPONSIVE_SPACING.md,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.sm,
   },
   commentsTitle: {
-    fontSize: RESPONSIVE_FONT_SIZES.md,
+    fontSize: FONT_SIZES.md,
     fontWeight: '600',
-    color: COLORS.black,
-    marginBottom: RESPONSIVE_SPACING.md,
+    color: COLORS.text.primary,
+    marginBottom: RESPONSIVE_SPACING.sm,
+  },
+  addCommentContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border.primary,
   },
   commentInputContainer: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'flex-end',
-    marginBottom: RESPONSIVE_SPACING.md,
+    marginLeft: RESPONSIVE_SPACING.sm,
   },
   commentInput: {
     flex: 1,
-    backgroundColor: COLORS.lightGray,
-    borderRadius: BORDER_RADIUS.sm,
+    fontSize: FONT_SIZES.md,
+    color: COLORS.text.primary,
+    borderWidth: 1,
+    borderColor: COLORS.border.primary,
+    borderRadius: BORDER_RADIUS.md,
     paddingHorizontal: RESPONSIVE_SPACING.sm,
     paddingVertical: RESPONSIVE_SPACING.sm,
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
-    color: COLORS.black,
-    marginRight: RESPONSIVE_SPACING.sm,
     maxHeight: 100,
+    textAlignVertical: 'top',
+    backgroundColor: COLORS.background.secondary,
   },
-  sendCommentButton: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: RESPONSIVE_SPACING.md,
-    paddingVertical: RESPONSIVE_SPACING.sm,
-    borderRadius: BORDER_RADIUS.sm,
+  sendButton: {
+    backgroundColor: COLORS.accent.primary,
+    borderRadius: BORDER_RADIUS.md,
+    padding: RESPONSIVE_SPACING.sm,
+    marginLeft: RESPONSIVE_SPACING.sm,
   },
-  sendCommentButtonDisabled: {
-    backgroundColor: COLORS.gray,
-    opacity: 0.6,
-  },
-  sendCommentText: {
-    color: COLORS.white,
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
-    fontWeight: '600',
+  sendButtonDisabled: {
+    backgroundColor: COLORS.text.secondary,
   },
   commentsList: {
-    marginTop: RESPONSIVE_SPACING.sm,
+    gap: RESPONSIVE_SPACING.sm,
   },
   commentItem: {
     flexDirection: 'row',
-    marginBottom: RESPONSIVE_SPACING.md,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border.secondary,
   },
   commentAvatar: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
     marginRight: RESPONSIVE_SPACING.sm,
-  },
-  commentAvatarImage: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
   },
   commentContent: {
     flex: 1,
   },
-  commentUserName: {
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
-    fontWeight: '600',
-    color: COLORS.black,
-    marginBottom: 2,
-  },
-  commentText: {
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
-    color: COLORS.black,
-    lineHeight: 20,
-    marginBottom: 2,
-  },
-  commentTime: {
-    fontSize: RESPONSIVE_FONT_SIZES.xs,
-    color: COLORS.gray,
-  },
-  noCommentsContainer: {
+  commentHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: RESPONSIVE_SPACING.lg,
-  },
-  noCommentsText: {
-    fontSize: RESPONSIVE_FONT_SIZES.md,
-    color: COLORS.gray,
     marginBottom: RESPONSIVE_SPACING.xs,
   },
-  noCommentsSubtext: {
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
-    color: COLORS.gray,
+  commentUserName: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+    color: COLORS.text.primary,
+    marginRight: RESPONSIVE_SPACING.sm,
+  },
+  commentDate: {
+    fontSize: FONT_SIZES.xs,
+    color: COLORS.text.secondary,
+    flex: 1,
+  },
+  commentActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  commentActionButton: {
+    padding: RESPONSIVE_SPACING.xs,
+    marginLeft: RESPONSIVE_SPACING.xs,
+  },
+  editCommentContainer: {
+    marginTop: RESPONSIVE_SPACING.xs,
+  },
+  editCommentInput: {
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.text.primary,
+    borderWidth: 1,
+    borderColor: COLORS.border.primary,
+    borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: RESPONSIVE_SPACING.sm,
+    paddingVertical: RESPONSIVE_SPACING.sm,
+    backgroundColor: COLORS.background.secondary,
+    minHeight: 60,
+    textAlignVertical: 'top',
+  },
+  editCommentButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: RESPONSIVE_SPACING.sm,
+    gap: RESPONSIVE_SPACING.sm,
+  },
+  editCommentButton: {
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border.primary,
+  },
+  editCommentButtonPrimary: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  editCommentButtonText: {
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.text.secondary,
+  },
+  editCommentButtonTextPrimary: {
+    color: COLORS.text.white,
+  },
+  commentText: {
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.text.primary,
+    lineHeight: 20,
+  },
+  emptyComments: {
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.lg,
+    alignItems: 'center',
+  },
+  emptyCommentsText: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.text.secondary,
+    textAlign: 'center',
+  },
+  createPostContainer: {
+    flex: 1,
+    backgroundColor: COLORS.background.primary,
+  },
+  createPostHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border.primary,
+  },
+  createPostTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '600',
+    color: COLORS.text.primary,
+  },
+  createPostButton: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.accent.primary,
+    fontWeight: '600',
+  },
+  createPostButtonDisabled: {
+    opacity: 0.5,
+  },
+  createPostContent: {
+    flex: 1,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+  },
+  postInput: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.text.primary,
+    paddingVertical: RESPONSIVE_SPACING.md,
+    minHeight: 100,
+    textAlignVertical: 'top',
   },
 });

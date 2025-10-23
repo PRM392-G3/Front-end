@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator, ViewStyle, TextStyle } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react-native';
 import { useState } from 'react';
@@ -134,26 +134,26 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.white,
-  },
+  } as ViewStyle,
   content: {
     flex: 1,
     paddingHorizontal: RESPONSIVE_SPACING.lg,
     paddingTop: 80,
-  },
+  } as ViewStyle,
   title: {
     fontSize: FONT_SIZES.xxl,
     fontWeight: '700',
     color: COLORS.black,
     marginBottom: RESPONSIVE_SPACING.xs,
-  },
+  } as TextStyle,
   subtitle: {
     fontSize: FONT_SIZES.md,
     color: COLORS.darkGray,
     marginBottom: RESPONSIVE_SPACING.xl,
-  },
+  } as TextStyle,
   form: {
     marginBottom: RESPONSIVE_SPACING.xl,
-  },
+  } as ViewStyle,
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -162,21 +162,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: RESPONSIVE_SPACING.md,
     marginBottom: RESPONSIVE_SPACING.md,
     height: 56,
-  },
+  } as ViewStyle,
   icon: {
     marginRight: RESPONSIVE_SPACING.sm,
-  },
+  } as ViewStyle,
   input: {
     flex: 1,
     fontSize: FONT_SIZES.md,
     color: COLORS.black,
-  },
+  } as TextStyle,
   forgotPassword: {
     color: COLORS.primary,
     fontSize: FONT_SIZES.sm,
     textAlign: 'right',
     marginBottom: RESPONSIVE_SPACING.lg,
-  },
+  } as TextStyle,
   loginButton: {
     backgroundColor: COLORS.primary,
     borderRadius: BORDER_RADIUS.md,
@@ -184,30 +184,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: RESPONSIVE_SPACING.lg,
-  },
+  } as ViewStyle,
   loginButtonDisabled: {
     backgroundColor: COLORS.gray,
-  },
+  } as ViewStyle,
   loginButtonText: {
     color: COLORS.white,
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
-  },
+  } as TextStyle,
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: RESPONSIVE_SPACING.lg,
-  },
+  } as ViewStyle,
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: COLORS.border,
-  },
+    backgroundColor: COLORS.border.primary,
+  } as ViewStyle,
   dividerText: {
     marginHorizontal: RESPONSIVE_SPACING.md,
     color: COLORS.gray,
     fontSize: FONT_SIZES.sm,
-  },
+  } as TextStyle,
   googleButton: {
     backgroundColor: COLORS.white,
     borderRadius: BORDER_RADIUS.md,
@@ -215,33 +215,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: COLORS.border.primary,
     marginBottom: RESPONSIVE_SPACING.lg,
-  },
+  } as ViewStyle,
   googleButtonDisabled: {
     backgroundColor: COLORS.lightGray,
     borderColor: COLORS.gray,
-  },
+  } as ViewStyle,
   googleButtonText: {
     color: COLORS.black,
     fontSize: FONT_SIZES.md,
     fontWeight: '500',
-  },
+  } as TextStyle,
   googleButtonTextDisabled: {
     color: COLORS.gray,
-  },
+  } as TextStyle,
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-  },
+  } as ViewStyle,
   footerText: {
     color: COLORS.darkGray,
     fontSize: FONT_SIZES.sm,
-  },
+  } as TextStyle,
   footerLink: {
     color: COLORS.primary,
     fontSize: FONT_SIZES.sm,
     fontWeight: '600',
-  },
+  } as TextStyle,
 });

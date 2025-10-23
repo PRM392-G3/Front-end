@@ -42,28 +42,22 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="auth" />
-          <Stack.Screen name="following" />
-          <Stack.Screen name="profile" />
-          <Stack.Screen name="profile-test" />
-          <Stack.Screen name="+not-found" />
-        </Stack>
-        <StatusBar style="auto" />
-      </AuthProvider>
-      <PostProvider>
-        <AuthProvider>
+        <PostProvider>
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="index" />
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="auth" />
+            <Stack.Screen name="following" />
+            <Stack.Screen name="followers" />
+            <Stack.Screen name="profile" />
+            <Stack.Screen name="post-detail" />
+            <Stack.Screen name="edit-post" />
+            <Stack.Screen name="profile-test" />
             <Stack.Screen name="+not-found" />
           </Stack>
           <StatusBar style="auto" />
-        </AuthProvider>
-      </PostProvider>
+        </PostProvider>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }

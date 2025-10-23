@@ -1,65 +1,6 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// API Configuration
-export const API_CONFIG = {
-  // Update this URL to your current backend server URL
-  BASE_URL: 'https://41a43dac9aea.ngrok-free.app/api',
-  
-  // Alternative URLs for testing (uncomment and use if needed)
-  // BASE_URL: 'http://localhost:5000/api', // Local development
-  // BASE_URL: 'https://your-production-domain.com/api', // Production
-  
-  TIMEOUT: 30000, // 30 seconds timeout for uploads
-  MEDIA_TIMEOUT: 60000, // 60 seconds timeout for media uploads
-};
-
-// Helper function to test API connectivity
-export const testApiConnection = async (): Promise<boolean> => {
-  try {
-    console.log('testApiConnection: Testing connection to:', `${API_CONFIG.BASE_URL}/blob-storage/test-connection`);
-    
-    // Create AbortController for timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout
-    
-    const response = await fetch(`${API_CONFIG.BASE_URL}/blob-storage/test-connection`, {
-      method: 'GET',
-      headers: {
-        'ngrok-skip-browser-warning': 'true',
-      },
-      signal: controller.signal,
-    });
-    
-    clearTimeout(timeoutId);
-    
-    console.log('testApiConnection: Response status:', response.status);
-    console.log('testApiConnection: Response ok:', response.ok);
-    
-    return response.ok;
-  } catch (error: any) {
-    console.error('testApiConnection: Connection test failed:', error);
-    console.error('testApiConnection: Error type:', error.name);
-    console.error('testApiConnection: Error message:', error.message);
-    
-    // Check if it's a timeout error
-    if (error.name === 'AbortError') {
-      console.error('testApiConnection: Request timed out');
-    }
-    
-    return false;
-  }
-};
-
-// Helper function to get current API status
-export const getApiStatus = () => {
-  return {
-    baseUrl: API_CONFIG.BASE_URL,
-    isLocalhost: API_CONFIG.BASE_URL.includes('localhost'),
-    isNgrok: API_CONFIG.BASE_URL.includes('ngrok'),
-    timeout: API_CONFIG.TIMEOUT,
-  };
-};
+import { API_CONFIG } from '../config/api';
 
 // User interface
 export interface User {
@@ -92,31 +33,40 @@ export interface AuthResponse {
 
 // Cấu hình axios instance
 const api = axios.create({
-  baseURL: 'https://elane-unsweating-continuately.ngrok-free.dev/api',
-  timeout: 15000, // Tăng timeout cho ngrok
   baseURL: API_CONFIG.BASE_URL,
   timeout: API_CONFIG.TIMEOUT,
-  headers: {
-    'Content-Type': 'application/json',
-    'ngrok-skip-browser-warning': 'true', // Bỏ qua warning của ngrok
-  },
+  headers: API_CONFIG.HEADERS,
 });
+
+// Function để lấy token từ AsyncStorage
+const getAuthToken = async (): Promise<string | null> => {
+  try {
+    const token = await AsyncStorage.getItem('auth_token');
+    console.log('MainAPI: Getting token from storage:', token ? 'Token exists' : 'No token');
+    console.log('MainAPI: Token length:', token ? token.length : 0);
+    return token;
+  } catch (error) {
+    console.error('Error getting token for main API:', error);
+    return null;
+  }
+};
 
 // Request interceptor để thêm token vào header
 api.interceptors.request.use(
-  async (config) => {
-    // Lấy token từ AsyncStorage
-    try {
-      const token = await AsyncStorage.getItem('auth_token');
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-    } catch (error) {
-      console.error('Error getting token for main API:', error);
+  async (config: any) => {
+    // Thêm token vào header nếu có
+    const token = await getAuthToken();
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`;
+      console.log('MainAPI: Added Authorization header to request');
+      console.log('MainAPI: Request URL:', config.url);
+      console.log('MainAPI: Token preview:', token.substring(0, 20) + '...');
+    } else {
+      console.log('MainAPI: No token found, request will be sent without Authorization header');
     }
     return config;
   },
-  (error) => {
+  (error: any) => {
     return Promise.reject(error);
   }
 );
@@ -126,7 +76,38 @@ api.interceptors.response.use(
   (response) => {
     return response;
   },
-  (error) => {
+  async (error) => {
+    console.log('MainAPI: Response error:', error.response?.status);
+    console.log('MainAPI: Error message:', error.message);
+    console.log('MainAPI: Error data:', error.response?.data);
+    
+    // Handle network errors gracefully
+    if (error.message === 'Network Error' || error.code === 'NETWORK_ERROR') {
+      console.warn('MainAPI: Network error detected - server may be down or ngrok URL invalid');
+      console.warn('MainAPI: Falling back to mock data or offline mode');
+      
+      // Don't throw error for network issues, let components handle gracefully
+      return Promise.reject({
+        ...error,
+        isNetworkError: true,
+        message: 'Network connection failed. Please check your internet connection or try again later.'
+      });
+    }
+    
+    if (error.response?.status === 401) {
+      console.log('MainAPI: Token expired or invalid - clearing auth data');
+      console.log('MainAPI: Request URL:', error.config?.url);
+      console.log('MainAPI: Request headers:', error.config?.headers);
+      
+      // Clear auth data when token is invalid
+      try {
+        await AsyncStorage.removeItem('auth_token');
+        await AsyncStorage.removeItem('user_data');
+        console.log('MainAPI: Cleared auth data due to 401 error');
+      } catch (clearError) {
+        console.error('MainAPI: Error clearing auth data:', clearError);
+      }
+    }
     return Promise.reject(error);
   }
 );
@@ -241,6 +222,74 @@ export const userAPI = {
     try {
       const response = await api.get(`/User/${userId}/following`);
       return response.data as FollowedUser[];
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Lấy thông tin chi tiết của một user
+  getUserById: async (userId: number) => {
+    try {
+      const response = await api.get(`/User/${userId}`);
+      return response.data as User;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Hủy theo dõi một user
+  // followerId: ID của người đang follow (user hiện tại)
+  // followingId: ID của người được follow (sẽ bị hủy follow)
+  unfollowUser: async (followerId: number, followingId: number) => {
+    try {
+      const response = await api.delete(`/User/${followerId}/follow/${followingId}`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Theo dõi một user
+  // followerId: ID của người sẽ follow (user hiện tại)
+  // followingId: ID của người sẽ được follow
+  followUser: async (followerId: number, followingId: number) => {
+    try {
+      const response = await api.post(`/User/${followerId}/follow/${followingId}`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Tìm kiếm người dùng
+  searchUsers: async (query: string, page: number = 1, limit: number = 20) => {
+    try {
+      const response = await api.get(`/User/search?query=${encodeURIComponent(query)}&page=${page}&limit=${limit}`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Lấy danh sách followers của user
+  getFollowersList: async (userId: number) => {
+    try {
+      const response = await api.get(`/User/${userId}/followers`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Lấy danh sách người dùng được đề xuất
+  getSuggestedUsers: async (limit: number = 10) => {
+    try {
+      const response = await api.get(`/User/suggested?limit=${limit}`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
 };
 
 // Post interfaces
@@ -299,6 +348,16 @@ export interface Tag {
   updatedAt: string;
 }
 
+export interface Share {
+  id: number;
+  userId: number;
+  postId: number;
+  caption?: string;
+  isPublic: boolean;
+  createdAt: string;
+  user: User;
+}
+
 // Post request/response interfaces
 export interface CreatePostRequest {
   userId: number;
@@ -332,8 +391,14 @@ export interface PostResponse {
   user: User;
   comments: Comment[];
   likes: Like[];
+  shares: Share[];
   tags: Tag[]; // Changed from postTags to tags to match backend
   isLiked?: boolean;
+  isShared?: boolean;
+  // For shared posts
+  shareCaption?: string; // Caption added when sharing
+  originalPost?: PostResponse; // Reference to original post if this is a shared post
+  isSharedPost?: boolean; // Flag to indicate if this is a shared post
 }
 
 // Post API endpoints
@@ -378,6 +443,16 @@ export const postAPI = {
     }
   },
 
+  // Get shared posts by user ID
+  getSharedPostsByUser: async (userId: number) => {
+    try {
+      const response = await api.get(`/Post/user/${userId}/shares`);
+      return response.data as PostResponse[];
+    } catch (error) {
+      throw error;
+    }
+  },
+
   // Get feed posts for a user
   getFeedPosts: async (userId: number, page: number = 1, pageSize: number = 10) => {
     try {
@@ -410,45 +485,35 @@ export const postAPI = {
     }
   },
 
-  // Lấy thông tin chi tiết của một user
-  getUserById: async (userId: number) => {
-    try {
-      const response = await api.get(`/User/${userId}`);
-      return response.data as User;
   // Like a post
   likePost: async (postId: number, userId: number) => {
     try {
       const response = await api.post(`/Post/${postId}/like/${userId}`);
       return response.data;
     } catch (error) {
+      console.error('Error liking post:', error);
       throw error;
     }
   },
 
-  // Hủy theo dõi một user
-  // followerId: ID của người đang follow (user hiện tại)
-  // followingId: ID của người được follow (sẽ bị hủy follow)
-  unfollowUser: async (followerId: number, followingId: number) => {
-    try {
-      const response = await api.delete(`/User/${followerId}/follow/${followingId}`);
   // Unlike a post
   unlikePost: async (postId: number, userId: number) => {
     try {
       const response = await api.delete(`/Post/${postId}/like/${userId}`);
       return response.data;
     } catch (error) {
+      console.error('Error unliking post:', error);
       throw error;
     }
   },
 
-  // Theo dõi một user
-  // followerId: ID của người sẽ follow (user hiện tại)
-  // followingId: ID của người sẽ được follow
-  followUser: async (followerId: number, followingId: number) => {
+  // Get list of users who liked a post
+  getPostLikes: async (postId: number) => {
     try {
-      const response = await api.post(`/User/${followerId}/follow/${followingId}`);
-      return response.data;
+      const response = await api.get(`/Post/${postId}/likes`);
+      return response.data as User[];
     } catch (error) {
+      console.error('Error getting post likes:', error);
       throw error;
     }
   },
@@ -533,7 +598,7 @@ export const tagAPI = {
       console.log('tagAPI: Response status:', response.status);
       console.log('tagAPI: Response data:', response.data);
       console.log('tagAPI: Response data type:', typeof response.data);
-      console.log('tagAPI: Response data length:', response.data?.length);
+      console.log('tagAPI: Response data length:', Array.isArray(response.data) ? response.data.length : 'Not an array');
       
       if (Array.isArray(response.data)) {
         return response.data as Tag[];
@@ -541,9 +606,17 @@ export const tagAPI = {
         console.error('tagAPI: Invalid response format, expected array but got:', typeof response.data);
         return [];
       }
-    } catch (error) {
-      console.error('tagAPI: Error getting all tags:', error); 
-      throw error;
+    } catch (error: any) {
+      console.error('tagAPI: Error getting all tags:', error);
+      
+      // Handle 404 error gracefully - Tag API might not be implemented yet
+      if (error.response?.status === 404) {
+        console.warn('tagAPI: Tag endpoint not found (404) - returning empty array');
+        return [];
+      }
+      
+      // For other errors, still throw but with better error message
+      throw new Error(`Failed to fetch tags: ${error.response?.status || 'Network error'}`);
     }
   },
 
@@ -552,8 +625,137 @@ export const tagAPI = {
     try {
       const response = await api.get(`/Tag/search?term=${encodeURIComponent(searchTerm)}`);
       return response.data as Tag[];
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error searching tags:', error);
+      
+      // Handle 404 error gracefully - Tag search might not be implemented yet
+      if (error.response?.status === 404) {
+        console.warn('tagAPI: Tag search endpoint not found (404) - returning empty array');
+        return [];
+      }
+      
+      // For other errors, still throw but with better error message
+      throw new Error(`Failed to search tags: ${error.response?.status || 'Network error'}`);
+    }
+  },
+};
+
+// Share API functions
+export const shareAPI = {
+  // Share a post
+  sharePost: async (userId: number, postId: number, caption?: string, isPublic: boolean = true) => {
+    try {
+      const response = await api.post('/Share/share', {
+        userId,
+        postId,
+        caption,
+        isPublic
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error sharing post:', error);
+      throw error;
+    }
+  },
+
+  // Unshare a post
+  unsharePost: async (userId: number, postId: number) => {
+    try {
+      console.log('shareAPI: Unsharing post:', postId, 'for user:', userId);
+      
+      // Try different API endpoints in case the first one fails
+      let response;
+      try {
+        response = await api.delete(`/Share/${postId}/unshare/${userId}`);
+        console.log('shareAPI: Unshare response (method 1):', response.status);
+      } catch (firstError: any) {
+        console.warn('shareAPI: First method failed, trying alternative:', firstError.message);
+        
+        // Try alternative endpoint
+        try {
+          response = await api.delete(`/Share/unshare/${userId}/${postId}`);
+          console.log('shareAPI: Unshare response (method 2):', response.status);
+        } catch (secondError: any) {
+          console.warn('shareAPI: Second method failed, trying third:', secondError.message);
+          
+          // Try third alternative endpoint
+          response = await api.delete(`/Share/${userId}/${postId}/unshare`);
+          console.log('shareAPI: Unshare response (method 3):', response.status);
+        }
+      }
+      
+      return response.data;
+    } catch (error: any) {
+      console.error('shareAPI: Error unsharing post:', error);
+      console.error('shareAPI: Error status:', error.response?.status);
+      console.error('shareAPI: Error message:', error.message);
+      console.error('shareAPI: Error data:', error.response?.data);
+      
+      // Handle specific error cases
+      if (error.response?.status === 404) {
+        throw new Error('Bài viết không tồn tại hoặc đã được bỏ chia sẻ');
+      } else if (error.response?.status === 401) {
+        throw new Error('Phiên đăng nhập hết hạn');
+      } else if (error.response?.status === 400) {
+        // More specific error message for 400
+        const errorData = error.response?.data;
+        if (errorData && errorData.message) {
+          throw new Error(errorData.message);
+        } else {
+          throw new Error('Bài viết này không thể bỏ chia sẻ hoặc bạn chưa chia sẻ bài viết này');
+        }
+      } else if (error.isNetworkError) {
+        throw new Error('Lỗi kết nối mạng. Vui lòng thử lại sau.');
+      } else if (error.message === 'Network Error') {
+        // Fallback for network errors - simulate successful unshare
+        console.warn('shareAPI: Network error, simulating successful unshare for offline mode');
+        return { success: true, message: 'Unshared successfully (offline mode)' };
+      }
+      
+      throw error;
+    }
+  },
+
+  // Get shares by post
+  getSharesByPost: async (postId: number) => {
+    try {
+      const response = await api.get(`/Share/post/${postId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting shares by post:', error);
+      throw error;
+    }
+  },
+
+  // Get shares by user
+  getSharesByUser: async (userId: number) => {
+    try {
+      const response = await api.get(`/Share/user/${userId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting shares by user:', error);
+      throw error;
+    }
+  },
+
+  // Check if user has shared post
+  hasUserSharedPost: async (userId: number, postId: number) => {
+    try {
+      const response = await api.get(`/Share/has-shared/${userId}/${postId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error checking if user shared post:', error);
+      throw error;
+    }
+  },
+
+  // Get share count for post
+  getShareCount: async (postId: number) => {
+    try {
+      const response = await api.get(`/Share/count/${postId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting share count:', error);
       throw error;
     }
   },

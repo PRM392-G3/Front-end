@@ -6,7 +6,7 @@ import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS } from '@/constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function IndexScreen() {
-  const { isAuthenticated, isLoading, clearAuthData } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {

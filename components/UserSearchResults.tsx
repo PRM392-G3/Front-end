@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
-import { COLORS, RESPONSIVE_SPACING, RESPONSIVE_FONT_SIZES } from '@/constants/theme';
+import { COLORS, RESPONSIVE_SPACING, FONT_SIZES } from '@/constants/theme';
 import { UserSearchCard } from './UserSearchCard';
 import { userAPI, User } from '@/services/api';
 import { useRouter } from 'expo-router';
@@ -38,7 +38,7 @@ export const UserSearchResults: React.FC<UserSearchResultsProps> = ({
 
       console.log(`[UserSearchResults] Searching users: "${query}", page: ${page}`);
       
-      const result = await userAPI.searchUsers(query, page, 20);
+      const result = await userAPI.searchUsers(query, page, 20) as any;
       
       console.log(`[UserSearchResults] Search result:`, result);
       
@@ -195,14 +195,14 @@ const styles = StyleSheet.create({
     padding: RESPONSIVE_SPACING.xl,
   },
   emptyTitle: {
-    fontSize: RESPONSIVE_FONT_SIZES.lg,
+    fontSize: FONT_SIZES.lg,
     fontWeight: '600',
     color: COLORS.black,
     marginBottom: RESPONSIVE_SPACING.sm,
     textAlign: 'center',
   },
   emptyText: {
-    fontSize: RESPONSIVE_FONT_SIZES.md,
+    fontSize: FONT_SIZES.md,
     color: COLORS.gray,
     textAlign: 'center',
     lineHeight: 22,
@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
     gap: RESPONSIVE_SPACING.sm,
   },
   footerText: {
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    fontSize: FONT_SIZES.sm,
     color: COLORS.gray,
   },
 });

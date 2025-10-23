@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
+import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
 import { Plus, Calendar, MapPin, Clock } from 'lucide-react-native';
 
 export default function EventsScreen() {
@@ -105,11 +105,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: COLORS.white,
-    paddingHorizontal: SPACING.md,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
     paddingTop: 60,
-    paddingBottom: SPACING.md,
+    paddingBottom: RESPONSIVE_SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: COLORS.border.primary,
   },
   headerTitle: {
     fontSize: FONT_SIZES.xl,
@@ -129,22 +129,22 @@ const styles = StyleSheet.create({
   },
   section: {
     backgroundColor: COLORS.white,
-    paddingVertical: SPACING.md,
-    marginBottom: SPACING.sm,
+    paddingVertical: RESPONSIVE_SPACING.md,
+    marginBottom: RESPONSIVE_SPACING.sm,
   },
   sectionTitle: {
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
     color: COLORS.black,
-    paddingHorizontal: SPACING.md,
-    marginBottom: SPACING.md,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    marginBottom: RESPONSIVE_SPACING.md,
   },
   eventCard: {
     flexDirection: 'row',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.sm,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: COLORS.border.primary,
   },
   eventDate: {
     width: 60,
@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: SPACING.sm,
+    marginRight: RESPONSIVE_SPACING.sm,
   },
   eventDay: {
     fontSize: FONT_SIZES.xl,
@@ -178,12 +178,12 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
     color: COLORS.black,
-    marginBottom: SPACING.xs,
+    marginBottom: RESPONSIVE_SPACING.xs,
   },
   eventDetail: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.xs,
+    gap: RESPONSIVE_SPACING.xs,
     marginBottom: 4,
   },
   eventDetailText: {
@@ -192,12 +192,12 @@ const styles = StyleSheet.create({
   },
   eventActions: {
     flexDirection: 'row',
-    gap: SPACING.sm,
-    marginTop: SPACING.xs,
+    gap: RESPONSIVE_SPACING.sm,
+    marginTop: RESPONSIVE_SPACING.xs,
   },
   interestedButton: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.xs,
     borderRadius: BORDER_RADIUS.sm,
     borderWidth: 1,
     borderColor: COLORS.primary,
@@ -208,8 +208,8 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
   },
   joinEventButton: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.xs,
     borderRadius: BORDER_RADIUS.sm,
     backgroundColor: COLORS.primary,
   },

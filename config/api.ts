@@ -1,13 +1,14 @@
-// API Configuration
+// API Configuration - Unified Configuration
 export const API_CONFIG = {
   // Ngrok URL - cần cập nhật khi restart ngrok
-  BASE_URL: 'https://ba03ec5e177c.ngrok-free.app/api',
+  BASE_URL: 'https://selenographical-ashlynn-moonily.ngrok-free.dev/api',
   
   // Local development URL (nếu chạy local)
   LOCAL_URL: 'http://localhost:5000/api',
   
   // Timeout settings
-  TIMEOUT: 15000,
+  TIMEOUT: 30000,
+  MEDIA_TIMEOUT: 30000,
   
   // Headers
   HEADERS: {
@@ -47,4 +48,37 @@ export const logAPIError = (method: string, url: string, error: any) => {
   if (API_CONFIG.DEBUG) {
     console.error(`[API] ${method.toUpperCase()} ${url} - Error:`, error);
   }
+};
+
+// Helper function to test API connectivity
+export const testApiConnection = async (): Promise<boolean> => {
+  try {
+    // Create AbortController for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout
+    
+    const response = await fetch(`${API_CONFIG.BASE_URL}/blob-storage/test-connection`, {
+      method: 'GET',
+      headers: {
+        'ngrok-skip-browser-warning': 'true',
+      },
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+    return response.ok;
+  } catch (error: any) {
+    console.error('API connection test failed:', error.message);
+    return false;
+  }
+};
+
+// Helper function to get current API status
+export const getApiStatus = () => {
+  return {
+    baseUrl: API_CONFIG.BASE_URL,
+    isLocalhost: API_CONFIG.BASE_URL.includes('localhost'),
+    isNgrok: API_CONFIG.BASE_URL.includes('ngrok'),
+    timeout: API_CONFIG.TIMEOUT,
+  };
 };
