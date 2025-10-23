@@ -1,13 +1,13 @@
 // API Configuration - Unified Configuration
 export const API_CONFIG = {
   // Ngrok URL - cần cập nhật khi restart ngrok
-  BASE_URL: 'https://2c934862db4e.ngrok-free.app/api',
+  BASE_URL: 'https://selenographical-ashlynn-moonily.ngrok-free.dev/api',
   
   // Local development URL (nếu chạy local)
   LOCAL_URL: 'http://localhost:5000/api',
   
   // Timeout settings
-  TIMEOUT: 15000,
+  TIMEOUT: 30000,
   MEDIA_TIMEOUT: 30000,
   
   // Headers
