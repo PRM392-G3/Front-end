@@ -67,7 +67,10 @@ export const SuggestedUsers: React.FC<SuggestedUsersProps> = ({
       onUserPress(userId);
     } else {
       // Default behavior: navigate to user profile
-      router.push(`/profile?userId=${userId}`);
+      router.push({
+        pathname: '/profile',
+        params: { userId: userId.toString() }
+      } as any);
     }
   };
 

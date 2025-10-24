@@ -207,6 +207,29 @@ export interface FollowedUser {
   isFollowing: boolean;
 }
 
+// Interface cho friend request
+export interface FriendRequest {
+  id: number;
+  requesterId: number;
+  receiverId: number;
+  status: 'pending' | 'accepted' | 'rejected';
+  requestedAt: string;
+  respondedAt: string | null;
+  requester: User;
+  receiver: User;
+}
+
+// Interface cho gửi friend request
+export interface SendFriendRequestPayload {
+  requesterId: number;
+  receiverId: number;
+}
+
+// Interface cho response friend request
+export interface RespondFriendRequestPayload {
+  status: 'accepted' | 'rejected';
+}
+
 export const userAPI = {
   updateUser: async (id: number, data: UpdateUserPayload) => {
     try {
@@ -264,7 +287,7 @@ export const userAPI = {
   // Tìm kiếm người dùng
   searchUsers: async (query: string, page: number = 1, limit: number = 20) => {
     try {
-      const response = await api.get(`/User/search?query=${encodeURIComponent(query)}&page=${page}&limit=${limit}`);
+      const response = await api.get(`/User/search?name=${encodeURIComponent(query)}&page=${page}&limit=${limit}`);
       return response.data;
     } catch (error) {
       throw error;
@@ -285,6 +308,77 @@ export const userAPI = {
   getSuggestedUsers: async (limit: number = 10) => {
     try {
       const response = await api.get(`/User/suggested?limit=${limit}`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Gửi lời mời kết bạn
+  sendFriendRequest: async (requesterId: number, receiverId: number) => {
+    try {
+      const response = await api.post('/User/friend-request', {
+        requesterId,
+        receiverId
+      });
+      return response.data as FriendRequest;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Chấp nhận hoặc từ chối lời mời kết bạn
+  respondToFriendRequest: async (requestId: number, status: 'accepted' | 'rejected') => {
+    try {
+      const response = await api.put(`/User/friend-request/${requestId}/respond`, {
+        status
+      });
+      return response.data as FriendRequest;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Lấy danh sách bạn bè
+  getFriends: async (userId: number) => {
+    try {
+      const response = await api.get(`/User/${userId}/friends`);
+      return response.data as User[];
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Lấy danh sách friend requests đang chờ
+  getPendingFriendRequests: async (userId: number) => {
+    try {
+      const response = await api.get(`/User/${userId}/friend-requests/pending`);
+      return response.data as FriendRequest[];
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Kiểm tra trạng thái kết bạn với một user
+  getFriendshipStatus: async (userId: number, targetUserId: number) => {
+    try {
+      const response = await api.get(`/User/${userId}/friendship-status/${targetUserId}`);
+      return response.data as {
+        isFriend: boolean;
+        hasPendingRequest: boolean;
+        requestId?: number;
+        requesterId?: number;
+        receiverId?: number;
+      };
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Hủy kết bạn
+  unfriend: async (userId: number, friendId: number) => {
+    try {
+      const response = await api.delete(`/User/${userId}/friend/${friendId}`);
       return response.data;
     } catch (error) {
       throw error;

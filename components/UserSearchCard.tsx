@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, ActivityIndicator, ViewStyle, TextStyle, ImageStyle } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
-import { UserPlus, UserMinus, User } from 'lucide-react-native';
+import { UserPlus, UserMinus, User, Users, Clock } from 'lucide-react-native';
 import { User as UserType, userAPI } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -18,7 +18,101 @@ export const UserSearchCard: React.FC<UserSearchCardProps> = ({
 }) => {
   const [isFollowing, setIsFollowing] = useState(user.isFollowing || false);
   const [isLoading, setIsLoading] = useState(false);
+  const [friendshipStatus, setFriendshipStatus] = useState<{
+    isFriend: boolean;
+    hasPendingRequest: boolean;
+    requesterId?: number;
+  } | null>(null);
+  const [loadingFriendship, setLoadingFriendship] = useState(true);
   const { user: currentUser } = useAuth();
+
+  // Load friendship status when component mounts
+  useEffect(() => {
+    const loadFriendshipStatus = async () => {
+      if (!currentUser || user.id === currentUser.id) {
+        setLoadingFriendship(false);
+        return;
+      }
+
+      try {
+        console.log(`🚀 [UserSearchCard] Loading friendship status for user ${user.id}`);
+        const response = await userAPI.getFriendshipStatus(currentUser.id, user.id);
+        console.log(`✅ [UserSearchCard] Friendship status raw:`, response);
+        
+        // Handle different response formats
+        let status: {
+          isFriend: boolean;
+          hasPendingRequest: boolean;
+          requesterId?: number;
+        };
+        
+        if (typeof response === 'object' && 'status' in response) {
+          const backendStatus = (response as any).status;
+          status = {
+            isFriend: backendStatus === 'accepted',
+            hasPendingRequest: backendStatus === 'pending',
+            requesterId: (response as any).requesterId,
+          };
+        } else {
+          status = response as any;
+        }
+        
+        console.log(`✅ [UserSearchCard] Processed friendship status:`, status);
+        setFriendshipStatus(status);
+      } catch (error: any) {
+        console.error('❌ [UserSearchCard] Error loading friendship status:', error);
+        setFriendshipStatus({
+          isFriend: false,
+          hasPendingRequest: false,
+        });
+      } finally {
+        setLoadingFriendship(false);
+      }
+    };
+
+    loadFriendshipStatus();
+  }, [currentUser, user.id]);
+
+  const handleSendFriendRequest = async () => {
+    if (!currentUser?.id) {
+      Alert.alert('Lỗi', 'Không thể xác định người dùng hiện tại');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      console.log(`🚀 [UserSearchCard] Sending friend request to user ${user.id}`);
+      await userAPI.sendFriendRequest(currentUser.id, user.id);
+      console.log(`✅ [UserSearchCard] Friend request sent successfully`);
+      
+      // Update local state
+      setFriendshipStatus({
+        isFriend: false,
+        hasPendingRequest: true,
+        requesterId: currentUser.id,
+      });
+      
+      Alert.alert('Thành công', `Đã gửi lời mời kết bạn đến ${user.fullName}`);
+    } catch (error: any) {
+      console.error('❌ [UserSearchCard] Error sending friend request:', error);
+      
+      let errorMessage = 'Không thể gửi lời mời kết bạn';
+      
+      if (error.response?.status === 401) {
+        errorMessage = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+      } else if (error.response?.status === 400) {
+        errorMessage = error.response?.data?.message || 'Đã có lời mời kết bạn tồn tại';
+      } else if (error.response?.status === 404) {
+        errorMessage = 'Không tìm thấy người dùng';
+      } else if (error.code === 'NETWORK_ERROR') {
+        errorMessage = 'Lỗi kết nối mạng. Vui lòng kiểm tra internet.';
+      }
+      
+      Alert.alert('Lỗi', errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleFollowToggle = async () => {
     if (!currentUser?.id) {
@@ -107,44 +201,53 @@ export const UserSearchCard: React.FC<UserSearchCardProps> = ({
             {user.bio}
           </Text>
         )}
-        <View style={styles.stats}>
-          <Text style={styles.statText}>
-            {user.followersCount || 0} người theo dõi
-          </Text>
-          <Text style={styles.statText}>
-            {user.followingCount || 0} đang theo dõi
-          </Text>
-        </View>
         {getMutualFriendsText() && (
           <Text style={styles.mutualFriends}>{getMutualFriendsText()}</Text>
         )}
       </View>
 
       {showFollowButton && user.id !== currentUser?.id && (
-        <TouchableOpacity
-          style={[
-            styles.followButton,
-            isFollowing && styles.followingButton,
-            isLoading && styles.loadingButton
-          ]}
-          onPress={handleFollowToggle}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <ActivityIndicator size="small" color={COLORS.white} />
+        <>
+          {loadingFriendship ? (
+            <View style={styles.followButton}>
+              <ActivityIndicator size="small" color={COLORS.primary} />
+            </View>
+          ) : friendshipStatus?.isFriend ? (
+            <TouchableOpacity
+              style={[styles.followButton, styles.friendButton]}
+              disabled={true}
+            >
+              <Users size={16} color={COLORS.white} />
+              <Text style={styles.followButtonText}>Bạn bè</Text>
+            </TouchableOpacity>
+          ) : friendshipStatus?.hasPendingRequest ? (
+            <TouchableOpacity
+              style={[styles.followButton, styles.pendingButton]}
+              disabled={true}
+            >
+              <Clock size={16} color={COLORS.white} />
+              <Text style={styles.followButtonText}>Đã gửi lời mời</Text>
+            </TouchableOpacity>
           ) : (
-            <>
-              {isFollowing ? (
-                <UserMinus size={16} color={COLORS.white} />
+            <TouchableOpacity
+              style={[
+                styles.followButton,
+                isLoading && styles.loadingButton
+              ]}
+              onPress={handleSendFriendRequest}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color={COLORS.white} />
               ) : (
-                <UserPlus size={16} color={COLORS.white} />
+                <>
+                  <UserPlus size={16} color={COLORS.white} />
+                  <Text style={styles.followButtonText}>Thêm bạn bè</Text>
+                </>
               )}
-              <Text style={styles.followButtonText}>
-                {isFollowing ? 'Đã theo dõi' : 'Theo dõi'}
-              </Text>
-            </>
+            </TouchableOpacity>
           )}
-        </TouchableOpacity>
+        </>
       )}
     </TouchableOpacity>
   );
@@ -198,15 +301,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     lineHeight: 18,
   } as TextStyle,
-  stats: {
-    flexDirection: 'row',
-    gap: RESPONSIVE_SPACING.md,
-    marginBottom: 4,
-  } as ViewStyle,
-  statText: {
-    fontSize: FONT_SIZES.xs,
-    color: COLORS.text.gray,
-  } as TextStyle,
   mutualFriends: {
     fontSize: FONT_SIZES.xs,
     color: COLORS.primary,
@@ -220,8 +314,15 @@ const styles = StyleSheet.create({
     paddingVertical: RESPONSIVE_SPACING.sm,
     borderRadius: BORDER_RADIUS.sm,
     gap: RESPONSIVE_SPACING.xs,
-    minWidth: 100,
+    minWidth: 120,
     justifyContent: 'center',
+  } as ViewStyle,
+  friendButton: {
+    backgroundColor: COLORS.darkGray,
+  } as ViewStyle,
+  pendingButton: {
+    
+    backgroundColor: COLORS.text.gray,
   } as ViewStyle,
   followingButton: {
     backgroundColor: COLORS.text.gray,
