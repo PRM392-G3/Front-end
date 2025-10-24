@@ -1,20 +1,23 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
 import ChatListItem from '@/components/ChatListItem';
-import { Search, CreditCard as Edit3 } from 'lucide-react-native';
+import { Search as SearchIcon, CreditCard as Edit3 } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 
 export default function ChatListScreen() {
+  const router = useRouter();
+  
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Tin nhắn</Text>
-        <TouchableOpacity>
-          <Edit3 size={24} color={COLORS.black} />
+        <TouchableOpacity style={styles.headerButton}>
+          <Edit3 size={22} color={COLORS.black} />
         </TouchableOpacity>
       </View>
 
       <View style={styles.searchContainer}>
-        <Search size={20} color={COLORS.gray} style={styles.searchIcon} />
+        <SearchIcon size={20} color={COLORS.gray} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           placeholder="Tìm kiếm cuộc trò chuyện"
@@ -53,6 +56,16 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.xl,
     fontWeight: '700',
     color: COLORS.black,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: RESPONSIVE_SPACING.xs,
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   searchContainer: {
     flexDirection: 'row',
