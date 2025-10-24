@@ -179,7 +179,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error: any) {
       console.error('Login error:', error);
       console.error('Error details:', error.response?.data);
-      return false;
+      
+      // Xử lý các loại lỗi khác nhau
+      const status = error.response?.status;
+      const errorMessage = error.response?.data?.message || error.message;
+      
+      if (status === 404) {
+        throw new Error('EMAIL_NOT_FOUND|Tài khoản không tồn tại. Vui lòng đăng ký tài khoản mới.');
+      } else if (status === 401) {
+        throw new Error('INVALID_PASSWORD|Email hoặc mật khẩu không đúng.');
+      } else if (status === 400) {
+        throw new Error('INVALID_REQUEST|' + (errorMessage || 'Thông tin đăng nhập không hợp lệ.'));
+      } else if (error.isNetworkError || error.message === 'Network Error') {
+        throw new Error('NETWORK_ERROR|Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.');
+      } else {
+        throw new Error('UNKNOWN_ERROR|' + (errorMessage || 'Có lỗi xảy ra khi đăng nhập. Vui lòng thử lại.'));
+      }
     } finally {
       setIsLoading(false);
     }
