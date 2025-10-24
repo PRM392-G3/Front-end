@@ -9,6 +9,7 @@ import VideoUploader from '@/components/VideoUploader';
 import SimpleImageUploader from '@/components/SimpleImageUploader';
 import SimpleVideoUploader from '@/components/SimpleVideoUploader';
 import TagInput from '@/components/TagInput';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface CreatePostScreenProps {
   onClose: () => void;
@@ -17,6 +18,7 @@ interface CreatePostScreenProps {
 
 export default function CreatePostScreen({ onClose, onPostCreated }: CreatePostScreenProps) {
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const [content, setContent] = useState('');
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
@@ -71,7 +73,7 @@ export default function CreatePostScreen({ onClose, onPostCreated }: CreatePostS
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity style={styles.headerButton} onPress={onClose}>
           <X size={24} color={COLORS.text.primary} />
         </TouchableOpacity>
@@ -172,10 +174,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: RESPONSIVE_SPACING.md,
-    paddingVertical: RESPONSIVE_SPACING.xs,
+    paddingBottom: RESPONSIVE_SPACING.sm,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border.primary,
-    height: 50,
+    backgroundColor: COLORS.background.primary,
   },
   headerButton: {
     minWidth: 50,
