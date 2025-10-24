@@ -3,6 +3,7 @@ import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES, SAFE_AREA, DIMEN
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react-native';
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { router } from 'expo-router';
 
 export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
@@ -21,12 +22,40 @@ export default function LoginScreen() {
       if (success) {
         Alert.alert('Thành công', 'Đăng nhập thành công!');
         // Navigation sẽ được xử lý bởi AuthGuard
-      } else {
-        Alert.alert('Lỗi', 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.');
       }
     } catch (error: any) {
       console.error('Login error:', error);
-      Alert.alert('Lỗi', error.message || 'Có lỗi xảy ra khi đăng nhập');
+      
+      // Parse error message to get error code and message
+      const errorString = error.message || '';
+      const [errorCode, errorMessage] = errorString.includes('|') 
+        ? errorString.split('|') 
+        : ['UNKNOWN_ERROR', errorString];
+      
+      // Xử lý các lỗi cụ thể
+      if (errorCode === 'EMAIL_NOT_FOUND') {
+        // Hiển thị alert với nút chuyển đến trang đăng ký
+        Alert.alert(
+          'Tài khoản không tồn tại',
+          errorMessage,
+          [
+            {
+              text: 'Hủy',
+              style: 'cancel'
+            },
+            {
+              text: 'Đăng ký ngay',
+              onPress: () => router.push('/auth/register')
+            }
+          ]
+        );
+      } else if (errorCode === 'INVALID_PASSWORD') {
+        Alert.alert('Lỗi đăng nhập', errorMessage);
+      } else if (errorCode === 'NETWORK_ERROR') {
+        Alert.alert('Lỗi kết nối', errorMessage);
+      } else {
+        Alert.alert('Lỗi', errorMessage || 'Có lỗi xảy ra khi đăng nhập');
+      }
     }
   };
 
@@ -108,7 +137,7 @@ export default function LoginScreen() {
 
             <View style={styles.signupContainer}>
               <Text style={styles.signupText}>Chưa có tài khoản? </Text>
-              <TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push('/auth/register')}>
                 <Text style={styles.signupLink}>Đăng ký ngay</Text>
               </TouchableOpacity>
             </View>

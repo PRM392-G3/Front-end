@@ -120,7 +120,39 @@ export default function UserProfileScreen() {
         data: error.response?.data,
         url: error.config?.url
       });
-      Alert.alert('Lỗi', 'Không thể tải thông tin người dùng');
+      
+      // Xử lý lỗi 404 hoặc các lỗi khác
+      const status = error.response?.status;
+      if (status === 404) {
+        console.log('[UserProfile] User not found (404) - showing error UI with logout option');
+        setUser(null); // Clear user data to show error state
+      } else if (status === 401) {
+        // Token expired or invalid - redirect to login
+        Alert.alert(
+          'Phiên đăng nhập hết hạn',
+          'Vui lòng đăng nhập lại',
+          [
+            {
+              text: 'Đăng nhập',
+              onPress: async () => {
+                await logout();
+                router.replace('/auth/login');
+              }
+            }
+          ]
+        );
+        setUser(null);
+      } else if (error.isNetworkError || error.message === 'Network Error') {
+        // Network error - show error UI but keep cached data if available
+        console.log('[UserProfile] Network error - showing error UI with logout option');
+        if (!user) {
+          setUser(null);
+        }
+      } else {
+        // For other errors, clear user data to show error state
+        console.log('[UserProfile] Error loading profile - showing error UI with logout option');
+        setUser(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -137,7 +169,17 @@ export default function UserProfileScreen() {
       setPosts(postsData);
     } catch (error: any) {
       console.error('❌ [ProfileScreen] Posts loading error:', error);
-      // Don't show alert for posts loading error, just log it
+      const status = error.response?.status;
+      if (status === 404) {
+        console.log('[ProfileScreen] Posts not found (404) - setting empty posts array');
+        setPosts([]);
+      } else if (status === 401) {
+        console.log('[ProfileScreen] Unauthorized (401) - token may be expired');
+        // Don't handle 401 here, let the profile fetch handle it
+      } else {
+        console.log('[ProfileScreen] Error loading posts - setting empty posts array');
+        setPosts([]);
+      }
     } finally {
       setPostsLoading(false);
     }
@@ -152,6 +194,14 @@ export default function UserProfileScreen() {
       setSharedPosts(sharedPostsData);
     } catch (error: any) {
       console.error('❌ [UserProfile] Shared posts loading error:', error);
+      const status = error.response?.status;
+      if (status === 404) {
+        console.log('[UserProfile] Shared posts not found (404) - setting empty array');
+        setSharedPosts([]);
+      } else {
+        console.log('[UserProfile] Error loading shared posts - setting empty array');
+        setSharedPosts([]);
+      }
     } finally {
       setSharedPostsLoading(false);
     }
@@ -586,11 +636,42 @@ export default function UserProfileScreen() {
   }
 
   if (!user) {
-  return (
+    return (
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+        
+        {/* Header with logout button even when no user data */}
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={handleGoBack}>
+            <ArrowLeft size={24} color={COLORS.black} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Hồ sơ</Text>
+          {currentUser ? (
+            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+              <LogOut size={20} color="#EF4444" />
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.placeholder} />
+          )}
+        </View>
+
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Không tìm thấy người dùng</Text>
+          <Text style={styles.errorText}>Không thể tải thông tin người dùng</Text>
+          <Text style={styles.errorSubText}>Vui lòng thử lại sau hoặc đăng xuất</Text>
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={() => {
+              if (userId) {
+                const actualUserId = Array.isArray(userId) ? userId[0] : userId;
+                fetchUserProfile(actualUserId);
+              } else if (currentUser) {
+                fetchUserProfile(currentUser.id.toString());
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.retryButtonText}>Thử lại</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -876,10 +957,32 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: RESPONSIVE_SPACING.lg,
   } as ViewStyle,
   errorText: {
+    fontSize: RESPONSIVE_FONT_SIZES.lg,
+    fontWeight: '600',
+    color: COLORS.text.primary,
+    textAlign: 'center',
+    marginBottom: RESPONSIVE_SPACING.sm,
+  } as TextStyle,
+  errorSubText: {
     fontSize: RESPONSIVE_FONT_SIZES.md,
-    color: COLORS.error,
+    color: COLORS.gray,
+    textAlign: 'center',
+    marginBottom: RESPONSIVE_SPACING.lg,
+  } as TextStyle,
+  retryButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: RESPONSIVE_SPACING.xl,
+    paddingVertical: RESPONSIVE_SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    marginTop: RESPONSIVE_SPACING.md,
+  } as ViewStyle,
+  retryButtonText: {
+    fontSize: RESPONSIVE_FONT_SIZES.md,
+    fontWeight: '600',
+    color: COLORS.white,
   } as TextStyle,
   coverImageContainer: {
     width: '100%',

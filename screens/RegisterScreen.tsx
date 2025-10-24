@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ViewSt
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
 import { User, Mail, Phone, Lock, Eye, EyeOff } from 'lucide-react-native';
 import { useState } from 'react';
+import { router } from 'expo-router';
 
 export default function RegisterScreen() {
   const [showPassword, setShowPassword] = useState(false);
@@ -105,7 +106,7 @@ export default function RegisterScreen() {
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>Đã có tài khoản? </Text>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/auth/login')}>
             <Text style={styles.footerLink}>Đăng nhập ngay</Text>
           </TouchableOpacity>
         </View>
