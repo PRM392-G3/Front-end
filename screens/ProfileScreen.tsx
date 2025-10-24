@@ -16,7 +16,15 @@ export default function UserProfileScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
   const router = useRouter();
   const { logout, user: currentUser } = useAuth();
-  const { updatePost, updatePostLike, updatePostShare, initializePosts } = usePostContext();
+  const { 
+    updatePost, 
+    updatePostLike, 
+    updatePostShare, 
+    updatePostComment,
+    initializePosts,
+    syncPostState,
+    getSyncedPost
+  } = usePostContext();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'posts' | 'shared' | 'friends'>('posts');
@@ -679,6 +687,7 @@ export default function UserProfileScreen() {
 
   const handleCommentCountUpdate = (postId: number, commentCount: number) => {
     console.log(`💬 [Profile] Post ${postId} comment count updated:`, commentCount);
+    updatePostComment(postId, commentCount);
     setPosts(prevPosts => 
       prevPosts.map(post => 
         post.id === postId ? { ...post, commentCount } : post

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, Image, Alert } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
 import { Heart, MessageCircle, Share2, User, TrendingUp } from 'lucide-react-native';
-import { postAPI, PostResponse } from '@/services/api';
+import { postAPI, shareAPI, PostResponse } from '@/services/api';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePostContext } from '@/contexts/PostContext';
@@ -22,14 +22,14 @@ export const SuggestedPosts: React.FC<SuggestedPostsProps> = ({
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
   const { 
-    likeStates, 
-    shareStates, 
-    likePost, 
-    unlikePost, 
-    sharePost, 
-    unsharePost,
+    updatePostLike,
+    updatePostShare,
+    updatePostComment,
     getPostLikeState,
-    getPostShareState 
+    getPostShareState,
+    getPostCommentState,
+    syncPostState,
+    getSyncedPost
   } = usePostContext();
   const router = useRouter();
 
@@ -50,9 +50,11 @@ export const SuggestedPosts: React.FC<SuggestedPostsProps> = ({
         const likeStateB = getPostLikeState(b.id) || { likeCount: b.likeCount };
         const shareStateA = getPostShareState(a.id) || { shareCount: a.shareCount };
         const shareStateB = getPostShareState(b.id) || { shareCount: b.shareCount };
+        const commentStateA = getPostCommentState(a.id) || { commentCount: a.commentCount };
+        const commentStateB = getPostCommentState(b.id) || { commentCount: b.commentCount };
         
-        const engagementA = likeStateA.likeCount + a.commentCount + shareStateA.shareCount;
-        const engagementB = likeStateB.likeCount + b.commentCount + shareStateB.shareCount;
+        const engagementA = likeStateA.likeCount + commentStateA.commentCount + shareStateA.shareCount;
+        const engagementB = likeStateB.likeCount + commentStateB.commentCount + shareStateB.shareCount;
         return engagementB - engagementA;
       });
       
@@ -73,24 +75,33 @@ export const SuggestedPosts: React.FC<SuggestedPostsProps> = ({
     loadSuggestedPosts();
   }, [userId]);
 
-  // Reload when PostContext changes
+  // Sync post states when PostContext changes
   useEffect(() => {
     if (suggestedPosts.length > 0) {
-      // Re-sort posts when like/share states change
-      const sortedPosts = [...suggestedPosts].sort((a, b) => {
-        const likeStateA = getPostLikeState(a.id) || { likeCount: a.likeCount };
-        const likeStateB = getPostLikeState(b.id) || { likeCount: b.likeCount };
-        const shareStateA = getPostShareState(a.id) || { shareCount: a.shareCount };
-        const shareStateB = getPostShareState(b.id) || { shareCount: b.shareCount };
-        
-        const engagementA = likeStateA.likeCount + a.commentCount + shareStateA.shareCount;
-        const engagementB = likeStateB.likeCount + b.commentCount + shareStateB.shareCount;
-        return engagementB - engagementA;
+      // Update posts with synced state from context
+      const updatedPosts = suggestedPosts.map(post => {
+        const syncedPost = getSyncedPost(post.id);
+        if (syncedPost) {
+          return syncedPost;
+        }
+        return post;
       });
       
-      setSuggestedPosts(sortedPosts);
+      // Only update if there are actual changes
+      const hasChanges = updatedPosts.some((post, index) => 
+        post.isLiked !== suggestedPosts[index].isLiked ||
+        post.isShared !== suggestedPosts[index].isShared ||
+        post.likeCount !== suggestedPosts[index].likeCount ||
+        post.shareCount !== suggestedPosts[index].shareCount ||
+        post.commentCount !== suggestedPosts[index].commentCount
+      );
+      
+      if (hasChanges) {
+        setSuggestedPosts(updatedPosts);
+      }
     }
-  }, [likeStates, shareStates]);
+  }, [getSyncedPost]);
+
 
   const handlePostPress = (postId: number) => {
     if (onPostPress) {
@@ -110,9 +121,11 @@ export const SuggestedPosts: React.FC<SuggestedPostsProps> = ({
     try {
       const likeState = getPostLikeState(postId) || { isLiked: false, likeCount: 0 };
       if (likeState.isLiked) {
-        await unlikePost(postId);
+        await postAPI.unlikePost(postId, user.id);
+        updatePostLike(postId, false);
       } else {
-        await likePost(postId);
+        await postAPI.likePost(postId, user.id);
+        updatePostLike(postId, true);
       }
     } catch (error) {
       console.error('❌ [SuggestedPosts] Error handling like:', error);
@@ -125,9 +138,11 @@ export const SuggestedPosts: React.FC<SuggestedPostsProps> = ({
     try {
       const shareState = getPostShareState(postId) || { isShared: false, shareCount: 0 };
       if (shareState.isShared) {
-        await unsharePost(postId);
+        await shareAPI.unsharePost(user.id, postId);
+        updatePostShare(postId, false);
       } else {
-        await sharePost(postId, '');
+        await shareAPI.sharePost(user.id, postId, '');
+        updatePostShare(postId, true);
       }
     } catch (error) {
       console.error('❌ [SuggestedPosts] Error handling share:', error);

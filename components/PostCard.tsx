@@ -34,26 +34,41 @@ export default function PostCard({
   isSharedPost = false
 }: PostCardProps) {
   const { user } = useAuth();
-  const { refreshPosts, updatePostLike, getPostLikeState, updatePostShare, getPostShareState } = usePostContext();
+  const { 
+    refreshPosts, 
+    updatePostLike, 
+    getPostLikeState, 
+    updatePostShare, 
+    getPostShareState,
+    updatePostComment,
+    getPostCommentState,
+    syncPostState,
+    getSyncedPost
+  } = usePostContext();
   const router = useRouter();
   
-  // Get like state from context, fallback to postData
+  // Get synced post state from context
+  const syncedPost = getSyncedPost(postData.id) || postData;
+  
+  // Get like state from context, fallback to synced post data
   const contextLikeState = getPostLikeState(postData.id);
-  const [actualIsLiked, setActualIsLiked] = useState<boolean | null>(null);
-  const isLiked = actualIsLiked ?? contextLikeState?.isLiked ?? postData.isLiked ?? false;
-  const likeCount = contextLikeState?.likeCount ?? postData.likeCount ?? 0;
+  const isLiked = contextLikeState?.isLiked ?? syncedPost.isLiked ?? false;
+  const likeCount = contextLikeState?.likeCount ?? syncedPost.likeCount ?? 0;
 
-  // Get share state from context, fallback to postData
+  // Get share state from context, fallback to synced post data
   const contextShareState = getPostShareState(postData.id);
-  const isShared = contextShareState?.isShared ?? postData.isShared ?? false;
-  const shareCount = contextShareState?.shareCount ?? postData.shareCount ?? 0;
+  const isShared = contextShareState?.isShared ?? syncedPost.isShared ?? false;
+  const shareCount = contextShareState?.shareCount ?? syncedPost.shareCount ?? 0;
+
+  // Get comment state from context, fallback to synced post data
+  const contextCommentState = getPostCommentState(postData.id);
+  const commentCount = contextCommentState?.commentCount ?? syncedPost.commentCount ?? 0;
 
   const [isLiking, setIsLiking] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showFullContent, setShowFullContent] = useState(false);
   const [showLikesModal, setShowLikesModal] = useState(false);
-  const [isCheckingLikeStatus, setIsCheckingLikeStatus] = useState(false);
 
   // Video player setup
   const player = useVideoPlayer(postData.videoUrl || '', (player) => {
@@ -61,13 +76,18 @@ export default function PostCard({
     player.muted = true;
   });
 
-  // Use like status from backend - no need to check API
+  // Initialize post state in context when component mounts
   useEffect(() => {
-    if (postData.isLiked !== undefined) {
-      setActualIsLiked(postData.isLiked);
-      console.log(`✅ [PostCard] Using like status from backend for post ${postData.id}:`, postData.isLiked);
+    if (postData.id) {
+      syncPostState(postData.id, {
+        isLiked: postData.isLiked,
+        isShared: postData.isShared,
+        likeCount: postData.likeCount,
+        shareCount: postData.shareCount,
+        commentCount: postData.commentCount
+      });
     }
-  }, [postData.isLiked]);
+  }, [postData.id, postData.isLiked, postData.isShared, postData.likeCount, postData.shareCount, postData.commentCount, syncPostState]);
 
   const handleLikeToggle = async () => {
     if (!user || isLiking) return;
@@ -76,19 +96,23 @@ export default function PostCard({
     try {
       if (isLiked) {
         await postAPI.unlikePost(postData.id, user.id);
-        setActualIsLiked(false); // Update local state
         updatePostLike(postData.id, false); // Update context
         onLikeToggle?.(postData.id, false); // Callback for parent
         console.log(`✅ [PostCard] Unliked post ${postData.id}`);
       } else {
         await postAPI.likePost(postData.id, user.id);
-        setActualIsLiked(true); // Update local state
         updatePostLike(postData.id, true); // Update context
         onLikeToggle?.(postData.id, true); // Callback for parent
         console.log(`✅ [PostCard] Liked post ${postData.id}`);
       }
+      
+      // Refresh posts to ensure consistency across screens
+      refreshPosts();
+      
     } catch (error) {
       console.error('Error toggling like:', error);
+      // Revert context change on error
+      updatePostLike(postData.id, isLiked);
       Alert.alert('Lỗi', 'Không thể thực hiện thao tác này');
     } finally {
       setIsLiking(false);
@@ -115,8 +139,14 @@ export default function PostCard({
         updatePostShare(postData.id, true); // Update context
         onShareToggle?.(postData.id, true);
       }
+      
+      // Refresh posts to ensure consistency across screens
+      refreshPosts();
+      
     } catch (error) {
       console.error('Error toggling share:', error);
+      // Revert context change on error
+      updatePostShare(postData.id, isShared);
       Alert.alert('Lỗi', 'Không thể thực hiện thao tác này');
     } finally {
       setIsSharing(false);
@@ -271,9 +301,9 @@ export default function PostCard({
           <TouchableOpacity 
             style={styles.actionIcon}
             onPress={handleLikeToggle}
-            disabled={isLiking || isCheckingLikeStatus}
+            disabled={isLiking}
           >
-            {isCheckingLikeStatus ? (
+            {isLiking ? (
               <ActivityIndicator size={16} color={COLORS.text.secondary} />
             ) : (
               <Heart 
@@ -296,7 +326,7 @@ export default function PostCard({
 
         <TouchableOpacity style={styles.actionButton} onPress={handleCommentPress}>
           <MessageCircle size={20} color={COLORS.text.secondary} />
-          <Text style={styles.actionText}>{postData.commentCount}</Text>
+          <Text style={styles.actionText}>{commentCount}</Text>
         </TouchableOpacity>
 
         <ShareButton

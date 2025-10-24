@@ -17,7 +17,19 @@ export default function HomeScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const { user } = useAuth();
-  const { posts, setPosts, updatePostLike, updatePostShare, updatePost, getPostShareState, initializePosts, forceRefreshPosts } = usePostContext();
+  const { 
+    posts, 
+    setPosts, 
+    updatePostLike, 
+    updatePostShare, 
+    updatePostComment,
+    updatePost, 
+    getPostShareState, 
+    initializePosts, 
+    forceRefreshPosts,
+    syncPostState,
+    getSyncedPost
+  } = usePostContext();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const autoRefreshTimer = useRef<NodeJS.Timeout | null>(null);
@@ -126,8 +138,9 @@ export default function HomeScreen() {
   }, [posts, setPosts]);
 
   const handleCommentCountUpdate = useCallback((postId: number, commentCount: number) => {
+    updatePostComment(postId, commentCount);
     updatePost(postId, { commentCount });
-  }, [updatePost]);
+  }, [updatePost, updatePostComment]);
 
   const renderPost = useCallback(({ item }: { item: PostResponse }) => (
     <PostCard

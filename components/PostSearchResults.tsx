@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, Image, Alert } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
 import { Heart, MessageCircle, Share2, User, Calendar } from 'lucide-react-native';
-import { postAPI, PostResponse } from '@/services/api';
+import { postAPI, shareAPI, PostResponse } from '@/services/api';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePostContext } from '@/contexts/PostContext';
@@ -23,14 +23,14 @@ export const PostSearchResults: React.FC<PostSearchResultsProps> = ({
   const [hasMore, setHasMore] = useState(true);
   const { user } = useAuth();
   const { 
-    likeStates, 
-    shareStates, 
-    likePost, 
-    unlikePost, 
-    sharePost, 
-    unsharePost,
+    updatePostLike,
+    updatePostShare,
+    updatePostComment,
     getPostLikeState,
-    getPostShareState 
+    getPostShareState,
+    getPostCommentState,
+    syncPostState,
+    getSyncedPost
   } = usePostContext();
   const router = useRouter();
 
@@ -71,9 +71,11 @@ export const PostSearchResults: React.FC<PostSearchResultsProps> = ({
         const likeStateB = getPostLikeState(b.id) || { likeCount: b.likeCount };
         const shareStateA = getPostShareState(a.id) || { shareCount: a.shareCount };
         const shareStateB = getPostShareState(b.id) || { shareCount: b.shareCount };
+        const commentStateA = getPostCommentState(a.id) || { commentCount: a.commentCount };
+        const commentStateB = getPostCommentState(b.id) || { commentCount: b.commentCount };
         
-        const engagementA = likeStateA.likeCount + a.commentCount + shareStateA.shareCount;
-        const engagementB = likeStateB.likeCount + b.commentCount + shareStateB.shareCount;
+        const engagementA = likeStateA.likeCount + commentStateA.commentCount + shareStateA.shareCount;
+        const engagementB = likeStateB.likeCount + commentStateB.commentCount + shareStateB.shareCount;
         return engagementB - engagementA;
       });
 
@@ -110,23 +112,32 @@ export const PostSearchResults: React.FC<PostSearchResultsProps> = ({
     return () => clearTimeout(timeoutId);
   }, [searchQuery]);
 
-  // Re-sort posts when PostContext changes
+  // Sync post states when PostContext changes
   useEffect(() => {
     if (posts.length > 0) {
-      const sortedPosts = [...posts].sort((a, b) => {
-        const likeStateA = getPostLikeState(a.id) || { likeCount: a.likeCount };
-        const likeStateB = getPostLikeState(b.id) || { likeCount: b.likeCount };
-        const shareStateA = getPostShareState(a.id) || { shareCount: a.shareCount };
-        const shareStateB = getPostShareState(b.id) || { shareCount: b.shareCount };
-        
-        const engagementA = likeStateA.likeCount + a.commentCount + shareStateA.shareCount;
-        const engagementB = likeStateB.likeCount + b.commentCount + shareStateB.shareCount;
-        return engagementB - engagementA;
+      // Update posts with synced state from context
+      const updatedPosts = posts.map(post => {
+        const syncedPost = getSyncedPost(post.id);
+        if (syncedPost) {
+          return syncedPost;
+        }
+        return post;
       });
       
-      setPosts(sortedPosts);
+      // Only update if there are actual changes
+      const hasChanges = updatedPosts.some((post, index) => 
+        post.isLiked !== posts[index].isLiked ||
+        post.isShared !== posts[index].isShared ||
+        post.likeCount !== posts[index].likeCount ||
+        post.shareCount !== posts[index].shareCount ||
+        post.commentCount !== posts[index].commentCount
+      );
+      
+      if (hasChanges) {
+        setPosts(updatedPosts);
+      }
     }
-  }, [likeStates, shareStates]);
+  }, [getSyncedPost]);
 
   const handleRefresh = () => {
     if (searchQuery.trim()) {
@@ -173,9 +184,11 @@ export const PostSearchResults: React.FC<PostSearchResultsProps> = ({
     try {
       const shareState = getPostShareState(postId) || { isShared: false, shareCount: 0 };
       if (shareState.isShared) {
-        await unsharePost(postId);
+        await shareAPI.unsharePost(user.id, postId);
+        updatePostShare(postId, false);
       } else {
-        await sharePost(postId, '');
+        await shareAPI.sharePost(user.id, postId, '');
+        updatePostShare(postId, true);
       }
     } catch (error) {
       console.error('❌ [PostSearch] Error handling share:', error);
