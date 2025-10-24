@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, StatusBar, TouchableOpacity, Image, ScrollView, ActivityIndicator, Alert, ViewStyle, TextStyle, ImageStyle, FlatList, Modal, TextInput } from 'react-native';
-import { ArrowLeft, Users, Grid2x2 as Grid, Mail, Phone, MapPin, Calendar, LogOut, Share2, Edit3 } from 'lucide-react-native';
+import { ArrowLeft, Users, Grid2x2 as Grid, Mail, Phone, MapPin, Calendar, LogOut, Share2, Edit3, User as UserIcon, Bell } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES } from '../constants/theme';
-import { userAPI, User, postAPI, PostResponse, shareAPI, UpdateUserPayload } from '../services/api';
+import { userAPI, User, postAPI, PostResponse, shareAPI, UpdateUserPayload, FriendRequest } from '../services/api';
 import FollowingList from '../components/FollowingList';
 import { FollowersList } from '../components/FollowersList';
 import { useAuth } from '../contexts/AuthContext';
@@ -38,9 +38,27 @@ export default function UserProfileScreen() {
   const [dobDay, setDobDay] = useState<string>('');
   const [dobMonth, setDobMonth] = useState<string>('');
   const [dobYear, setDobYear] = useState<string>('');
+  
+  // Friend request states
+  const [friendshipStatus, setFriendshipStatus] = useState<{
+    isFriend: boolean;
+    hasPendingRequest: boolean;
+    requestId?: number;
+    requesterId?: number;
+    receiverId?: number;
+  } | null>(null);
+  const [friendsLoading, setFriendsLoading] = useState(false);
+  const [friends, setFriends] = useState<User[]>([]);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState<number>(0);
 
 
   useEffect(() => {
+    // Reset all lists when changing user profile to avoid showing old data
+    setFriends([]);
+    setSharedPosts([]);
+    setPosts([]);
+    setActiveTab('posts'); // Reset to posts tab when viewing different user
+    
     if (userId) {
       // Handle case where userId might be an array
       const actualUserId = Array.isArray(userId) ? userId[0] : userId;
@@ -62,6 +80,11 @@ export default function UserProfileScreen() {
       } else if (currentUser) {
         fetchUserProfile(currentUser.id.toString());
       }
+      
+      // Reload pending friend requests count when returning to screen
+      if (currentUser) {
+        loadPendingRequestsCount(currentUser.id);
+      }
     }, [userId, currentUser])
   );
 
@@ -71,7 +94,25 @@ export default function UserProfileScreen() {
     if (activeTab === 'shared' && user && sharedPosts.length === 0) {
       loadSharedPosts(user.id);
     }
-  }, [activeTab, user]);
+    // Load friends when switching to friends tab
+    if (activeTab === 'friends' && user) {
+      loadFriends(user.id);
+    }
+  }, [activeTab, user?.id]);
+
+  // Load friendship status when viewing another user's profile
+  useEffect(() => {
+    if (user && currentUser && user.id !== currentUser.id) {
+      loadFriendshipStatus(currentUser.id, user.id);
+    }
+  }, [user, currentUser]);
+
+  // Load pending friend requests count for current user's own profile
+  useEffect(() => {
+    if (user && currentUser && user.id === currentUser.id) {
+      loadPendingRequestsCount(currentUser.id);
+    }
+  }, [user, currentUser]);
 
   // Initialize form when user data is loaded
   useEffect(() => {
@@ -205,6 +246,212 @@ export default function UserProfileScreen() {
     } finally {
       setSharedPostsLoading(false);
     }
+  };
+
+  const loadFriendshipStatus = async (currentUserId: number, targetUserId: number) => {
+    try {
+      console.log(`🚀 [UserProfile] Loading friendship status between ${currentUserId} and ${targetUserId}`);
+      const response = await userAPI.getFriendshipStatus(currentUserId, targetUserId);
+      console.log(`✅ [UserProfile] Friendship status raw response:`, response);
+      
+      // Handle different response formats from backend
+      let status: {
+        isFriend: boolean;
+        hasPendingRequest: boolean;
+        requestId?: number;
+        requesterId?: number;
+        receiverId?: number;
+      };
+      
+      // Check if backend returns {status: "accepted"} format
+      if (typeof response === 'object' && 'status' in response) {
+        const backendStatus = (response as any).status;
+        status = {
+          isFriend: backendStatus === 'accepted',
+          hasPendingRequest: backendStatus === 'pending',
+          requestId: (response as any).id,
+          requesterId: (response as any).requesterId,
+          receiverId: (response as any).receiverId,
+        };
+      } else {
+        // Use the response as-is if it matches our expected format
+        status = response as any;
+      }
+      
+      console.log(`✅ [UserProfile] Processed friendship status:`, status);
+      setFriendshipStatus(status);
+    } catch (error: any) {
+      console.error('❌ [UserProfile] Friendship status loading error:', error);
+      // Set default status on error
+      setFriendshipStatus({
+        isFriend: false,
+        hasPendingRequest: false,
+      });
+    }
+  };
+
+  const loadFriends = async (userId: number) => {
+    try {
+      setFriendsLoading(true);
+      console.log(`🚀 [UserProfile] Loading friends for user ${userId}`);
+      const friendsData = await userAPI.getFriends(userId);
+      console.log(`✅ [UserProfile] Friends loaded (raw):`, friendsData);
+      console.log(`✅ [UserProfile] Friends count:`, friendsData.length);
+      setFriends(friendsData);
+    } catch (error: any) {
+      console.error('❌ [UserProfile] Friends loading error:', error);
+      const status = error.response?.status;
+      if (status === 404) {
+        console.log('[UserProfile] Friends not found (404) - setting empty array');
+        setFriends([]);
+      } else {
+        console.log('[UserProfile] Error loading friends - setting empty array');
+        setFriends([]);
+      }
+    } finally {
+      setFriendsLoading(false);
+    }
+  };
+
+  const loadPendingRequestsCount = async (userId: number) => {
+    try {
+      console.log(`🚀 [UserProfile] Loading pending friend requests count for user ${userId}`);
+      const requests = await userAPI.getPendingFriendRequests(userId);
+      console.log(`✅ [UserProfile] Pending requests count:`, requests.length);
+      setPendingRequestsCount(requests.length);
+    } catch (error: any) {
+      console.error('❌ [UserProfile] Error loading pending requests count:', error);
+      setPendingRequestsCount(0);
+    }
+  };
+
+  const handleSendFriendRequest = async () => {
+    if (!currentUser || !user) return;
+
+    try {
+      console.log(`🚀 [UserProfile] Sending friend request from ${currentUser.id} to ${user.id}`);
+      await userAPI.sendFriendRequest(currentUser.id, user.id);
+      console.log(`✅ [UserProfile] Friend request sent successfully`);
+      
+      // Update local state
+      setFriendshipStatus({
+        isFriend: false,
+        hasPendingRequest: true,
+        requesterId: currentUser.id,
+        receiverId: user.id,
+      });
+      
+      Alert.alert('Thành công', 'Đã gửi lời mời kết bạn');
+    } catch (error: any) {
+      console.error('❌ [UserProfile] Error sending friend request:', error);
+      Alert.alert('Lỗi', 'Không thể gửi lời mời kết bạn');
+    }
+  };
+
+  const handleCancelFriendRequest = async () => {
+    if (!currentUser || !user || !friendshipStatus?.requestId) return;
+
+    Alert.alert(
+      'Hủy lời mời',
+      'Bạn có chắc chắn muốn hủy lời mời kết bạn?',
+      [
+        { text: 'Không', style: 'cancel' },
+        {
+          text: 'Hủy lời mời',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              console.log(`🚀 [UserProfile] Cancelling friend request ${friendshipStatus.requestId}`);
+              await userAPI.respondToFriendRequest(friendshipStatus.requestId!, 'rejected');
+              console.log(`✅ [UserProfile] Friend request cancelled`);
+              
+              // Update local state
+              setFriendshipStatus({
+                isFriend: false,
+                hasPendingRequest: false,
+              });
+              
+              Alert.alert('Thành công', 'Đã hủy lời mời kết bạn');
+            } catch (error: any) {
+              console.error('❌ [UserProfile] Error cancelling friend request:', error);
+              Alert.alert('Lỗi', 'Không thể hủy lời mời kết bạn');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleUnfriend = async () => {
+    if (!currentUser || !user) return;
+
+    Alert.alert(
+      'Hủy kết bạn',
+      `Bạn có chắc chắn muốn hủy kết bạn với ${user.fullName}?`,
+      [
+        { text: 'Không', style: 'cancel' },
+        {
+          text: 'Hủy kết bạn',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              console.log(`🚀 [UserProfile] Unfriending user ${user.id}`);
+              await userAPI.unfriend(currentUser.id, user.id);
+              console.log(`✅ [UserProfile] Unfriended successfully`);
+              
+              // Update local state
+              setFriendshipStatus({
+                isFriend: false,
+                hasPendingRequest: false,
+              });
+              
+              // Remove from friends list (friends is now User[], not FriendRequest[])
+              setFriends(prevFriends => 
+                prevFriends.filter(f => f.id !== user.id)
+              );
+              
+              Alert.alert('Thành công', 'Đã hủy kết bạn');
+            } catch (error: any) {
+              console.error('❌ [UserProfile] Error unfriending:', error);
+              Alert.alert('Lỗi', 'Không thể hủy kết bạn');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleUnfriendFromList = async (friendId: number, friendName: string) => {
+    if (!currentUser) return;
+
+    Alert.alert(
+      'Hủy kết bạn',
+      `Bạn có chắc chắn muốn hủy kết bạn với ${friendName}?`,
+      [
+        { text: 'Không', style: 'cancel' },
+        {
+          text: 'Hủy kết bạn',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              console.log(`🚀 [UserProfile] Unfriending user ${friendId} from list`);
+              await userAPI.unfriend(currentUser.id, friendId);
+              console.log(`✅ [UserProfile] Unfriended successfully`);
+              
+              // Remove from friends list (friends is now User[], not FriendRequest[])
+              setFriends(prevFriends => 
+                prevFriends.filter(f => f.id !== friendId)
+              );
+              
+              Alert.alert('Thành công', 'Đã hủy kết bạn');
+            } catch (error: any) {
+              console.error('❌ [UserProfile] Error unfriending from list:', error);
+              Alert.alert('Lỗi', 'Không thể hủy kết bạn');
+            }
+          }
+        }
+      ]
+    );
   };
 
   const handleGoBack = () => {
@@ -531,6 +778,39 @@ export default function UserProfileScreen() {
             <Text style={styles.editProfileButtonText}>Chỉnh sửa hồ sơ</Text>
           </TouchableOpacity>
         )}
+
+        {/* Friend Action Button - Show for other users */}
+        {currentUser && user && currentUser.id !== user.id && friendshipStatus && (
+          <View style={styles.friendActionContainer}>
+            {friendshipStatus.isFriend ? (
+              <TouchableOpacity 
+                style={[styles.friendActionButton, styles.friendButton]} 
+                onPress={handleUnfriend}
+                activeOpacity={0.7}
+              >
+                <Users size={18} color={COLORS.white} />
+                <Text style={styles.friendActionButtonText}>Bạn bè</Text>
+              </TouchableOpacity>
+            ) : friendshipStatus.hasPendingRequest ? (
+              <TouchableOpacity 
+                style={[styles.friendActionButton, styles.pendingButton]} 
+                onPress={handleCancelFriendRequest}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.friendActionButtonText}>Đang chờ phản hồi</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity 
+                style={[styles.friendActionButton, styles.addFriendButton]} 
+                onPress={handleSendFriendRequest}
+                activeOpacity={0.7}
+              >
+                <Users size={18} color={COLORS.white} />
+                <Text style={styles.friendActionButtonText}>Thêm bạn bè</Text>
+          </TouchableOpacity>
+            )}
+          </View>
+        )}
       </View>
 
       {/* Tabs */}
@@ -580,6 +860,52 @@ export default function UserProfileScreen() {
     </>
   );
 
+  const renderFriendItem = ({ item }: { item: User }) => {
+    if (!currentUser || !user) return null;
+    
+    // item is already the friend User object
+    const friendUser = item;
+    
+    return (
+      <View style={styles.friendItem}>
+        <TouchableOpacity
+          style={styles.friendItemLeft}
+          onPress={() => {
+            console.log(`👆 [Profile] Friend item pressed, navigating to user ${friendUser.id}`);
+            router.push({
+              pathname: '/profile',
+              params: { userId: friendUser.id.toString() }
+            } as any);
+          }}
+          activeOpacity={0.7}
+        >
+          {friendUser.avatarUrl ? (
+            <Image source={{ uri: friendUser.avatarUrl }} style={styles.friendAvatar} />
+          ) : (
+            <View style={[styles.friendAvatar, styles.friendAvatarPlaceholder]}>
+              <UserIcon size={24} color={COLORS.gray} />
+            </View>
+          )}
+          <View style={styles.friendInfo}>
+            <Text style={styles.friendName}>{friendUser.fullName}</Text>
+            {friendUser.bio && <Text style={styles.friendBio} numberOfLines={1}>{friendUser.bio}</Text>}
+          </View>
+        </TouchableOpacity>
+
+        {/* Unfriend button - only show on own profile */}
+        {currentUser.id === user.id && (
+          <TouchableOpacity
+            style={styles.unfriendButton}
+            onPress={() => handleUnfriendFromList(friendUser.id, friendUser.fullName)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.unfriendButtonText}>Bạn bè</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
+
   const renderEmptyComponent = () => {
     if (activeTab === 'posts') {
       return (
@@ -609,14 +935,11 @@ export default function UserProfileScreen() {
       );
     } else {
       return (
-        <View style={styles.friendsContainer}>
+        <View style={styles.emptyPostsContainer}>
           <Users size={48} color={COLORS.gray} />
-          <Text style={styles.friendsTitle}>Bạn bè</Text>
-          <Text style={styles.friendsSubtitle}>
-            {user?.followersCount || 0} người theo dõi • {user?.followingCount || 0} đang theo dõi
-          </Text>
-          <Text style={styles.friendsHint}>
-            Nhấn vào số lượng ở trên để xem chi tiết
+          <Text style={styles.emptyText}>Chưa có bạn bè nào</Text>
+          <Text style={styles.emptySubText}>
+            Hãy kết bạn để mở rộng mạng lưới của bạn!
           </Text>
         </View>
       );
@@ -677,20 +1000,7 @@ export default function UserProfileScreen() {
     );
   }
 
-  // Get data based on active tab
-  const getData = () => {
-    if (activeTab === 'posts') return posts;
-    if (activeTab === 'shared') return sharedPosts;
-    return []; // Empty array for friends tab
-  };
-
-  const getRenderItem = () => {
-    if (activeTab === 'posts') return renderPostItem;
-    if (activeTab === 'shared') return renderSharedPostItem;
-    return () => null; // No items for friends tab
-  };
-
-  const isLoading = activeTab === 'posts' ? postsLoading : activeTab === 'shared' ? sharedPostsLoading : false;
+  const isLoading = activeTab === 'posts' ? postsLoading : activeTab === 'shared' ? sharedPostsLoading : activeTab === 'friends' ? friendsLoading : false;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -702,13 +1012,55 @@ export default function UserProfileScreen() {
           <ArrowLeft size={24} color={COLORS.black} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{user.fullName}</Text>
+        <View style={styles.headerRight}>
         {currentUser && user && currentUser.id === user.id ? (
+            <>
+              {/* Friend Requests Bell Icon with Badge */}
+              <TouchableOpacity 
+                style={styles.bellButton} 
+                onPress={() => {
+                  console.log('👆 [Profile] Friend requests button pressed');
+                  router.push('/friend-requests' as any);
+                }}
+                activeOpacity={0.7}
+              >
+                <Bell size={22} color={COLORS.text.primary} />
+                {pendingRequestsCount > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>
+                      {pendingRequestsCount > 99 ? '99+' : pendingRequestsCount}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <LogOut size={20} color="#EF4444" />
+              </TouchableOpacity>
+            </>
+          ) : currentUser ? (
+            <TouchableOpacity 
+              style={styles.myProfileButton} 
+              onPress={() => {
+                console.log('👆 [Profile] My Profile button pressed, navigating to own profile');
+                router.push({
+                  pathname: '/profile',
+                  params: { userId: currentUser.id.toString() }
+                } as any);
+              }}
+              activeOpacity={0.7}
+            >
+              {currentUser.avatarUrl ? (
+                <Image source={{ uri: currentUser.avatarUrl }} style={styles.myProfileAvatar} />
+              ) : (
+                <View style={styles.myProfileAvatarPlaceholder}>
+                  <UserIcon size={20} color={COLORS.primary} />
+                </View>
+              )}
           </TouchableOpacity>
         ) : (
           <View style={styles.placeholder} />
         )}
+        </View>
       </View>
 
       {/* Main FlatList with Profile as Header */}
@@ -716,14 +1068,40 @@ export default function UserProfileScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
           <Text style={styles.loadingText}>
-            {activeTab === 'posts' ? 'Đang tải bài viết...' : 'Đang tải bài viết đã chia sẻ...'}
+            {activeTab === 'posts' 
+              ? 'Đang tải bài viết...' 
+              : activeTab === 'shared' 
+                ? 'Đang tải bài viết đã chia sẻ...'
+                : 'Đang tải danh sách bạn bè...'}
           </Text>
         </View>
+      ) : activeTab === 'posts' ? (
+        <FlatList
+          data={posts}
+          renderItem={renderPostItem}
+          keyExtractor={(item) => item.id.toString()}
+          ListHeaderComponent={renderListHeader}
+          ListEmptyComponent={renderEmptyComponent}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.postsList}
+          style={styles.mainFlatList}
+        />
+      ) : activeTab === 'shared' ? (
+        <FlatList
+          data={sharedPosts}
+          renderItem={renderSharedPostItem}
+          keyExtractor={(item) => item.id.toString()}
+          ListHeaderComponent={renderListHeader}
+          ListEmptyComponent={renderEmptyComponent}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.postsList}
+          style={styles.mainFlatList}
+        />
       ) : (
         <FlatList
-          data={getData()}
-          renderItem={getRenderItem()}
-          keyExtractor={(item) => item.id.toString()}
+          data={friends}
+          renderItem={renderFriendItem}
+          keyExtractor={(item) => `friend-${item.id}`}
           ListHeaderComponent={renderListHeader}
           ListEmptyComponent={renderEmptyComponent}
           showsVerticalScrollIndicator={false}
@@ -932,11 +1310,63 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.black,
   } as TextStyle,
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: RESPONSIVE_SPACING.xs,
+  } as ViewStyle,
+  bellButton: {
+    width: 40,
+    height: 40,
+    borderRadius: BORDER_RADIUS.full,
+    backgroundColor: '#f8f9fa',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  } as ViewStyle,
+  badge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: COLORS.error,
+    borderRadius: BORDER_RADIUS.full,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: COLORS.white,
+  } as ViewStyle,
+  badgeText: {
+    color: COLORS.white,
+    fontSize: 10,
+    fontWeight: '700',
+  } as TextStyle,
   logoutButton: {
     width: 40,
     height: 40,
     borderRadius: BORDER_RADIUS.full,
     backgroundColor: '#f8f9fa',
+    justifyContent: 'center',
+    alignItems: 'center',
+  } as ViewStyle,
+  myProfileButton: {
+    width: 40,
+    height: 40,
+    borderRadius: BORDER_RADIUS.full,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+  } as ViewStyle,
+  myProfileAvatar: {
+    width: '100%',
+    height: '100%',
+  } as ImageStyle,
+  myProfileAvatarPlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: COLORS.primary + '20',
     justifyContent: 'center',
     alignItems: 'center',
   } as ViewStyle,
@@ -1314,5 +1744,82 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontWeight: '700',
     fontSize: RESPONSIVE_FONT_SIZES.md,
+  } as TextStyle,
+  friendActionContainer: {
+    marginTop: RESPONSIVE_SPACING.md,
+  } as ViewStyle,
+  friendActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 44,
+    borderRadius: BORDER_RADIUS.md,
+    gap: RESPONSIVE_SPACING.xs,
+  } as ViewStyle,
+  addFriendButton: {
+    backgroundColor: COLORS.primary,
+  } as ViewStyle,
+  friendButton: {
+    backgroundColor: COLORS.darkGray,
+  } as ViewStyle,
+  pendingButton: {
+    backgroundColor: COLORS.gray,
+  } as ViewStyle,
+  friendActionButtonText: {
+    fontSize: RESPONSIVE_FONT_SIZES.md,
+    fontWeight: '600',
+    color: COLORS.white,
+  } as TextStyle,
+  friendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.md,
+    backgroundColor: COLORS.white,
+    marginBottom: RESPONSIVE_SPACING.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border.primary,
+  } as ViewStyle,
+  friendItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  } as ViewStyle,
+  friendAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: BORDER_RADIUS.full,
+    marginRight: RESPONSIVE_SPACING.md,
+  } as ImageStyle,
+  friendAvatarPlaceholder: {
+    backgroundColor: COLORS.lightGray,
+    justifyContent: 'center',
+    alignItems: 'center',
+  } as ViewStyle,
+  friendInfo: {
+    flex: 1,
+  } as ViewStyle,
+  friendName: {
+    fontSize: RESPONSIVE_FONT_SIZES.md,
+    fontWeight: '600',
+    color: COLORS.text.primary,
+    marginBottom: 2,
+  } as TextStyle,
+  friendBio: {
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    color: COLORS.text.secondary,
+  } as TextStyle,
+  unfriendButton: {
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.sm,
+    backgroundColor: COLORS.darkGray,
+    borderRadius: BORDER_RADIUS.md,
+    marginLeft: RESPONSIVE_SPACING.sm,
+  } as ViewStyle,
+  unfriendButtonText: {
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    fontWeight: '600',
+    color: COLORS.white,
   } as TextStyle,
 });

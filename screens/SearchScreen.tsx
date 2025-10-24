@@ -23,10 +23,13 @@ export default function SearchScreen() {
                    <UserSearchResults 
                      searchQuery={searchQuery}
                      onUserPress={(userId) => {
-                       // Navigate to user profile test screen
+                       // Navigate to user profile screen
                        console.log(`🎯 [SearchScreen] UserSearchResults onUserPress called with userId: ${userId}`);
-                       console.log(`🎯 [SearchScreen] About to navigate to /profile-test?userId=${userId}`);
-                       router.push(`/profile-test?userId=${userId}`);
+                       console.log(`🎯 [SearchScreen] About to navigate to /profile?userId=${userId}`);
+                       router.push({
+                         pathname: '/profile',
+                         params: { userId: userId.toString() }
+                       } as any);
                        console.log(`✅ [SearchScreen] Navigation command sent`);
                      }}
                    />
@@ -34,10 +37,13 @@ export default function SearchScreen() {
                      <SuggestedUsers 
                        limit={20}
                        onUserPress={(userId) => {
-                         // Navigate to user profile test screen
+                         // Navigate to user profile screen
                          console.log(`🎯 [SearchScreen] SuggestedUsers onUserPress called with userId: ${userId}`);
-                         console.log(`🎯 [SearchScreen] About to navigate to /profile-test?userId=${userId}`);
-                         router.push(`/profile-test?userId=${userId}`);
+                         console.log(`🎯 [SearchScreen] About to navigate to /profile?userId=${userId}`);
+                         router.push({
+                           pathname: '/profile',
+                           params: { userId: userId.toString() }
+                         } as any);
                          console.log(`✅ [SearchScreen] Navigation command sent`);
                        }}
                      />

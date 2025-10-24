@@ -36,20 +36,37 @@ export const UserSearchResults: React.FC<UserSearchResultsProps> = ({
       }
       setError(null);
 
-      console.log(`[UserSearchResults] Searching users: "${query}", page: ${page}`);
+      console.log(`[UserSearchResults] Searching users: "${query}"`);
       
       const result = await userAPI.searchUsers(query, page, 20) as any;
       
       console.log(`[UserSearchResults] Search result:`, result);
+      console.log(`[UserSearchResults] Is Array?`, Array.isArray(result));
+      console.log(`[UserSearchResults] Result type:`, typeof result);
       
-      if (page === 1) {
-        setUsers(result.users);
+      // Backend có thể trả về:
+      // 1. Array của users: [{...}, {...}]
+      // 2. Single user object: {...}
+      // 3. Object có property users: {users: [...]}
+      if (Array.isArray(result)) {
+        console.log(`[UserSearchResults] Setting users from array, count:`, result.length);
+        setUsers(result as User[]);
+        setHasMore(false);
+      } else if (result && result.id) {
+        // Single user object - wrap trong array
+        console.log(`[UserSearchResults] Single user object, wrapping in array`);
+        setUsers([result] as User[]);
+        setHasMore(false);
+      } else if (result && result.users) {
+        // Object có property users
+        console.log(`[UserSearchResults] Setting users from result.users`);
+        setUsers((result.users || []) as User[]);
+        setHasMore(false);
       } else {
-        setUsers(prev => [...prev, ...result.users]);
+        console.log(`[UserSearchResults] Unknown format, setting empty array`);
+        setUsers([]);
+        setHasMore(false);
       }
-      
-      setHasMore(result.currentPage < result.totalPages);
-      setCurrentPage(result.currentPage);
       
     } catch (err: any) {
       console.error('[UserSearchResults] Search error:', err);
@@ -60,6 +77,7 @@ export const UserSearchResults: React.FC<UserSearchResultsProps> = ({
         errorMessage = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
       } else if (err.response?.status === 404) {
         errorMessage = 'Không tìm thấy kết quả nào';
+        setUsers([]); // Set empty array for 404
       } else if (err.code === 'NETWORK_ERROR') {
         errorMessage = 'Lỗi kết nối mạng. Vui lòng kiểm tra internet.';
       }
@@ -72,14 +90,13 @@ export const UserSearchResults: React.FC<UserSearchResultsProps> = ({
   };
 
   const handleRefresh = () => {
-    setCurrentPage(1);
     searchUsers(searchQuery, 1, true);
   };
 
   const handleLoadMore = () => {
-    if (!loading && hasMore) {
-      searchUsers(searchQuery, currentPage + 1);
-    }
+    // Backend không có pagination nên không cần load more
+    // Giữ function này để tránh lỗi nhưng không làm gì
+    return;
   };
 
   const handleUserPress = (userId: number) => {
@@ -87,15 +104,17 @@ export const UserSearchResults: React.FC<UserSearchResultsProps> = ({
       onUserPress(userId);
     } else {
       // Default behavior: navigate to user profile
-      router.push(`/profile?userId=${userId}`);
+      router.push({
+        pathname: '/profile',
+        params: { userId: userId.toString() }
+      } as any);
     }
   };
 
   // Search when query changes
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      setCurrentPage(1);
-      searchUsers(searchQuery, 1);
+      searchUsers(searchQuery);
     }, 500); // Debounce search
 
     return () => clearTimeout(timeoutId);
