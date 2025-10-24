@@ -14,6 +14,13 @@ export default function SearchScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
+  // Sample groups data
+  const sampleGroups = [
+    { id: '1', name: 'Lập trình React Native', members: 1234, isPrivate: false },
+    { id: '2', name: 'Du lịch Việt Nam', members: 567, isPrivate: false },
+    { id: '3', name: 'Ẩm thực Sài Gòn', members: 890, isPrivate: false },
+  ];
+
   const renderContent = () => {
     switch (activeTab) {
       case 'users':
@@ -80,8 +87,32 @@ export default function SearchScreen() {
         return (
           <ScrollView style={styles.content}>
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Nhóm phổ biến</Text>
-              <Text style={styles.comingSoon}>Chức năng đang phát triển</Text>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Nhóm phổ biến</Text>
+                <TouchableOpacity onPress={() => router.push('/groups')}>
+                  <Text style={styles.seeAllText}>Xem tất cả</Text>
+                </TouchableOpacity>
+              </View>
+              {sampleGroups.map((group) => (
+                <TouchableOpacity
+                  key={group.id}
+                  style={styles.groupCard}
+                  onPress={() => router.push(`/group-detail?id=${group.id}`)}
+                >
+                  <View style={styles.groupAvatar}>
+                    <Text style={styles.groupAvatarText}>
+                      {group.name.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={styles.groupInfo}>
+                    <Text style={styles.groupName}>{group.name}</Text>
+                    <Text style={styles.groupMembers}>{group.members} thành viên</Text>
+                  </View>
+                  <TouchableOpacity style={styles.joinGroupButton}>
+                    <Text style={styles.joinGroupText}>Tham gia</Text>
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              ))}
             </View>
           </ScrollView>
         );
@@ -345,5 +376,56 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     padding: RESPONSIVE_SPACING.xl,
     fontStyle: 'italic',
+  },
+  seeAllText: {
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+  groupCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.sm,
+    backgroundColor: COLORS.background.secondary,
+    marginBottom: RESPONSIVE_SPACING.xs,
+  },
+  groupAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: BORDER_RADIUS.md,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: RESPONSIVE_SPACING.sm,
+  },
+  groupAvatarText: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
+    color: COLORS.white,
+  },
+  groupInfo: {
+    flex: 1,
+  },
+  groupName: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+    color: COLORS.text.primary,
+    marginBottom: 4,
+  },
+  groupMembers: {
+    fontSize: FONT_SIZES.xs,
+    color: COLORS.text.gray,
+  },
+  joinGroupButton: {
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.xs,
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.sm,
+  },
+  joinGroupText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+    color: COLORS.white,
   },
 });

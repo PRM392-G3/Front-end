@@ -19,7 +19,7 @@ export default function UserProfileScreen() {
   const { updatePost, updatePostLike, updatePostShare, initializePosts } = usePostContext();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'posts' | 'shared' | 'friends'>('posts');
+  const [activeTab, setActiveTab] = useState<'posts' | 'shared' | 'friends' | 'groups'>('posts');
   const [posts, setPosts] = useState<PostResponse[]>([]);
   const [postsLoading, setPostsLoading] = useState(false);
   const [sharedPosts, setSharedPosts] = useState<PostResponse[]>([]);
@@ -851,9 +851,23 @@ export default function UserProfileScreen() {
           }}
           activeOpacity={0.7}
         >
-          <Users size={20} color={activeTab === 'friends' ? COLORS.primary : COLORS.gray} />
+          <UserIcon size={20} color={activeTab === 'friends' ? COLORS.primary : COLORS.gray} />
           <Text style={[styles.tabText, activeTab === 'friends' && styles.activeTabText]}>
             Bạn bè
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'groups' && styles.activeTab]}
+          onPress={() => {
+            console.log('👆 [Profile] Groups tab pressed');
+            setActiveTab('groups');
+          }}
+          activeOpacity={0.7}
+        >
+          <Users size={20} color={activeTab === 'groups' ? COLORS.primary : COLORS.gray} />
+          <Text style={[styles.tabText, activeTab === 'groups' && styles.activeTabText]}>
+            Nhóm
           </Text>
         </TouchableOpacity>
       </View>
@@ -1002,6 +1016,12 @@ export default function UserProfileScreen() {
 
   const isLoading = activeTab === 'posts' ? postsLoading : activeTab === 'shared' ? sharedPostsLoading : activeTab === 'friends' ? friendsLoading : false;
 
+  // Sample groups data
+  const userGroups = [
+    { id: '1', name: 'Lập trình React Native', members: 1234 },
+    { id: '2', name: 'Du lịch Việt Nam', members: 567 },
+  ];
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
@@ -1097,13 +1117,49 @@ export default function UserProfileScreen() {
           contentContainerStyle={styles.postsList}
           style={styles.mainFlatList}
         />
-      ) : (
+      ) : activeTab === 'friends' ? (
         <FlatList
           data={friends}
           renderItem={renderFriendItem}
           keyExtractor={(item) => `friend-${item.id}`}
           ListHeaderComponent={renderListHeader}
           ListEmptyComponent={renderEmptyComponent}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.postsList}
+          style={styles.mainFlatList}
+        />
+      ) : (
+        <FlatList
+          data={userGroups}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              key={item.id}
+              style={styles.groupItem}
+              onPress={() => router.push(`/group-detail?id=${item.id}`)}
+            >
+              <View style={styles.groupItemAvatar}>
+                <Users size={24} color={COLORS.white} />
+              </View>
+              <View style={styles.groupItemInfo}>
+                <Text style={styles.groupItemName}>{item.name}</Text>
+                <Text style={styles.groupItemMembers}>{item.members} thành viên</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+          keyExtractor={(item) => `group-${item.id}`}
+          ListHeaderComponent={renderListHeader}
+          ListEmptyComponent={() => (
+            <View style={styles.emptyContainer}>
+              <Users size={64} color={COLORS.gray} />
+              <Text style={styles.emptyText}>Chưa tham gia nhóm nào</Text>
+              <TouchableOpacity 
+                style={styles.createGroupButton}
+                onPress={() => router.push('/create-group')}
+              >
+                <Text style={styles.createGroupButtonText}>Tạo nhóm mới</Text>
+              </TouchableOpacity>
+            </View>
+          )}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.postsList}
           style={styles.mainFlatList}
@@ -1822,4 +1878,53 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.white,
   } as TextStyle,
+  groupItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: RESPONSIVE_SPACING.md,
+    backgroundColor: COLORS.background.secondary,
+    borderRadius: BORDER_RADIUS.md,
+    marginHorizontal: RESPONSIVE_SPACING.md,
+    marginBottom: RESPONSIVE_SPACING.sm,
+  } as ViewStyle,
+  groupItemAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: BORDER_RADIUS.md,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: RESPONSIVE_SPACING.md,
+  } as ViewStyle,
+  groupItemInfo: {
+    flex: 1,
+  } as ViewStyle,
+  groupItemName: {
+    fontSize: RESPONSIVE_FONT_SIZES.md,
+    fontWeight: '600',
+    color: COLORS.text.primary,
+    marginBottom: 4,
+  } as TextStyle,
+  groupItemMembers: {
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    color: COLORS.text.gray,
+  } as TextStyle,
+  createGroupButton: {
+    paddingHorizontal: RESPONSIVE_SPACING.lg,
+    paddingVertical: RESPONSIVE_SPACING.sm,
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.md,
+    marginTop: RESPONSIVE_SPACING.md,
+  } as ViewStyle,
+  createGroupButtonText: {
+    fontSize: RESPONSIVE_FONT_SIZES.md,
+    fontWeight: '600',
+    color: COLORS.white,
+  } as TextStyle,
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: RESPONSIVE_SPACING.xl * 2,
+  } as ViewStyle,
 });
