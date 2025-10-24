@@ -454,6 +454,55 @@ export default function UserProfileScreen() {
     );
   };
 
+  const handleFollow = async () => {
+    if (!currentUser || !user) return;
+
+    try {
+      console.log(`🚀 [UserProfile] Following user ${user.id}`);
+      await userAPI.followUser(currentUser.id, user.id);
+      console.log(`✅ [UserProfile] Followed successfully`);
+      
+      // Update local state
+      setUser(prev => prev ? { ...prev, isFollowing: true, followersCount: (prev.followersCount || 0) + 1 } : null);
+      
+      Alert.alert('Thành công', `Đã theo dõi ${user.fullName}`);
+    } catch (error: any) {
+      console.error('❌ [UserProfile] Error following user:', error);
+      Alert.alert('Lỗi', 'Không thể theo dõi người dùng này');
+    }
+  };
+
+  const handleUnfollow = async () => {
+    if (!currentUser || !user) return;
+
+    Alert.alert(
+      'Bỏ theo dõi',
+      `Bạn có chắc chắn muốn bỏ theo dõi ${user.fullName}?`,
+      [
+        { text: 'Không', style: 'cancel' },
+        {
+          text: 'Bỏ theo dõi',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              console.log(`🚀 [UserProfile] Unfollowing user ${user.id}`);
+              await userAPI.unfollowUser(currentUser.id, user.id);
+              console.log(`✅ [UserProfile] Unfollowed successfully`);
+              
+              // Update local state
+              setUser(prev => prev ? { ...prev, isFollowing: false, followersCount: Math.max((prev.followersCount || 0) - 1, 0) } : null);
+              
+              Alert.alert('Thành công', 'Đã bỏ theo dõi');
+            } catch (error: any) {
+              console.error('❌ [UserProfile] Error unfollowing user:', error);
+              Alert.alert('Lỗi', 'Không thể bỏ theo dõi người dùng này');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const handleGoBack = () => {
     router.back();
   };
@@ -808,6 +857,31 @@ export default function UserProfileScreen() {
                 <Users size={18} color={COLORS.white} />
                 <Text style={styles.friendActionButtonText}>Thêm bạn bè</Text>
           </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Follow Action Button - Show for other users */}
+        {currentUser && user && currentUser.id !== user.id && (
+          <View style={styles.followActionContainer}>
+            {user.isFollowing ? (
+              <TouchableOpacity 
+                style={[styles.followActionButton, styles.unfollowButton]} 
+                onPress={handleUnfollow}
+                activeOpacity={0.7}
+              >
+                <UserIcon size={18} color={COLORS.white} />
+                <Text style={styles.followActionButtonText}>Bỏ theo dõi</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity 
+                style={[styles.followActionButton, styles.followButton]} 
+                onPress={handleFollow}
+                activeOpacity={0.7}
+              >
+                <UserIcon size={18} color={COLORS.white} />
+                <Text style={styles.followActionButtonText}>Theo dõi</Text>
+              </TouchableOpacity>
             )}
           </View>
         )}
@@ -1766,6 +1840,28 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.gray,
   } as ViewStyle,
   friendActionButtonText: {
+    fontSize: RESPONSIVE_FONT_SIZES.md,
+    fontWeight: '600',
+    color: COLORS.white,
+  } as TextStyle,
+  followActionContainer: {
+    marginTop: RESPONSIVE_SPACING.sm,
+  } as ViewStyle,
+  followActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 44,
+    borderRadius: BORDER_RADIUS.md,
+    gap: RESPONSIVE_SPACING.xs,
+  } as ViewStyle,
+  followButton: {
+    backgroundColor: COLORS.success,
+  } as ViewStyle,
+  unfollowButton: {
+    backgroundColor: COLORS.accent.danger,
+  } as ViewStyle,
+  followActionButtonText: {
     fontSize: RESPONSIVE_FONT_SIZES.md,
     fontWeight: '600',
     color: COLORS.white,

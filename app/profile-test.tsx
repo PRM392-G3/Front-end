@@ -539,11 +539,6 @@ const styles = StyleSheet.create({
   postsFlatList: {
     flex: 1,
   },
-  loadingText: {
-    marginTop: RESPONSIVE_SPACING.sm,
-    fontSize: RESPONSIVE_FONT_SIZES.md,
-    color: COLORS.gray,
-  },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',

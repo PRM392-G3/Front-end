@@ -6,11 +6,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { UserSearchResults } from '@/components/UserSearchResults';
 import { SuggestedUsers } from '@/components/SuggestedUsers';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
 
 export default function SearchScreen() {
   const [activeTab, setActiveTab] = useState<'users' | 'posts' | 'groups' | 'events'>('users');
   const [searchQuery, setSearchQuery] = useState('');
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -35,6 +37,7 @@ export default function SearchScreen() {
                    />
             ) : (
                      <SuggestedUsers 
+                       userId={user?.id || 0}
                        limit={20}
                        onUserPress={(userId) => {
                          // Navigate to user profile screen

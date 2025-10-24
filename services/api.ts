@@ -250,6 +250,16 @@ export const userAPI = {
     }
   },
 
+  // Lấy danh sách following với thông tin follow status
+  getFollowingWithStatus: async (userId: number) => {
+    try {
+      const response = await api.get(`/User/${userId}/following/with-status`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
   // Lấy thông tin chi tiết của một user
   getUserById: async (userId: number) => {
     try {
@@ -304,10 +314,20 @@ export const userAPI = {
     }
   },
 
-  // Lấy danh sách người dùng được đề xuất
-  getSuggestedUsers: async (limit: number = 10) => {
+  // Lấy danh sách followers với thông tin follow status
+  getFollowersWithStatus: async (userId: number) => {
     try {
-      const response = await api.get(`/User/suggested?limit=${limit}`);
+      const response = await api.get(`/User/${userId}/followers/with-status`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Lấy danh sách người dùng được đề xuất
+  getSuggestedUsers: async (userId: number, limit: number = 10) => {
+    try {
+      const response = await api.get(`/User/${userId}/friend-suggestions?limit=${limit}`);
       return response.data;
     } catch (error) {
       throw error;
