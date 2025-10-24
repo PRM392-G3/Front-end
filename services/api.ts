@@ -547,6 +547,16 @@ export const postAPI = {
     }
   },
 
+  // Get all posts with like status for current user
+  getAllPostsWithLikes: async () => {
+    try {
+      const response = await api.get('/Post/with-likes');
+      return response.data as PostResponse[];
+    } catch (error) {
+      throw error;
+    }
+  },
+
   // Get posts by user ID
   getPostsByUser: async (userId: number) => {
     try {
@@ -557,7 +567,7 @@ export const postAPI = {
     }
   },
 
-  // Get shared posts by user ID
+  // Get shared posts by user ID with like status
   getSharedPostsByUser: async (userId: number) => {
     try {
       const response = await api.get(`/Post/user/${userId}/shares`);
@@ -777,26 +787,8 @@ export const shareAPI = {
     try {
       console.log('shareAPI: Unsharing post:', postId, 'for user:', userId);
       
-      // Try different API endpoints in case the first one fails
-      let response;
-      try {
-        response = await api.delete(`/Share/${postId}/unshare/${userId}`);
-        console.log('shareAPI: Unshare response (method 1):', response.status);
-      } catch (firstError: any) {
-        console.warn('shareAPI: First method failed, trying alternative:', firstError.message);
-        
-        // Try alternative endpoint
-        try {
-          response = await api.delete(`/Share/unshare/${userId}/${postId}`);
-          console.log('shareAPI: Unshare response (method 2):', response.status);
-        } catch (secondError: any) {
-          console.warn('shareAPI: Second method failed, trying third:', secondError.message);
-          
-          // Try third alternative endpoint
-          response = await api.delete(`/Share/${userId}/${postId}/unshare`);
-          console.log('shareAPI: Unshare response (method 3):', response.status);
-        }
-      }
+      const response = await api.delete(`/Share/unshare/${postId}`);
+      console.log('shareAPI: Unshare response:', response.status);
       
       return response.data;
     } catch (error: any) {
@@ -855,7 +847,7 @@ export const shareAPI = {
   // Check if user has shared post
   hasUserSharedPost: async (userId: number, postId: number) => {
     try {
-      const response = await api.get(`/Share/has-shared/${userId}/${postId}`);
+      const response = await api.get(`/Share/check/${postId}`);
       return response.data;
     } catch (error: any) {
       console.error('Error checking if user shared post:', error);

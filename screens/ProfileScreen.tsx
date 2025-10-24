@@ -202,10 +202,12 @@ export default function UserProfileScreen() {
   const loadUserPosts = async (userId: number) => {
     try {
       setPostsLoading(true);
-      console.log(`🚀 [ProfileScreen] Loading posts for user ${userId}`);
+      console.log(`🚀 [ProfileScreen] Loading posts for user ${userId} with like status`);
       const postsData = await postAPI.getPostsByUser(userId);
-      console.log(`✅ [ProfileScreen] Posts loaded:`, postsData);
+      console.log(`✅ [ProfileScreen] Posts loaded with like status:`, postsData);
       console.log(`📊 [ProfileScreen] Posts count: ${postsData.length}`);
+      
+      // Initialize posts with like/share status from backend
       initializePosts(postsData);
       setPosts(postsData);
     } catch (error: any) {
@@ -229,9 +231,12 @@ export default function UserProfileScreen() {
   const loadSharedPosts = async (userId: number) => {
     try {
       setSharedPostsLoading(true);
-      console.log(`🚀 [UserProfile] Loading shared posts for user ${userId}`);
+      console.log(`🚀 [UserProfile] Loading shared posts for user ${userId} with like status`);
       const sharedPostsData = await postAPI.getSharedPostsByUser(userId);
-      console.log(`✅ [UserProfile] Shared posts loaded:`, sharedPostsData);
+      console.log(`✅ [UserProfile] Shared posts loaded with like status:`, sharedPostsData);
+      
+      // Initialize shared posts with like/share status from backend
+      initializePosts(sharedPostsData);
       setSharedPosts(sharedPostsData);
     } catch (error: any) {
       console.error('❌ [UserProfile] Shared posts loading error:', error);
@@ -610,9 +615,58 @@ export default function UserProfileScreen() {
               updatePostShare(postId, false);
               
               console.log(`✅ [Profile] Successfully unshared post ${postId}`);
+              
+              // Reload profile data to ensure consistency
+              setTimeout(async () => {
+                try {
+                  console.log('🔄 [Profile] Reloading profile data after unshare...');
+                  await fetchUserProfile();
+                } catch (error) {
+                  console.error('❌ [Profile] Error reloading profile:', error);
+                }
+              }, 1000);
             } catch (error: any) {
               console.error('❌ [Profile] Error unsharing post:', error);
-              Alert.alert('Lỗi', 'Không thể bỏ chia sẻ bài viết');
+              
+              // Handle case where post was already unshared
+              if (error.message?.includes('đã được bỏ chia sẻ') || 
+                  error.message?.includes('không tồn tại')) {
+                console.log(`✅ [Profile] Post ${postId} was already unshared, updating UI`);
+                
+                // Remove from shared posts list anyway
+                setSharedPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
+                
+                // Update share count in original posts list
+                setPosts(prevPosts => 
+                  prevPosts.map(post => 
+                    post.id === postId 
+                      ? { 
+                          ...post, 
+                          isShared: false,
+                          shareCount: Math.max(0, post.shareCount - 1)
+                        }
+                      : post
+                  )
+                );
+                
+                // Update global context
+                updatePostShare(postId, false);
+                
+                // Reload profile data to ensure consistency
+                setTimeout(async () => {
+                  try {
+                    console.log('🔄 [Profile] Reloading profile data after unshare...');
+                    await fetchUserProfile();
+                  } catch (error) {
+                    console.error('❌ [Profile] Error reloading profile:', error);
+                  }
+                }, 1000);
+                
+                Alert.alert('Thành công', 'Đã bỏ chia sẻ bài viết');
+                return;
+              }
+              
+              Alert.alert('Lỗi', error.message || 'Không thể bỏ chia sẻ bài viết');
             }
           }
         }
@@ -704,16 +758,6 @@ export default function UserProfileScreen() {
         onCommentCountUpdate={handleCommentCountUpdate}
         showImage={true}
       />
-      {currentUser && user && currentUser.id === user.id && (
-        <TouchableOpacity 
-          style={styles.unshareButton}
-          onPress={() => handleUnsharePost(item.id)}
-          activeOpacity={0.7}
-        >
-          <Share2 size={16} color={COLORS.accent.danger} />
-          <Text style={styles.unshareButtonText}>Bỏ chia sẻ</Text>
-        </TouchableOpacity>
-      )}
     </View>
   );
 
@@ -779,12 +823,12 @@ export default function UserProfileScreen() {
             }}
             activeOpacity={0.7}
           >
-            <Text style={styles.statNumber}>{posts.length}</Text>
+            <Text style={styles.statNumber}>{posts.length + sharedPosts.length}</Text>
             <Text style={styles.statLabel}>Bài viết</Text>
             {/* Debug: Show posts count */}
             {__DEV__ && (
               <Text style={{ fontSize: 10, color: 'red' }}>
-                Debug: {posts.length} posts loaded
+                Debug: {posts.length} created + {sharedPosts.length} shared = {posts.length + sharedPosts.length} total
               </Text>
             )}
           </TouchableOpacity>
@@ -1626,25 +1670,6 @@ const styles = StyleSheet.create({
   sharedPostContainer: {
     marginBottom: RESPONSIVE_SPACING.md,
   } as ViewStyle,
-  unshareButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.background.secondary,
-    borderWidth: 1,
-    borderColor: COLORS.accent.danger,
-    borderRadius: BORDER_RADIUS.md,
-    paddingHorizontal: RESPONSIVE_SPACING.md,
-    paddingVertical: RESPONSIVE_SPACING.sm,
-    marginHorizontal: RESPONSIVE_SPACING.md,
-    marginTop: RESPONSIVE_SPACING.sm,
-  } as ViewStyle,
-  unshareButtonText: {
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
-    color: COLORS.accent.danger,
-    fontWeight: '600',
-    marginLeft: RESPONSIVE_SPACING.xs,
-  } as TextStyle,
   postsContainer: {
     flex: 1,
   } as ViewStyle,

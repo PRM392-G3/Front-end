@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, RefreshControl, Alert, FlatList } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, FONT_SIZES, BORDER_RADIUS, SAFE_AREA, DIMENSIONS } from '@/constants/theme';
 import PostCard from '@/components/PostCard';
@@ -17,13 +17,21 @@ export default function HomeScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const { user } = useAuth();
-  const { posts, setPosts, updatePostLike, updatePostShare, updatePost, getPostShareState, initializePosts } = usePostContext();
+  const { posts, setPosts, updatePostLike, updatePostShare, updatePost, getPostShareState, initializePosts, forceRefreshPosts } = usePostContext();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const autoRefreshTimer = useRef<NodeJS.Timeout | null>(null);
 
-  const fetchPosts = useCallback(async () => {
+  const fetchPosts = useCallback(async (forceRefresh = false) => {
     try {
-      const fetchedPosts = await postAPI.getAllPosts();
+      console.log('🏠 [HomeScreen] Fetching posts with like status...', forceRefresh ? '(force refresh)' : '');
+      
+      if (forceRefresh) {
+        forceRefreshPosts();
+      }
+      
+      const fetchedPosts = await postAPI.getAllPostsWithLikes();
+      console.log('🏠 [HomeScreen] Fetched posts:', fetchedPosts.length);
       initializePosts(fetchedPosts);
     } catch (error) {
       console.error('Error fetching posts:', error);
@@ -32,21 +40,74 @@ export default function HomeScreen() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [initializePosts]);
+  }, []);
 
-  // Load posts when screen focuses (only useFocusEffect, remove useEffect to prevent duplicate calls)
+  // Auto refresh timer
+  useEffect(() => {
+    const startAutoRefresh = () => {
+      if (autoRefreshTimer.current) {
+        clearInterval(autoRefreshTimer.current);
+      }
+      
+      // Auto refresh every 30 seconds
+      autoRefreshTimer.current = setInterval(async () => {
+        console.log('🏠 [HomeScreen] Auto refreshing posts...');
+        try {
+          forceRefreshPosts();
+          const fetchedPosts = await postAPI.getAllPostsWithLikes();
+          initializePosts(fetchedPosts);
+        } catch (error) {
+          console.error('Auto refresh error:', error);
+        }
+      }, 30000);
+    };
+
+    startAutoRefresh();
+
+    return () => {
+      if (autoRefreshTimer.current) {
+        clearInterval(autoRefreshTimer.current);
+      }
+    };
+  }, []);
+
+  // Load posts when screen focuses - always reload to get latest posts
   useFocusEffect(
     useCallback(() => {
-      if (user) {
-        fetchPosts();
-      }
-    }, [user, fetchPosts])
+      console.log('🏠 [HomeScreen] Screen focused, reloading posts...');
+      const loadPosts = async () => {
+        try {
+          setIsLoading(true);
+          forceRefreshPosts();
+          const fetchedPosts = await postAPI.getAllPostsWithLikes();
+          initializePosts(fetchedPosts);
+        } catch (error) {
+          console.error('Error fetching posts:', error);
+          Alert.alert('Lỗi', 'Không thể tải bài viết. Vui lòng thử lại.');
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      loadPosts();
+    }, [])
   );
 
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
-    fetchPosts();
-  }, [fetchPosts]);
+    const refreshPosts = async () => {
+      try {
+        forceRefreshPosts();
+        const fetchedPosts = await postAPI.getAllPostsWithLikes();
+        initializePosts(fetchedPosts);
+      } catch (error) {
+        console.error('Error refreshing posts:', error);
+        Alert.alert('Lỗi', 'Không thể tải bài viết. Vui lòng thử lại.');
+      } finally {
+        setIsRefreshing(false);
+      }
+    };
+    refreshPosts();
+  }, []);
 
   const handlePostLike = useCallback((postId: number, isLiked: boolean) => {
     // PostCard already calls updatePostLike, so we don't need to call it again
@@ -120,8 +181,19 @@ export default function HomeScreen() {
       <CreatePostScreen
         onClose={() => setShowCreatePost(false)}
         onPostCreated={(newPost) => {
+          // Add new post to the beginning of the list
           setPosts([newPost, ...posts]);
           setShowCreatePost(false);
+          // Force refresh to get latest data from server
+          setTimeout(async () => {
+            try {
+              forceRefreshPosts();
+              const fetchedPosts = await postAPI.getAllPostsWithLikes();
+              initializePosts(fetchedPosts);
+            } catch (error) {
+              console.error('Error refreshing after post creation:', error);
+            }
+          }, 1000);
         }}
       />
     );

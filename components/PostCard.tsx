@@ -61,36 +61,13 @@ export default function PostCard({
     player.muted = true;
   });
 
-  // Check actual like status from API - only once per post
+  // Use like status from backend - no need to check API
   useEffect(() => {
-    const checkLikeStatus = async () => {
-      if (!user || actualIsLiked !== null) return; // Already checked or no user
-      
-      try {
-        setIsCheckingLikeStatus(true);
-        console.log(`🔍 [PostCard] Checking like status for post ${postData.id}`);
-        
-        const likesData = await postAPI.getPostLikes(postData.id);
-        const userLiked = likesData.some(likeUser => likeUser.id === user.id);
-        
-        console.log(`✅ [PostCard] Like status for post ${postData.id}:`, userLiked);
-        setActualIsLiked(userLiked);
-        
-        // Update context with correct status
-        if (userLiked !== (postData.isLiked ?? false)) {
-          updatePostLike(postData.id, userLiked);
-        }
-      } catch (error: any) {
-        console.error(`❌ [PostCard] Error checking like status for post ${postData.id}:`, error);
-        // If API fails, fall back to postData.isLiked
-        setActualIsLiked(postData.isLiked ?? false);
-      } finally {
-        setIsCheckingLikeStatus(false);
-      }
-    };
-
-    checkLikeStatus();
-  }, [postData.id, user?.id]); // Removed actualIsLiked from dependencies to prevent infinite loop
+    if (postData.isLiked !== undefined) {
+      setActualIsLiked(postData.isLiked);
+      console.log(`✅ [PostCard] Using like status from backend for post ${postData.id}:`, postData.isLiked);
+    }
+  }, [postData.isLiked]);
 
   const handleLikeToggle = async () => {
     if (!user || isLiking) return;
@@ -101,12 +78,14 @@ export default function PostCard({
         await postAPI.unlikePost(postData.id, user.id);
         setActualIsLiked(false); // Update local state
         updatePostLike(postData.id, false); // Update context
-        onLikeToggle?.(postData.id, false); // Callback for parent (no duplicate updatePostLike)
+        onLikeToggle?.(postData.id, false); // Callback for parent
+        console.log(`✅ [PostCard] Unliked post ${postData.id}`);
       } else {
         await postAPI.likePost(postData.id, user.id);
         setActualIsLiked(true); // Update local state
         updatePostLike(postData.id, true); // Update context
-        onLikeToggle?.(postData.id, true); // Callback for parent (no duplicate updatePostLike)
+        onLikeToggle?.(postData.id, true); // Callback for parent
+        console.log(`✅ [PostCard] Liked post ${postData.id}`);
       }
     } catch (error) {
       console.error('Error toggling like:', error);
@@ -190,6 +169,10 @@ export default function PostCard({
     router.push(`/profile?id=${postData.userId}` as any);
   };
 
+  const handlePostPress = () => {
+    router.push(`/post-detail?id=${postData.id}` as any);
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -237,7 +220,7 @@ export default function PostCard({
       </View>
 
       {/* Content */}
-      <View style={styles.content}>
+      <TouchableOpacity style={styles.content} onPress={handlePostPress}>
         <Text style={styles.postText}>
           {showFullContent ? postData.content : truncateContent(postData.content)}
         </Text>
@@ -249,22 +232,26 @@ export default function PostCard({
             </Text>
           </TouchableOpacity>
         )}
-      </View>
+      </TouchableOpacity>
 
       {/* Media */}
       {showImage && postData.imageUrl && (
-        <Image source={{ uri: postData.imageUrl }} style={styles.postImage} />
+        <TouchableOpacity onPress={handlePostPress}>
+          <Image source={{ uri: postData.imageUrl }} style={styles.postImage} />
+        </TouchableOpacity>
       )}
       
       {showImage && postData.videoUrl && (
-        <View style={styles.videoContainer}>
-          <VideoView
-            style={styles.video}
-            player={player}
-            allowsFullscreen
-            allowsPictureInPicture
-          />
-        </View>
+        <TouchableOpacity onPress={handlePostPress}>
+          <View style={styles.videoContainer}>
+            <VideoView
+              style={styles.video}
+              player={player}
+              allowsFullscreen
+              allowsPictureInPicture
+            />
+          </View>
+        </TouchableOpacity>
       )}
 
       {/* Tags */}

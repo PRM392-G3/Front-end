@@ -21,6 +21,7 @@ interface PostContextType {
   posts: PostResponse[];
   setPosts: (posts: PostResponse[]) => void;
   refreshPosts: () => void;
+  forceRefreshPosts: () => void;
 }
 
 const PostContext = createContext<PostContextType | undefined>(undefined);
@@ -169,13 +170,7 @@ export const PostProvider: React.FC<PostProviderProps> = ({ children }) => {
   const initializePosts = useCallback((newPosts: PostResponse[]) => {
     console.log('PostContext: Initializing posts with states:', newPosts.length);
     
-    // Prevent duplicate initialization with same posts
-    if (posts.length === newPosts.length && 
-        posts.every((post, index) => post.id === newPosts[index]?.id)) {
-      console.log('PostContext: Skipping duplicate initialization');
-      return;
-    }
-    
+    // Always update posts to get latest data from server
     setPosts(newPosts);
     
     // Initialize like and share states from posts, but preserve existing states
@@ -183,9 +178,20 @@ export const PostProvider: React.FC<PostProviderProps> = ({ children }) => {
       const newLikeMap = new Map(prevLikeStates);
       
       newPosts.forEach(post => {
-        // Only initialize if not already in state (preserve user actions)
-        if (!newLikeMap.has(post.id) && post.isLiked !== undefined) {
-          newLikeMap.set(post.id, { isLiked: post.isLiked ?? false, likeCount: post.likeCount });
+        // Always update with latest server data, but preserve user actions if they exist
+        const existingState = newLikeMap.get(post.id);
+        if (existingState) {
+          // Keep user's like status but update count from server
+          newLikeMap.set(post.id, { 
+            isLiked: existingState.isLiked, 
+            likeCount: post.likeCount 
+          });
+        } else {
+          // Initialize with server data
+          newLikeMap.set(post.id, { 
+            isLiked: post.isLiked ?? false, 
+            likeCount: post.likeCount 
+          });
         }
       });
       
@@ -199,9 +205,20 @@ export const PostProvider: React.FC<PostProviderProps> = ({ children }) => {
       const newShareMap = new Map(prevShareStates);
       
       newPosts.forEach(post => {
-        // Only initialize if not already in state (preserve user actions)
-        if (!newShareMap.has(post.id) && post.isShared !== undefined) {
-          newShareMap.set(post.id, { isShared: post.isShared ?? false, shareCount: post.shareCount });
+        // Always update with latest server data, but preserve user actions if they exist
+        const existingState = newShareMap.get(post.id);
+        if (existingState) {
+          // Keep user's share status but update count from server
+          newShareMap.set(post.id, { 
+            isShared: existingState.isShared, 
+            shareCount: post.shareCount 
+          });
+        } else {
+          // Initialize with server data
+          newShareMap.set(post.id, { 
+            isShared: post.isShared ?? false, 
+            shareCount: post.shareCount 
+          });
         }
       });
       
@@ -210,7 +227,7 @@ export const PostProvider: React.FC<PostProviderProps> = ({ children }) => {
       
       return newShareMap;
     });
-  }, [likeStates, shareStates]);
+  }, []);
 
   const clearStates = useCallback(async () => {
     console.log('PostContext: Clearing all states');
@@ -233,6 +250,14 @@ export const PostProvider: React.FC<PostProviderProps> = ({ children }) => {
     setPosts(prevPosts => [...prevPosts]);
   }, []);
 
+  const forceRefreshPosts = useCallback(() => {
+    console.log('PostContext: Force refreshing posts');
+    // Clear states and force components to refetch
+    setPosts([]);
+    setLikeStates(new Map());
+    setShareStates(new Map());
+  }, []);
+
   const value: PostContextType = {
     updatePostLike,
     getPostLikeState,
@@ -245,6 +270,7 @@ export const PostProvider: React.FC<PostProviderProps> = ({ children }) => {
     posts,
     setPosts,
     refreshPosts,
+    forceRefreshPosts,
   };
 
   return (
