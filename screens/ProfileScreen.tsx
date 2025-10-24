@@ -151,8 +151,11 @@ export default function UserProfileScreen() {
       console.log(`✅ [UserProfile] User name: ${userData.fullName}, Email: ${userData.email}`);
       setUser(userData);
       
-      // Load user posts after getting user data
-      await loadUserPosts(parseInt(userIdToFetch));
+      // Load both user posts and shared posts after getting user data
+      await Promise.all([
+        loadUserPosts(parseInt(userIdToFetch)),
+        loadSharedPosts(parseInt(userIdToFetch))
+      ]);
     } catch (error: any) {
       console.error('❌ [UserProfile] API ERROR:', error);
       console.error('[UserProfile] Error details:', {
