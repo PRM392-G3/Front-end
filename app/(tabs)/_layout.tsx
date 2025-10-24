@@ -1,6 +1,13 @@
 import { Tabs } from 'expo-router';
 import { COLORS, FONT_SIZES, DIMENSIONS } from '@/constants/theme';
-import { Hop as Home, Search, SquarePlus as PlusSquare, Bell, User } from 'lucide-react-native';
+import { 
+  Hop as Home, 
+  Search, 
+  SquarePlus as PlusSquare, 
+  MessageCircle,
+  PlaySquare,
+  User 
+} from 'lucide-react-native';
 import { AuthGuard } from '@/components/AuthGuard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -36,6 +43,13 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
+          name="reels"
+          options={{
+            title: 'Reels',
+            tabBarIcon: ({ size, color }) => <PlaySquare size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
           name="search"
           options={{
             title: 'Tìm kiếm',
@@ -43,17 +57,10 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="create"
+          name="chat"
           options={{
-            title: 'Tạo bài',
-            tabBarIcon: ({ size, color }) => <PlusSquare size={size} color={color} />,
-          }}
-        />
-        <Tabs.Screen
-          name="notifications"
-          options={{
-            title: 'Thông báo',
-            tabBarIcon: ({ size, color }) => <Bell size={size} color={color} />,
+            title: 'Chat',
+            tabBarIcon: ({ size, color }) => <MessageCircle size={size} color={color} />,
           }}
         />
         <Tabs.Screen
@@ -61,6 +68,19 @@ export default function TabLayout() {
           options={{
             title: 'Hồ sơ',
             tabBarIcon: ({ size, color }) => <User size={size} color={color} />,
+          }}
+        />
+        {/* Hidden tabs */}
+        <Tabs.Screen
+          name="create"
+          options={{
+            href: null, // Hide from tab bar
+          }}
+        />
+        <Tabs.Screen
+          name="notifications"
+          options={{
+            href: null, // Hide from tab bar
           }}
         />
       </Tabs>

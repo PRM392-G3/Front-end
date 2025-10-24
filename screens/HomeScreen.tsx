@@ -4,12 +4,13 @@ import { COLORS, RESPONSIVE_SPACING, FONT_SIZES, BORDER_RADIUS, SAFE_AREA, DIMEN
 import PostCard from '@/components/PostCard';
 import CreatePostScreen from '@/screens/CreatePostScreen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Plus, RefreshCw } from 'lucide-react-native';
+import { Plus, RefreshCw, Search, Bell } from 'lucide-react-native';
 import { postAPI, PostResponse } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePostContext } from '@/contexts/PostContext';
 import { useFocusEffect } from '@react-navigation/native';
 import { PostLikesTestComponent } from '@/components/PostLikesTestComponent';
+import { useRouter } from 'expo-router';
 
 export default function HomeScreen() {
   const [isLoading, setIsLoading] = useState(true);
@@ -18,6 +19,7 @@ export default function HomeScreen() {
   const { user } = useAuth();
   const { posts, setPosts, updatePostLike, updatePostShare, updatePost, getPostShareState, initializePosts } = usePostContext();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
 
   const fetchPosts = useCallback(async () => {
     try {
@@ -96,12 +98,20 @@ export default function HomeScreen() {
   const renderHeader = () => (
     <View style={[styles.header, { paddingTop: insets.top + RESPONSIVE_SPACING.sm }]}>
       <Text style={styles.headerTitle}>Trang chủ</Text>
-      <TouchableOpacity
-        style={styles.createPostButton}
-        onPress={() => setShowCreatePost(true)}
-      >
-        <Plus size={20} color={COLORS.text.primary} />
-      </TouchableOpacity>
+      <View style={styles.headerActions}>
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={() => router.push('/notifications')}
+        >
+          <Bell size={22} color={COLORS.text.primary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.createPostButton}
+          onPress={() => setShowCreatePost(true)}
+        >
+          <Plus size={22} color={COLORS.white} />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
@@ -178,6 +188,19 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.xl,
     fontWeight: '700',
     color: COLORS.text.primary,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: RESPONSIVE_SPACING.xs,
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.background.secondary,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   createPostButton: {
     width: 40,
