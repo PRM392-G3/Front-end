@@ -10,6 +10,11 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
 import {
@@ -21,10 +26,12 @@ import {
   MoreHorizontal,
   Camera,
   Search as SearchIcon,
+  X,
+  Send,
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { API } from '@/services/api';
+import { API, commentAPI } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { VideoView, useVideoPlayer } from 'expo-video';
 
@@ -106,6 +113,126 @@ interface ReelItemProps {
   onFollow: () => void;
   isMuted: boolean;
 }
+
+// Comment Modal Component
+const CommentModal = ({ 
+  visible, 
+  onClose, 
+  reel, 
+  onCommentSent 
+}: { 
+  visible: boolean; 
+  onClose: () => void;
+  reel: any;
+  onCommentSent: () => void;
+}) => {
+  const [commentText, setCommentText] = useState('');
+  const [comments, setComments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (visible && reel?.id) {
+      loadComments();
+    }
+  }, [visible, reel?.id]);
+
+  const loadComments = async () => {
+    try {
+      const data = await commentAPI.getCommentsByReel(reel.id);
+      setComments(data || []);
+    } catch (error) {
+      console.error('Error loading comments:', error);
+      setComments([]);
+    }
+  };
+
+  const handleSendComment = async () => {
+    if (!commentText.trim() || !user) return;
+    
+    setLoading(true);
+    try {
+      await commentAPI.createComment({
+        reelId: reel.id,
+        userId: user.id,
+        content: commentText.trim(),
+      });
+      setCommentText('');
+      loadComments();
+      onCommentSent();
+    } catch (error) {
+      console.error('Error sending comment:', error);
+      Alert.alert('Lỗi', 'Không thể gửi bình luận');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.modalContainer}
+      >
+        <View style={styles.modalContent}>
+          {/* Header */}
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Bình luận</Text>
+            <TouchableOpacity onPress={onClose}>
+              <X size={24} color={COLORS.white} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Comments List */}
+          <ScrollView style={styles.commentsList}>
+            {comments.length === 0 ? (
+              <View style={styles.emptyComments}>
+                <Text style={styles.emptyCommentsText}>Chưa có bình luận nào</Text>
+              </View>
+            ) : (
+              comments.map((comment) => (
+                <View key={comment.id} style={styles.commentItem}>
+                  <Image
+                    source={{ uri: comment.user?.avatarUrl || 'https://via.placeholder.com/40' }}
+                    style={styles.commentAvatar}
+                  />
+                  <View style={styles.commentContent}>
+                    <Text style={styles.commentAuthor}>{comment.user?.fullName || 'Unknown'}</Text>
+                    <Text style={styles.commentText}>{comment.content}</Text>
+                  </View>
+                </View>
+              ))
+            )}
+          </ScrollView>
+
+          {/* Input */}
+          <View style={styles.commentInputContainer}>
+            <TextInput
+              style={styles.commentInput}
+              placeholder="Thêm bình luận..."
+              placeholderTextColor={COLORS.gray}
+              value={commentText}
+              onChangeText={setCommentText}
+              multiline
+              maxLength={300}
+            />
+            <TouchableOpacity
+              onPress={handleSendComment}
+              disabled={!commentText.trim() || loading}
+              style={[styles.sendButton, (!commentText.trim() || loading) && styles.sendButtonDisabled]}
+            >
+              {loading ? (
+                <ActivityIndicator color={COLORS.white} size="small" />
+              ) : (
+                <Send size={20} color={COLORS.white} />
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+};
 
 const ReelItem = ({
   reel,
@@ -207,15 +334,10 @@ const ReelItem = ({
             <Text style={styles.actionText}>{reel.commentCount || 0}</Text>
           </TouchableOpacity>
 
-          {/* Share */}
-          <TouchableOpacity style={styles.actionButton} onPress={onShare}>
-            <Share2 size={28} color={COLORS.white} />
-          </TouchableOpacity>
-
-          {/* More */}
-          <TouchableOpacity style={styles.actionButton}>
-            <MoreHorizontal size={28} color={COLORS.white} />
-          </TouchableOpacity>
+                     {/* More */}
+           <TouchableOpacity style={styles.actionButton} onPress={onShare}>
+             <MoreHorizontal size={28} color={COLORS.white} />
+           </TouchableOpacity>
         </View>
       </View>
     </View>
@@ -228,6 +350,8 @@ export default function ReelsScreen() {
   const [reels, setReels] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedReel, setSelectedReel] = useState<any>(null);
+  const [showCommentModal, setShowCommentModal] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const router = useRouter();
   const { user } = useAuth();
@@ -241,12 +365,9 @@ export default function ReelsScreen() {
       setLoading(true);
       setError(null);
       const data: any = await API.getAllReels();
-      // Add isLiked state to each reel
-      const reelsWithState = data.map((reel: any) => ({
-        ...reel,
-        isLiked: false, // You can implement actual like checking logic later
-      }));
-      setReels(reelsWithState);
+      
+      // Backend now returns isLiked for each reel
+      setReels(data);
     } catch (err: any) {
       console.error('Error loading reels:', err);
       setError(err?.message || 'Failed to load reels');
@@ -255,36 +376,118 @@ export default function ReelsScreen() {
     }
   };
 
-  const handleLike = (id: number) => {
-    setReels((prevReels) =>
-      prevReels.map((reel) =>
-        reel.id === id
-          ? {
-              ...reel,
-              isLiked: !reel.isLiked,
-            }
-          : reel
-      )
-    );
+  const handleLike = async (reel: any) => {
+    if (!user) {
+      Alert.alert('Thông báo', 'Vui lòng đăng nhập để thích reel');
+      return;
+    }
+
+    try {
+      const newIsLiked = !reel.isLiked;
+      
+      // Optimistic update
+      setReels((prevReels) =>
+        prevReels.map((r) =>
+          r.id === reel.id
+            ? {
+                ...r,
+                isLiked: newIsLiked,
+                likeCount: newIsLiked ? r.likeCount + 1 : Math.max(0, r.likeCount - 1),
+              }
+            : r
+        )
+      );
+
+      // Call API
+      if (newIsLiked) {
+        await API.likeReel(reel.id, user.id);
+      } else {
+        await API.unlikeReel(reel.id, user.id);
+      }
+    } catch (error) {
+      console.error('Error toggling like:', error);
+      // Revert on error
+      setReels((prevReels) =>
+        prevReels.map((r) =>
+          r.id === reel.id ? reel : r
+        )
+      );
+      Alert.alert('Lỗi', 'Không thể thực hiện thao tác này');
+    }
   };
 
-  const handleComment = () => {
-    // Mở modal bình luận
-    console.log('Open comments');
+  const handleComment = (reel: any) => {
+    setSelectedReel(reel);
+    setShowCommentModal(true);
+  };
+
+  const handleCommentSent = () => {
+    // Refresh reels to update comment count
+    loadReels();
   };
 
   const handleShare = async (reel: any) => {
     try {
+      // Check if this is the user's reel
+      const isOwnReel = user && reel.userId === user.id;
+      
+      if (isOwnReel) {
+        // Show edit/delete options
+        Alert.alert(
+          'Reel Options',
+          'Choose an option',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Edit', onPress: () => console.log('Edit reel:', reel.id) },
+            { 
+              text: 'Delete', 
+              style: 'destructive',
+              onPress: () => handleDeleteReel(reel)
+            }
+          ]
+        );
+      } else {
+        // Show share options for other users' reels
+        Alert.alert(
+          'Share Reel',
+          'Share this reel?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Share', onPress: () => console.log('Sharing...') }
+          ]
+        );
+      }
+    } catch (err) {
+      console.error('Error handling share/options:', err);
+    }
+  };
+
+  const handleDeleteReel = async (reel: any) => {
+    try {
       Alert.alert(
-        'Share Reel',
-        `Share this reel?`,
+        'Delete Reel',
+        'Are you sure you want to delete this reel?',
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Share', onPress: () => console.log('Sharing...') }
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await API.deleteReel(reel.id);
+                // Refresh reels after deletion
+                loadReels();
+                Alert.alert('Success', 'Reel deleted successfully');
+              } catch (error) {
+                console.error('Error deleting reel:', error);
+                Alert.alert('Error', 'Failed to delete reel');
+              }
+            }
+          }
         ]
       );
     } catch (err) {
-      console.error('Error sharing reel:', err);
+      console.error('Error in handleDeleteReel:', err);
     }
   };
 
@@ -348,8 +551,8 @@ export default function ReelsScreen() {
           <ReelItem
             reel={item}
             isActive={index === currentIndex}
-            onLike={() => handleLike(item.id)}
-            onComment={handleComment}
+            onLike={() => handleLike(item)}
+            onComment={() => handleComment(item)}
             onShare={() => handleShare(item)}
             onFollow={() => {}}
             isMuted={isMuted}
@@ -386,6 +589,19 @@ export default function ReelsScreen() {
           <Volume2 size={24} color={COLORS.white} />
         )}
       </TouchableOpacity>
+
+      {/* Comment Modal */}
+      {selectedReel && (
+        <CommentModal
+          visible={showCommentModal}
+          onClose={() => {
+            setShowCommentModal(false);
+            setSelectedReel(null);
+          }}
+          reel={selectedReel}
+          onCommentSent={handleCommentSent}
+        />
+      )}
     </View>
   );
 }
@@ -597,6 +813,100 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  // Comment Modal Styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: COLORS.background,
+    borderTopLeftRadius: BORDER_RADIUS.lg,
+    borderTopRightRadius: BORDER_RADIUS.lg,
+    maxHeight: SCREEN_HEIGHT * 0.7,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: RESPONSIVE_SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  modalTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
+    color: COLORS.white,
+  },
+  commentsList: {
+    maxHeight: SCREEN_HEIGHT * 0.5,
+    padding: RESPONSIVE_SPACING.md,
+  },
+  emptyComments: {
+    padding: RESPONSIVE_SPACING.xl,
+    alignItems: 'center',
+  },
+  emptyCommentsText: {
+    color: COLORS.gray,
+    fontSize: FONT_SIZES.md,
+  },
+  commentItem: {
+    flexDirection: 'row',
+    marginBottom: RESPONSIVE_SPACING.md,
+  },
+  commentAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: BORDER_RADIUS.full,
+    marginRight: RESPONSIVE_SPACING.sm,
+  },
+  commentContent: {
+    flex: 1,
+    backgroundColor: COLORS.cardBackground,
+    padding: RESPONSIVE_SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  commentAuthor: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '700',
+    color: COLORS.white,
+    marginBottom: 4,
+  },
+  commentText: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.text,
+    lineHeight: 20,
+  },
+  commentInputContainer: {
+    flexDirection: 'row',
+    padding: RESPONSIVE_SPACING.md,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    alignItems: 'flex-end',
+  },
+  commentInput: {
+    flex: 1,
+    backgroundColor: COLORS.cardBackground,
+    borderRadius: BORDER_RADIUS.md,
+    padding: RESPONSIVE_SPACING.sm,
+    color: COLORS.white,
+    fontSize: FONT_SIZES.md,
+    maxHeight: 100,
+  },
+  sendButton: {
+    marginLeft: RESPONSIVE_SPACING.sm,
+    backgroundColor: COLORS.primary,
+    padding: RESPONSIVE_SPACING.sm,
+    borderRadius: BORDER_RADIUS.full,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sendButtonDisabled: {
+    backgroundColor: COLORS.gray,
+    opacity: 0.5,
   },
 });
 

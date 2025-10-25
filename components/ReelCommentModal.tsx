@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
 import { X, Send, Heart } from 'lucide-react-native';
+import { Comment as ApiComment } from '@/services/api';
 
 interface Comment {
   id: string;

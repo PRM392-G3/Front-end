@@ -429,7 +429,8 @@ export interface Post {
 
 export interface Comment {
   id: number;
-  postId: number;
+  postId?: number;
+  reelId?: number;
   userId: number;
   content: string;
   createdAt: string;
@@ -549,6 +550,7 @@ export interface ReelResponse {
   updatedAt: string;
   user: User;
   music?: ReelMusic;
+  isLiked?: boolean; // Added to check if current user liked this reel
 }
 
 // Post API endpoints
@@ -704,7 +706,7 @@ export const postAPI = {
 // Comment API endpoints
 export const commentAPI = {
   // Create a new comment
-  createComment: async (data: { postId: number; content: string; userId: number }) => {
+  createComment: async (data: { postId?: number; reelId?: number; content: string; userId: number }) => {
     try {
       const response = await api.post('/Comment', data);
       return response.data as Comment;
@@ -721,6 +723,17 @@ export const commentAPI = {
       return response.data as Comment[];
     } catch (error) {
       console.error('Error getting comments:', error);
+      throw error;
+    }
+  },
+
+  // Get comments for a reel
+  getCommentsByReel: async (reelId: number) => {
+    try {
+      const response = await api.get(`/Comment/reel/${reelId}`);
+      return response.data as Comment[];
+    } catch (error) {
+      console.error('Error getting reel comments:', error);
       throw error;
     }
   },
@@ -962,6 +975,28 @@ export const reelAPI = {
       return response.data;
     } catch (error: any) {
       console.error('Error deleting reel:', error);
+      throw error;
+    }
+  },
+
+  // Like a reel
+  likeReel: async (reelId: number, userId: number) => {
+    try {
+      const response = await api.post(`/Reel/${reelId}/like/${userId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error liking reel:', error);
+      throw error;
+    }
+  },
+
+  // Unlike a reel
+  unlikeReel: async (reelId: number, userId: number) => {
+    try {
+      const response = await api.delete(`/Reel/${reelId}/like/${userId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error unliking reel:', error);
       throw error;
     }
   },
