@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,9 @@ import {
   Dimensions,
   TouchableOpacity,
   Pressable,
+  ActivityIndicator,
+  Alert,
+  Image,
 } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
 import {
@@ -21,6 +24,9 @@ import {
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { API } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { VideoView, useVideoPlayer } from 'expo-video';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -92,7 +98,7 @@ const formatNumber = (num: number): string => {
 };
 
 interface ReelItemProps {
-  reel: ReelData;
+  reel: any; // ReelResponse from API
   isActive: boolean;
   onLike: () => void;
   onComment: () => void;
@@ -110,13 +116,48 @@ const ReelItem = ({
   onFollow,
   isMuted,
 }: ReelItemProps) => {
+  // Create video player instance
+  const player = useVideoPlayer(reel.videoUrl || '', (player) => {
+    player.loop = true;
+    player.muted = isMuted;
+    if (isActive) {
+      player.play();
+    } else {
+      player.pause();
+    }
+  });
+
+  // Update playback when active state changes
+  useEffect(() => {
+    if (isActive && player) {
+      player.play();
+    } else if (player) {
+      player.pause();
+    }
+  }, [isActive, player]);
+
+  // Update mute state
+  useEffect(() => {
+    if (player) {
+      player.muted = isMuted;
+    }
+  }, [isMuted, player]);
+
   return (
     <View style={styles.reelContainer}>
-      {/* Video placeholder - trong thực tế sẽ dùng Video component */}
-      <View style={styles.videoPlaceholder}>
-        <Text style={styles.placeholderText}>VIDEO</Text>
-        <Text style={styles.placeholderSubtext}>{reel.description}</Text>
-      </View>
+      {/* Video player */}
+      {reel.videoUrl ? (
+        <VideoView
+          style={styles.videoPlayer}
+          player={player}
+          allowsFullscreen={false}
+          allowsPictureInPicture={false}
+        />
+      ) : (
+        <View style={styles.videoPlaceholder}>
+          <Text style={styles.placeholderText}>NO VIDEO</Text>
+        </View>
+      )}
 
       {/* Gradient overlay */}
       <LinearGradient
@@ -129,19 +170,23 @@ const ReelItem = ({
         {/* User info */}
         <View style={styles.userSection}>
           <View style={styles.userInfo}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {reel.username.charAt(0).toUpperCase()}
-              </Text>
-            </View>
-            <Text style={styles.username}>{reel.username}</Text>
-            {!reel.isFollowing && (
-              <TouchableOpacity onPress={onFollow} style={styles.followButton}>
-                <Text style={styles.followText}>Theo dõi</Text>
-              </TouchableOpacity>
+            {reel.user?.avatarUrl ? (
+              <Image 
+                source={{ uri: reel.user.avatarUrl }} 
+                style={styles.avatarImage}
+              />
+            ) : (
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {reel.user?.fullName?.charAt(0).toUpperCase() || 'U'}
+                </Text>
+              </View>
             )}
+            <Text style={styles.username}>{reel.user?.fullName || 'Unknown'}</Text>
           </View>
-          <Text style={styles.description}>{reel.description}</Text>
+          {reel.caption && (
+            <Text style={styles.description}>{reel.caption}</Text>
+          )}
         </View>
 
         {/* Side actions */}
@@ -153,19 +198,18 @@ const ReelItem = ({
               color={COLORS.white}
               fill={reel.isLiked ? COLORS.error : 'transparent'}
             />
-            <Text style={styles.actionText}>{formatNumber(reel.likes)}</Text>
+            <Text style={styles.actionText}>{reel.likeCount || 0}</Text>
           </TouchableOpacity>
 
           {/* Comment */}
           <TouchableOpacity style={styles.actionButton} onPress={onComment}>
             <MessageCircle size={28} color={COLORS.white} />
-            <Text style={styles.actionText}>{formatNumber(reel.comments)}</Text>
+            <Text style={styles.actionText}>{reel.commentCount || 0}</Text>
           </TouchableOpacity>
 
           {/* Share */}
           <TouchableOpacity style={styles.actionButton} onPress={onShare}>
             <Share2 size={28} color={COLORS.white} />
-            <Text style={styles.actionText}>{formatNumber(reel.shares)}</Text>
           </TouchableOpacity>
 
           {/* More */}
@@ -181,28 +225,45 @@ const ReelItem = ({
 export default function ReelsScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
-  const [reels, setReels] = useState(SAMPLE_REELS);
+  const [reels, setReels] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const router = useRouter();
+  const { user } = useAuth();
 
-  const handleLike = (id: string) => {
+  useEffect(() => {
+    loadReels();
+  }, []);
+
+  const loadReels = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data: any = await API.getAllReels();
+      // Add isLiked state to each reel
+      const reelsWithState = data.map((reel: any) => ({
+        ...reel,
+        isLiked: false, // You can implement actual like checking logic later
+      }));
+      setReels(reelsWithState);
+    } catch (err: any) {
+      console.error('Error loading reels:', err);
+      setError(err?.message || 'Failed to load reels');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLike = (id: number) => {
     setReels((prevReels) =>
       prevReels.map((reel) =>
         reel.id === id
           ? {
               ...reel,
               isLiked: !reel.isLiked,
-              likes: reel.isLiked ? reel.likes - 1 : reel.likes + 1,
             }
           : reel
-      )
-    );
-  };
-
-  const handleFollow = (id: string) => {
-    setReels((prevReels) =>
-      prevReels.map((reel) =>
-        reel.id === id ? { ...reel, isFollowing: !reel.isFollowing } : reel
       )
     );
   };
@@ -212,9 +273,19 @@ export default function ReelsScreen() {
     console.log('Open comments');
   };
 
-  const handleShare = () => {
-    // Mở modal chia sẻ
-    console.log('Share reel');
+  const handleShare = async (reel: any) => {
+    try {
+      Alert.alert(
+        'Share Reel',
+        `Share this reel?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Share', onPress: () => console.log('Sharing...') }
+        ]
+      );
+    } catch (err) {
+      console.error('Error sharing reel:', err);
+    }
   };
 
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
@@ -227,20 +298,60 @@ export default function ReelsScreen() {
     itemVisiblePercentThreshold: 50,
   }).current;
 
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={styles.loadingText}>Loading reels...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={loadReels}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (reels.length === 0) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <Camera size={80} color={COLORS.gray} />
+        <Text style={styles.emptyTitle}>Chưa có reel nào</Text>
+        <Text style={styles.emptyDescription}>
+          Hãy tạo reel đầu tiên của bạn để chia sẻ những khoảnh khắc thú vị!
+        </Text>
+        <TouchableOpacity 
+          style={styles.createButton} 
+          onPress={() => {
+            router.push('/create-reel');
+          }}
+        >
+          <Text style={styles.createButtonText}>Tạo Reel Ngay</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <FlatList
         ref={flatListRef}
         data={reels}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.id.toString()}
         renderItem={({ item, index }) => (
           <ReelItem
             reel={item}
             isActive={index === currentIndex}
             onLike={() => handleLike(item.id)}
             onComment={handleComment}
-            onShare={handleShare}
-            onFollow={() => handleFollow(item.id)}
+            onShare={() => handleShare(item)}
+            onFollow={() => {}}
             isMuted={isMuted}
           />
         )}
@@ -256,7 +367,10 @@ export default function ReelsScreen() {
       {/* Top header overlay */}
       <View style={styles.topHeaderOverlay}>
         <Text style={styles.reelsTitle}>Reels</Text>
-        <TouchableOpacity style={styles.topHeaderButton}>
+        <TouchableOpacity 
+          style={styles.topHeaderButton}
+          onPress={() => router.push('/create-reel')}
+        >
           <Camera size={26} color={COLORS.white} />
         </TouchableOpacity>
       </View>
@@ -280,6 +394,62 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.black,
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: RESPONSIVE_SPACING.md,
+    fontSize: FONT_SIZES.md,
+    color: COLORS.gray,
+  },
+  errorText: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.error,
+    textAlign: 'center',
+    marginBottom: RESPONSIVE_SPACING.md,
+  },
+  emptyText: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.gray,
+  },
+  emptyTitle: {
+    fontSize: FONT_SIZES.xl,
+    fontWeight: '700',
+    color: COLORS.white,
+    marginTop: RESPONSIVE_SPACING.lg,
+    marginBottom: RESPONSIVE_SPACING.sm,
+  },
+  emptyDescription: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.gray,
+    textAlign: 'center',
+    paddingHorizontal: RESPONSIVE_SPACING.xl,
+    marginBottom: RESPONSIVE_SPACING.xl,
+  },
+  createButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: RESPONSIVE_SPACING.xl,
+    paddingVertical: RESPONSIVE_SPACING.md,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  createButtonText: {
+    color: COLORS.white,
+    fontSize: FONT_SIZES.md,
+    fontWeight: '700',
+  },
+  retryButton: {
+    paddingHorizontal: RESPONSIVE_SPACING.lg,
+    paddingVertical: RESPONSIVE_SPACING.sm,
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.sm,
+    marginTop: RESPONSIVE_SPACING.md,
+  },
+  retryButtonText: {
+    color: COLORS.white,
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
   },
   reelContainer: {
     width: SCREEN_WIDTH,
@@ -312,6 +482,17 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: '50%',
+  },
+  videoPlayer: {
+    flex: 1,
+  },
+  avatarImage: {
+    width: 40,
+    height: 40,
+    borderRadius: BORDER_RADIUS.full,
+    marginRight: RESPONSIVE_SPACING.sm,
+    borderWidth: 2,
+    borderColor: COLORS.white,
   },
   topHeaderOverlay: {
     position: 'absolute',

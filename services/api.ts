@@ -515,6 +515,42 @@ export interface PostResponse {
   isSharedPost?: boolean; // Flag to indicate if this is a shared post
 }
 
+// Reel interfaces
+export interface ReelMusic {
+  id: number;
+  title: string;
+  artist?: string;
+  musicUrl: string;
+  duration?: number;
+  coverImageUrl?: string;
+  createdAt: string;
+}
+
+export interface ReelResponse {
+  id: number;
+  userId: number;
+  videoUrl: string;
+  videoFileName?: string;
+  caption?: string;
+  musicId?: number;
+  musicUrl?: string;
+  musicFileName?: string;
+  musicTitle?: string;
+  musicArtist?: string;
+  musicDuration: number;
+  duration: number;
+  likeCount: number;
+  commentCount: number;
+  shareCount: number;
+  viewCount: number;
+  isPublic: boolean;
+  isDeleted: boolean;
+  createdAt: string;
+  updatedAt: string;
+  user: User;
+  music?: ReelMusic;
+}
+
 // Post API endpoints
 export const postAPI = {
   // Create a new post
@@ -865,4 +901,118 @@ export const shareAPI = {
       throw error;
     }
   },
+};
+
+// Reels API functions
+export const reelAPI = {
+  // Create a new reel
+  createReel: async (data: {
+    userId: number;
+    videoUrl: string;
+    caption?: string;
+    musicId?: number;
+    isPublic?: boolean;
+  }) => {
+    try {
+      const response = await api.post('/Reel', data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error creating reel:', error);
+      throw error;
+    }
+  },
+
+  // Get a reel by ID
+  getReelById: async (reelId: number) => {
+    try {
+      const response = await api.get(`/Reel/${reelId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting reel:', error);
+      throw error;
+    }
+  },
+
+  // Get all reels
+  getAllReels: async () => {
+    try {
+      const response = await api.get('/Reel');
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting all reels:', error);
+      throw error;
+    }
+  },
+
+  // Get reels by user
+  getReelsByUser: async (userId: number) => {
+    try {
+      const response = await api.get(`/Reel/user/${userId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting user reels:', error);
+      throw error;
+    }
+  },
+
+  // Delete a reel
+  deleteReel: async (reelId: number) => {
+    try {
+      const response = await api.delete(`/Reel/${reelId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error deleting reel:', error);
+      throw error;
+    }
+  },
+
+  // Get all music for reels
+  getAllReelMusic: async () => {
+    try {
+      const response = await api.get('/Reel/music');
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting reel music:', error);
+      throw error;
+    }
+  },
+
+  // Get music by ID
+  getReelMusicById: async (musicId: number) => {
+    try {
+      const response = await api.get(`/Reel/music/${musicId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting reel music:', error);
+      throw error;
+    }
+  },
+
+  // Create music for reels
+  createReelMusic: async (data: {
+    title: string;
+    artist?: string;
+    musicUrl: string;
+    duration?: number;
+    coverImageUrl?: string;
+  }) => {
+    try {
+      const response = await api.post('/Reel/music', data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error creating reel music:', error);
+      throw error;
+    }
+  },
+};
+
+// Main API object that combines all APIs
+export const API = {
+  ...authAPI,
+  ...userAPI,
+  ...postAPI,
+  ...commentAPI,
+  ...tagAPI,
+  ...shareAPI,
+  ...reelAPI,
 };
