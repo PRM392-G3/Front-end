@@ -1288,6 +1288,8 @@ export const groupAPI = {
       }
     }
   }
+};
+
 // Reels API functions
 export const reelAPI = {
   // Create a new reel
