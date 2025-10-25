@@ -1,29 +1,34 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  TextInput, 
+  TouchableOpacity, 
+  ScrollView, 
   Alert,
-  Switch,
+  ActivityIndicator,
+  Image
 } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
-import { X, Users, Camera, Lock, Globe } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
+import { ArrowLeft, Camera, Image as ImageIcon, Users } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { groupAPI } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { groupAPI, CreateGroupRequest } from '@/services/api';
+import SimpleImageUploader from '@/components/SimpleImageUploader';
 
 export default function CreateGroupScreen() {
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const { user } = useAuth();
   const [groupName, setGroupName] = useState('');
   const [description, setDescription] = useState('');
-  const [isPrivate, setIsPrivate] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
+  const [privacy, setPrivacy] = useState<'public' | 'private'>('public');
+  const [avatarUrl, setAvatarUrl] = useState('');
+  const [coverImageUrl, setCoverImageUrl] = useState('');
+  const [loading, setLoading] = useState(false);
+  
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { user } = useAuth();
 
   const handleCreateGroup = async () => {
     if (!groupName.trim()) {
@@ -31,94 +36,136 @@ export default function CreateGroupScreen() {
       return;
     }
 
-    if (!user) {
-      Alert.alert('Lỗi', 'Vui lòng đăng nhập để tạo nhóm');
+    if (!description.trim()) {
+      Alert.alert('Lỗi', 'Vui lòng nhập mô tả nhóm');
       return;
     }
 
-    setIsCreating(true);
+    if (!user?.id) {
+      Alert.alert('Lỗi', 'Không thể xác định người dùng');
+      return;
+    }
+
+    setLoading(true);
     try {
-      const groupData: CreateGroupRequest = {
+      const groupData = {
         name: groupName.trim(),
         description: description.trim(),
+        avatarUrl: avatarUrl || '',
+        coverImageUrl: coverImageUrl || '',
         createdById: user.id,
-        privacy: isPrivate ? 'private' : 'public',
+        privacy: privacy
       };
 
+      console.log('Creating group with data:', groupData);
       const newGroup = await groupAPI.createGroup(groupData);
       
-      Alert.alert('Thành công', 'Nhóm đã được tạo', [
-        {
-          text: 'OK',
-          onPress: () => router.back(),
-        },
-      ]);
+      Alert.alert(
+        'Thành công', 
+        'Nhóm đã được tạo thành công!',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              router.push(`/group-detail?id=${newGroup.id}`);
+            }
+          }
+        ]
+      );
     } catch (error: any) {
       console.error('Error creating group:', error);
       Alert.alert('Lỗi', error.message || 'Không thể tạo nhóm');
     } finally {
-      setIsCreating(false);
+      setLoading(false);
     }
   };
-
-  const canCreate = groupName.trim().length > 0 && !isCreating;
 
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity style={styles.headerButton} onPress={() => router.back()}>
-          <X size={24} color={COLORS.text.primary} />
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <ArrowLeft size={24} color={COLORS.text.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Tạo nhóm mới</Text>
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={handleCreateGroup}
-          disabled={!canCreate}
-        >
-          <Text
-            style={[styles.createButton, !canCreate && styles.createButtonDisabled]}
-          >
-            {isCreating ? 'Đang tạo...' : 'Tạo'}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.placeholder} />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Cover Image */}
-        <TouchableOpacity style={styles.coverImageUpload}>
-          <Camera size={32} color={COLORS.gray} />
-          <Text style={styles.uploadText}>Thêm ảnh bìa nhóm</Text>
-        </TouchableOpacity>
+        {/* Group Avatar */}
+        <View style={styles.avatarSection}>
+          <Text style={styles.sectionTitle}>Ảnh đại diện nhóm</Text>
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={styles.previewImage} />
+          ) : null}
+          <SimpleImageUploader
+            folder="avatars"
+            onUploadComplete={(res: any) => {
+              console.log('CreateGroupScreen: Avatar upload response:', res);
+              const url = Array.isArray(res) ? res[0]?.publicUrl : res?.publicUrl;
+              console.log('CreateGroupScreen: Extracted avatar URL:', url);
+              if (url) {
+                setAvatarUrl(url);
+              } else {
+                console.error('CreateGroupScreen: No URL found in avatar upload response');
+              }
+            }}
+            onUploadError={(error: any) => {
+              console.error('CreateGroupScreen: Avatar upload error:', error);
+              Alert.alert('Lỗi', 'Không thể tải lên ảnh đại diện');
+            }}
+          />
+        </View>
 
-        {/* Group Icon */}
-        <View style={styles.iconSection}>
-          <TouchableOpacity style={styles.groupIcon}>
-            <Users size={32} color={COLORS.primary} />
-          </TouchableOpacity>
+        {/* Group Cover */}
+        <View style={styles.coverSection}>
+          <Text style={styles.sectionTitle}>Ảnh bìa nhóm</Text>
+          {coverImageUrl ? (
+            <Image source={{ uri: coverImageUrl }} style={styles.previewCover} />
+          ) : null}
+          <SimpleImageUploader
+            folder="covers"
+            onUploadComplete={(res: any) => {
+              console.log('CreateGroupScreen: Cover upload response:', res);
+              const url = Array.isArray(res) ? res[0]?.publicUrl : res?.publicUrl;
+              console.log('CreateGroupScreen: Extracted cover URL:', url);
+              if (url) {
+                setCoverImageUrl(url);
+              } else {
+                console.error('CreateGroupScreen: No URL found in cover upload response');
+              }
+            }}
+            onUploadError={(error: any) => {
+              console.error('CreateGroupScreen: Cover upload error:', error);
+              Alert.alert('Lỗi', 'Không thể tải lên ảnh bìa');
+            }}
+          />
         </View>
 
         {/* Group Name */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Tên nhóm *</Text>
+        <View style={styles.inputSection}>
+          <Text style={styles.sectionTitle}>Tên nhóm *</Text>
           <TextInput
-            style={styles.input}
-            placeholder="Nhập tên nhóm..."
-            placeholderTextColor={COLORS.gray}
+            style={styles.textInput}
+            placeholder="Nhập tên nhóm"
+            placeholderTextColor={COLORS.text.gray}
             value={groupName}
             onChangeText={setGroupName}
-            maxLength={100}
+            maxLength={50}
           />
-          <Text style={styles.characterCount}>{groupName.length}/100</Text>
+          <Text style={styles.characterCount}>{groupName.length}/50</Text>
         </View>
 
         {/* Description */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Mô tả nhóm</Text>
+        <View style={styles.inputSection}>
+          <Text style={styles.sectionTitle}>Mô tả *</Text>
           <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="Mô tả về nhóm của bạn..."
-            placeholderTextColor={COLORS.gray}
+            style={[styles.textInput, styles.textArea]}
+            placeholder="Mô tả về nhóm của bạn"
+            placeholderTextColor={COLORS.text.gray}
             value={description}
             onChangeText={setDescription}
             multiline
@@ -129,41 +176,74 @@ export default function CreateGroupScreen() {
         </View>
 
         {/* Privacy Setting */}
-        <View style={styles.section}>
-          <View style={styles.privacyHeader}>
-            <View style={styles.privacyInfo}>
-              {isPrivate ? (
-                <Lock size={20} color={COLORS.text.primary} />
-              ) : (
-                <Globe size={20} color={COLORS.text.primary} />
-              )}
-              <View style={styles.privacyText}>
-                <Text style={styles.privacyTitle}>
-                  {isPrivate ? 'Nhóm riêng tư' : 'Nhóm công khai'}
+        <View style={styles.inputSection}>
+          <Text style={styles.sectionTitle}>Quyền riêng tư</Text>
+          <View style={styles.privacyOptions}>
+            <TouchableOpacity
+              style={[
+                styles.privacyOption,
+                privacy === 'public' && styles.privacyOptionSelected
+              ]}
+              onPress={() => setPrivacy('public')}
+            >
+              <Users size={20} color={privacy === 'public' ? COLORS.white : COLORS.text.gray} />
+              <View style={styles.privacyInfo}>
+                <Text style={[
+                  styles.privacyTitle,
+                  privacy === 'public' && styles.privacyTitleSelected
+                ]}>
+                  Công khai
                 </Text>
-                <Text style={styles.privacyDescription}>
-                  {isPrivate
-                    ? 'Chỉ thành viên mới xem được nội dung'
-                    : 'Mọi người đều có thể xem và tham gia'}
+                <Text style={[
+                  styles.privacyDescription,
+                  privacy === 'public' && styles.privacyDescriptionSelected
+                ]}>
+                  Mọi người có thể tìm thấy và tham gia
                 </Text>
               </View>
-            </View>
-            <Switch
-              value={isPrivate}
-              onValueChange={setIsPrivate}
-              trackColor={{ false: COLORS.gray, true: COLORS.primary }}
-              thumbColor={COLORS.white}
-            />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.privacyOption,
+                privacy === 'private' && styles.privacyOptionSelected
+              ]}
+              onPress={() => setPrivacy('private')}
+            >
+              <Users size={20} color={privacy === 'private' ? COLORS.white : COLORS.text.gray} />
+              <View style={styles.privacyInfo}>
+                <Text style={[
+                  styles.privacyTitle,
+                  privacy === 'private' && styles.privacyTitleSelected
+                ]}>
+                  Riêng tư
+                </Text>
+                <Text style={[
+                  styles.privacyDescription,
+                  privacy === 'private' && styles.privacyDescriptionSelected
+                ]}>
+                  Chỉ thành viên được mời mới có thể tham gia
+                </Text>
+              </View>
+            </TouchableOpacity>
           </View>
         </View>
-
-        {/* Info */}
-        <View style={styles.infoBox}>
-          <Text style={styles.infoText}>
-            Sau khi tạo nhóm, bạn có thể mời bạn bè tham gia và bắt đầu trò chuyện.
-          </Text>
-        </View>
       </ScrollView>
+
+      {/* Create Button */}
+      <View style={styles.bottomContainer}>
+        <TouchableOpacity
+          style={[styles.createButton, loading && styles.createButtonDisabled]}
+          onPress={handleCreateGroup}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator size="small" color={COLORS.white} />
+          ) : (
+            <Text style={styles.createButtonText}>Tạo nhóm</Text>
+          )}
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -175,76 +255,44 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: RESPONSIVE_SPACING.md,
-    paddingBottom: RESPONSIVE_SPACING.sm,
+    paddingBottom: RESPONSIVE_SPACING.md,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border.primary,
-    backgroundColor: COLORS.background.primary,
   },
-  headerButton: {
-    minWidth: 50,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: RESPONSIVE_SPACING.sm,
+  backButton: {
+    padding: RESPONSIVE_SPACING.sm,
   },
   headerTitle: {
     fontSize: FONT_SIZES.lg,
     fontWeight: '600',
     color: COLORS.text.primary,
-    flex: 1,
-    textAlign: 'center',
   },
-  createButton: {
-    fontSize: FONT_SIZES.md,
-    color: COLORS.primary,
-    fontWeight: '600',
-  },
-  createButtonDisabled: {
-    opacity: 0.5,
+  placeholder: {
+    width: 40,
   },
   content: {
     flex: 1,
+    padding: RESPONSIVE_SPACING.md,
   },
-  coverImageUpload: {
-    height: 180,
-    backgroundColor: COLORS.background.secondary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: RESPONSIVE_SPACING.sm,
-  },
-  uploadText: {
-    fontSize: FONT_SIZES.md,
-    color: COLORS.gray,
-  },
-  iconSection: {
-    alignItems: 'center',
-    marginTop: -32,
-    marginBottom: RESPONSIVE_SPACING.md,
-  },
-  groupIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: BORDER_RADIUS.full,
-    backgroundColor: COLORS.lightGray,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 4,
-    borderColor: COLORS.background.primary,
-  },
-  section: {
-    paddingHorizontal: RESPONSIVE_SPACING.md,
+  avatarSection: {
     marginBottom: RESPONSIVE_SPACING.lg,
   },
-  label: {
+  coverSection: {
+    marginBottom: RESPONSIVE_SPACING.lg,
+  },
+  sectionTitle: {
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
     color: COLORS.text.primary,
     marginBottom: RESPONSIVE_SPACING.sm,
   },
-  input: {
+  inputSection: {
+    marginBottom: RESPONSIVE_SPACING.lg,
+  },
+  textInput: {
     backgroundColor: COLORS.background.secondary,
     borderRadius: BORDER_RADIUS.md,
     paddingHorizontal: RESPONSIVE_SPACING.md,
@@ -257,29 +305,31 @@ const styles = StyleSheet.create({
   textArea: {
     height: 100,
     textAlignVertical: 'top',
-    paddingTop: RESPONSIVE_SPACING.sm,
   },
   characterCount: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.gray,
+    color: COLORS.text.gray,
     textAlign: 'right',
-    marginTop: 4,
+    marginTop: RESPONSIVE_SPACING.xs,
   },
-  privacyHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: COLORS.background.secondary,
-    padding: RESPONSIVE_SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-  },
-  privacyInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
+  privacyOptions: {
     gap: RESPONSIVE_SPACING.sm,
   },
-  privacyText: {
+  privacyOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: RESPONSIVE_SPACING.md,
+    backgroundColor: COLORS.background.secondary,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border.primary,
+  },
+  privacyOptionSelected: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  privacyInfo: {
+    marginLeft: RESPONSIVE_SPACING.sm,
     flex: 1,
   },
   privacyTitle: {
@@ -288,23 +338,47 @@ const styles = StyleSheet.create({
     color: COLORS.text.primary,
     marginBottom: 2,
   },
+  privacyTitleSelected: {
+    color: COLORS.white,
+  },
   privacyDescription: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.gray,
+    color: COLORS.text.gray,
   },
-  infoBox: {
-    marginHorizontal: RESPONSIVE_SPACING.md,
-    marginBottom: RESPONSIVE_SPACING.lg,
+  privacyDescriptionSelected: {
+    color: COLORS.white,
+  },
+  bottomContainer: {
     padding: RESPONSIVE_SPACING.md,
-    backgroundColor: COLORS.background.secondary,
-    borderRadius: BORDER_RADIUS.md,
-    borderLeftWidth: 3,
-    borderLeftColor: COLORS.primary,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border.primary,
   },
-  infoText: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.text.secondary,
-    lineHeight: 18,
+  createButton: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: RESPONSIVE_SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    alignItems: 'center',
+  },
+  createButtonDisabled: {
+    backgroundColor: COLORS.text.lightGray,
+  },
+  createButtonText: {
+    color: COLORS.white,
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+  },
+  previewImage: {
+    width: 100,
+    height: 100,
+    borderRadius: BORDER_RADIUS.md,
+    marginBottom: RESPONSIVE_SPACING.sm,
+    backgroundColor: COLORS.lightGray,
+  },
+  previewCover: {
+    width: '100%',
+    height: 120,
+    borderRadius: BORDER_RADIUS.md,
+    marginBottom: RESPONSIVE_SPACING.sm,
+    backgroundColor: COLORS.lightGray,
   },
 });
-

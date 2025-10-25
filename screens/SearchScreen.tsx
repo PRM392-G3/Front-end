@@ -1,12 +1,13 @@
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, StatusBar, ScrollView } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
-import { Search, TrendingUp, Filter, Sparkles } from 'lucide-react-native';
+import { Search, TrendingUp, Filter, Sparkles, Plus } from 'lucide-react-native';
 import { useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { UserSearchResults } from '@/components/UserSearchResults';
 import { SuggestedUsers } from '@/components/SuggestedUsers';
 import { PostSearchResults } from '@/components/PostSearchResults';
 import { SuggestedPosts } from '@/components/SuggestedPosts';
+import { GroupSearchResults } from '@/components/GroupSearchResults';
 import { FilterModal, FilterState } from '@/components/FilterModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
@@ -94,36 +95,48 @@ export default function SearchScreen() {
         );
       case 'groups':
         return (
-          <ScrollView style={styles.content}>
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Nhóm phổ biến</Text>
-                <TouchableOpacity onPress={() => router.push('/groups')}>
-                  <Text style={styles.seeAllText}>Xem tất cả</Text>
-                </TouchableOpacity>
-              </View>
-              {sampleGroups.map((group) => (
-                <TouchableOpacity
-                  key={group.id}
-                  style={styles.groupCard}
-                  onPress={() => router.push(`/group-detail?id=${group.id}`)}
-                >
-                  <View style={styles.groupAvatar}>
-                    <Text style={styles.groupAvatarText}>
-                      {group.name.charAt(0).toUpperCase()}
-                    </Text>
+          <View style={styles.content}>
+            {searchQuery.trim() ? (
+              <GroupSearchResults 
+                searchQuery={searchQuery}
+                onGroupPress={(groupId) => {
+                  console.log(`🎯 [SearchScreen] GroupSearchResults onGroupPress called with groupId: ${groupId}`);
+                  router.push(`/group-detail?id=${groupId}` as any);
+                }}
+              />
+            ) : (
+              <ScrollView style={styles.content}>
+                <View style={styles.section}>
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Nhóm phổ biến</Text>
+                    <TouchableOpacity onPress={() => router.push('/groups')}>
+                      <Text style={styles.seeAllText}>Xem tất cả</Text>
+                    </TouchableOpacity>
                   </View>
-                  <View style={styles.groupInfo}>
-                    <Text style={styles.groupName}>{group.name}</Text>
-                    <Text style={styles.groupMembers}>{group.members} thành viên</Text>
-                  </View>
-                  <TouchableOpacity style={styles.joinGroupButton}>
-                    <Text style={styles.joinGroupText}>Tham gia</Text>
-                  </TouchableOpacity>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
+                  {sampleGroups.map((group) => (
+                    <TouchableOpacity
+                      key={group.id}
+                      style={styles.groupCard}
+                      onPress={() => router.push(`/group-detail?id=${group.id}`)}
+                    >
+                      <View style={styles.groupAvatar}>
+                        <Text style={styles.groupAvatarText}>
+                          {group.name.charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={styles.groupInfo}>
+                        <Text style={styles.groupName}>{group.name}</Text>
+                        <Text style={styles.groupMembers}>{group.members} thành viên</Text>
+                      </View>
+                      <TouchableOpacity style={styles.joinGroupButton}>
+                        <Text style={styles.joinGroupText}>Tham gia</Text>
+                      </TouchableOpacity>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            )}
+          </View>
         );
       case 'events':
         return (
@@ -156,12 +169,20 @@ export default function SearchScreen() {
               <Sparkles size={24} color={COLORS.text.white} />
               <Text style={styles.logoText}>Tìm kiếm</Text>
             </View>
-            <TouchableOpacity 
-              style={styles.filterButton}
-              onPress={() => setShowFilterModal(true)}
-            >
-              <Filter size={20} color={COLORS.text.white} />
-            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={() => router.push('/create-group')}
+              >
+                <Plus size={20} color={COLORS.text.white} />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={() => setShowFilterModal(true)}
+              >
+                <Filter size={20} color={COLORS.text.white} />
+              </TouchableOpacity>
+            </View>
           </View>
           
           <View style={styles.searchContainer}>
@@ -257,7 +278,11 @@ const styles = StyleSheet.create({
     color: COLORS.text.white,
     letterSpacing: 0.5,
   },
-  filterButton: {
+  headerActions: {
+    flexDirection: 'row',
+    gap: RESPONSIVE_SPACING.sm,
+  },
+  actionButton: {
     width: 40,
     height: 40,
     borderRadius: BORDER_RADIUS.md,

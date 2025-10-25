@@ -25,7 +25,11 @@ export default function GroupDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [isMember, setIsMember] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [userRole, setUserRole] = useState<'admin' | 'member' | null>(null);
+  const [hasPendingRequest, setHasPendingRequest] = useState(false);
+  const [hasPendingInvitation, setHasPendingInvitation] = useState(false);
   const [isLoadingAction, setIsLoadingAction] = useState(false);
+  const [requestSent, setRequestSent] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -39,20 +43,17 @@ export default function GroupDetailScreen() {
       const groupData = await groupAPI.getGroupById(Number(id));
       setGroup(groupData);
       
-      // Check if user is member/admin
+      // Check user status with group
       if (user) {
-        // User is admin if they created the group
-        const isUserAdmin = groupData.createdById === user.id;
-        setIsAdmin(isUserAdmin);
+        const status = await groupAPI.checkUserGroupStatus(groupData.id, user.id);
+        setIsMember(status.isMember);
+        setUserRole(status.role || null);
+        setIsAdmin(status.role === 'admin');
         
-        // Check membership using API
-        const membershipStatus = await groupAPI.checkMembership(groupData.id, user.id);
-        setIsMember(membershipStatus);
+        // Check if user has pending request
+        await checkPendingRequest(groupData.id, user.id);
         
-        console.log('Group membership status:', {
-          isAdmin: isUserAdmin,
-          isMember: membershipStatus
-        });
+        console.log('Group user status:', status);
       }
     } catch (error: any) {
       console.error('Error loading group details:', error);
@@ -62,26 +63,85 @@ export default function GroupDetailScreen() {
     }
   };
 
-  const handleJoinGroup = async () => {
+  const checkPendingRequest = async (groupId: number, userId: number) => {
+    try {
+      // Check user's join status with group using new API
+      const joinStatus = await groupAPI.getGroupJoinStatus(groupId, userId);
+      
+      setRequestSent(joinStatus.status === 'pending');
+      console.log('Join status check:', { joinStatus, requestSent: joinStatus.status === 'pending' });
+    } catch (error: any) {
+      console.error('Error checking join status:', error);
+      setRequestSent(false);
+    }
+  };
+
+  const handleRequestToJoin = async () => {
     if (!user || !group) return;
 
     setIsLoadingAction(true);
     try {
-      // TODO: Implement join group API when available
-      Alert.alert('Thành công', 'Đã tham gia nhóm');
+      await groupAPI.requestToJoinGroup(group.id, user.id);
+      setRequestSent(true);
+      Alert.alert('Thành công', 'Đã gửi yêu cầu tham gia nhóm. Vui lòng chờ admin duyệt.');
       
-      // Refresh membership status from API
-      const membershipStatus = await groupAPI.checkMembership(group.id, user.id);
-      setIsMember(membershipStatus);
-      
-      // Optionally reload full group details to update member count
-      loadGroupDetails();
+      // Reload pending request status to ensure consistency
+      await checkPendingRequest(group.id, user.id);
     } catch (error: any) {
-      console.error('Error joining group:', error);
-      Alert.alert('Lỗi', error.message || 'Không thể tham gia nhóm');
+      console.error('Error requesting to join group:', error);
+      Alert.alert('Lỗi', error.message || 'Không thể gửi yêu cầu tham gia');
     } finally {
       setIsLoadingAction(false);
     }
+  };
+
+  const handleAcceptInvitation = async () => {
+    if (!user || !group) return;
+
+    setIsLoadingAction(true);
+    try {
+      await groupAPI.acceptInvitation(group.id, user.id);
+      Alert.alert('Thành công', 'Đã tham gia nhóm!');
+      
+      // Reload group details
+      loadGroupDetails();
+    } catch (error: any) {
+      console.error('Error accepting invitation:', error);
+      Alert.alert('Lỗi', error.message || 'Không thể chấp nhận lời mời');
+    } finally {
+      setIsLoadingAction(false);
+    }
+  };
+
+  const handleRejectInvitation = async () => {
+    if (!user || !group) return;
+
+    Alert.alert(
+      'Từ chối lời mời',
+      'Bạn có chắc chắn muốn từ chối lời mời tham gia nhóm này?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Từ chối',
+          style: 'destructive',
+          onPress: async () => {
+            setIsLoadingAction(true);
+            try {
+              await groupAPI.rejectInvitation(group.id, user.id);
+              Alert.alert('Thành công', 'Đã từ chối lời mời');
+              
+              // Reload group details
+              loadGroupDetails();
+            } catch (error: any) {
+              console.error('Error rejecting invitation:', error);
+              Alert.alert('Lỗi', error.message || 'Không thể từ chối lời mời');
+            } finally {
+              setIsLoadingAction(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const handleLeaveGroup = async () => {
@@ -212,25 +272,45 @@ export default function GroupDetailScreen() {
         <View style={styles.actionButtons}>
           {isMember ? (
             <>
-              <TouchableOpacity style={styles.primaryButton} onPress={handleInviteMembers}>
-                <Users size={20} color={COLORS.white} />
-                <Text style={styles.primaryButtonText}>Mời thành viên</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.secondaryButton} onPress={handleShareGroup}>
-                <Share2 size={20} color={COLORS.primary} />
-                <Text style={styles.secondaryButtonText}>Chia sẻ</Text>
-              </TouchableOpacity>
+              {/* Admin buttons - Full width */}
+              {isAdmin && (
+                <TouchableOpacity 
+                  style={styles.fullWidthButton} 
+                  onPress={() => router.push(`/group-pending-requests?id=${group.id}`)}
+                >
+                  <Settings size={20} color={COLORS.white} />
+                  <Text style={styles.fullWidthButtonText}>Quản lý yêu cầu</Text>
+                </TouchableOpacity>
+              )}
+              
+              {/* Member/Admin buttons - Two columns */}
+              <View style={styles.twoColumnButtons}>
+                <TouchableOpacity style={styles.primaryButton} onPress={handleInviteMembers}>
+                  <Users size={20} color={COLORS.white} />
+                  <Text style={styles.primaryButtonText}>Mời thành viên</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.secondaryButton} onPress={handleShareGroup}>
+                  <Share2 size={20} color={COLORS.primary} />
+                  <Text style={styles.secondaryButtonText}>Chia sẻ</Text>
+                </TouchableOpacity>
+              </View>
             </>
+          ) : requestSent ? (
+            /* Request already sent */
+            <View style={styles.pendingButton}>
+              <Text style={styles.pendingButtonText}>Đã gửi yêu cầu</Text>
+            </View>
           ) : (
+            /* User can request to join */
             <TouchableOpacity 
               style={[styles.joinButton, isLoadingAction && styles.joinButtonDisabled]} 
-              onPress={handleJoinGroup}
+              onPress={handleRequestToJoin}
               disabled={isLoadingAction}
             >
               {isLoadingAction ? (
                 <ActivityIndicator size="small" color={COLORS.white} />
               ) : (
-                <Text style={styles.joinButtonText}>Tham gia nhóm</Text>
+                <Text style={styles.joinButtonText}>Yêu cầu tham gia</Text>
               )}
             </TouchableOpacity>
           )}
@@ -425,10 +505,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   actionButtons: {
-    flexDirection: 'row',
     paddingHorizontal: RESPONSIVE_SPACING.md,
-    gap: RESPONSIVE_SPACING.sm,
     marginBottom: RESPONSIVE_SPACING.lg,
+    gap: RESPONSIVE_SPACING.sm,
   },
   primaryButton: {
     flex: 1,
@@ -476,6 +555,40 @@ const styles = StyleSheet.create({
   },
   joinButtonDisabled: {
     opacity: 0.6,
+  },
+  pendingButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.background.secondary,
+    paddingVertical: RESPONSIVE_SPACING.md,
+    paddingHorizontal: RESPONSIVE_SPACING.xl,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.gray,
+    alignSelf: 'center',
+  },
+  pendingButtonText: {
+    color: COLORS.text.secondary,
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+  },
+  fullWidthButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    paddingVertical: RESPONSIVE_SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    gap: RESPONSIVE_SPACING.xs,
+  },
+  fullWidthButtonText: {
+    color: COLORS.white,
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+  },
+  twoColumnButtons: {
+    flexDirection: 'row',
+    gap: RESPONSIVE_SPACING.sm,
   },
   statsContainer: {
     flexDirection: 'row',

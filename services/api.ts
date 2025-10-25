@@ -77,10 +77,12 @@ export interface GroupInvitation {
   invitedById: number;
   role: 'member' | 'admin';
   status: 'pending' | 'accepted' | 'rejected';
+  invitationType: 'invitation' | 'request'; // invitation: admin/member mời, request: user tự xin vào
   createdAt: string;
   updatedAt: string;
   group: Group;
-  invitedByUser: User;
+  user?: User; // User được mời hoặc user xin vào
+  invitedByUser: User; // Người mời hoặc người xin vào
 }
 
 // Auth response interface
@@ -1221,31 +1223,27 @@ export const groupAPI = {
     }
   },
 
-  // Từ chối lời mời tham gia nhóm
-  rejectInvitation: async (groupId: number, userId: number): Promise<void> => {
+
+  // Tìm kiếm nhóm theo tên
+  searchGroups: async (name: string): Promise<Group[]> => {
     try {
-      console.log('groupAPI: Rejecting invitation:', { groupId, userId });
+      console.log('groupAPI: Searching groups with name:', name);
       
-      const response = await api.post(`/Group/${groupId}/reject-invitation?userId=${userId}`);
-      console.log('groupAPI: Reject invitation response:', response.status);
+      const response = await api.get(`/Group/search?name=${encodeURIComponent(name)}`);
+      console.log('groupAPI: Search groups response:', response.status);
       
-      return;
+      return response.data as Group[];
     } catch (error: any) {
-      console.error('groupAPI: Error rejecting invitation:', error);
-      console.error('groupAPI: Error status:', error.response?.status);
-      console.error('groupAPI: Error message:', error.message);
-      console.error('groupAPI: Error data:', error.response?.data);
+      console.error('groupAPI: Error searching groups:', error);
       
-      if (error.response?.status === 400) {
-        throw new Error('Không thể từ chối lời mời');
+      if (error.response?.status === 404) {
+        return [];
       } else if (error.response?.status === 401) {
         throw new Error('Phiên đăng nhập hết hạn');
-      } else if (error.response?.status === 404) {
-        throw new Error('Lời mời không tồn tại');
       } else if (error.isNetworkError) {
-        throw new Error('Lỗi kết nối mạng. Vui lòng thử lại sau.');
+        return [];
       } else {
-        throw new Error('Không thể từ chối lời mời. Vui lòng thử lại.');
+        return [];
       }
     }
   },
@@ -1286,6 +1284,295 @@ export const groupAPI = {
       } else {
         return [];
       }
+    }
+  },
+
+  // Request để tham gia nhóm (user tự xin vào)
+  requestToJoinGroup: async (groupId: number, userId: number): Promise<GroupInviteResponse> => {
+    try {
+      console.log('groupAPI: Requesting to join group:', { groupId, userId });
+      
+      const response = await api.post(`/Group/${groupId}/request-join`, {
+        groupId,
+        userId,
+        role: 'member'
+      });
+      console.log('groupAPI: Request to join response:', response.status);
+      
+      return response.data as GroupInviteResponse;
+    } catch (error: any) {
+      console.error('groupAPI: Error requesting to join group:', error);
+      
+      if (error.response?.status === 400) {
+        const errorData = error.response?.data;
+        if (errorData?.message) {
+          throw new Error(errorData.message);
+        } else {
+          throw new Error('Không thể gửi yêu cầu tham gia');
+        }
+      } else if (error.response?.status === 401) {
+        throw new Error('Phiên đăng nhập hết hạn');
+      } else if (error.response?.status === 404) {
+        throw new Error('Nhóm không tồn tại');
+      } else if (error.isNetworkError) {
+        throw new Error('Lỗi kết nối mạng. Vui lòng thử lại sau.');
+      } else {
+        throw new Error('Không thể gửi yêu cầu. Vui lòng thử lại.');
+      }
+    }
+  },
+
+  // Lấy danh sách pending requests (user xin vào trực tiếp) - cho admin
+  getGroupPendingRequests: async (groupId: number): Promise<GroupInvitation[]> => {
+    try {
+      console.log('groupAPI: Getting pending requests for group:', groupId);
+      
+      const response = await api.get(`/Group/${groupId}/join-requests/pending`);
+      console.log('groupAPI: Pending requests response:', response.status);
+      
+      return response.data as GroupInvitation[];
+    } catch (error: any) {
+      console.error('groupAPI: Error getting pending requests:', error);
+      
+      if (error.response?.status === 404) {
+        return [];
+      } else if (error.response?.status === 401) {
+        throw new Error('Phiên đăng nhập hết hạn');
+      } else if (error.isNetworkError) {
+        return [];
+      } else {
+        return [];
+      }
+    }
+  },
+
+  // Kiểm tra trạng thái join của user với group
+  getGroupJoinStatus: async (groupId: number, userId: number): Promise<{
+    groupId: number;
+    userId: number;
+    status: 'pending' | 'accepted' | 'rejected' | 'not_requested';
+  }> => {
+    try {
+      console.log('groupAPI: Getting join status for group:', groupId, 'user:', userId);
+      
+      const response = await api.get(`/Group/${groupId}/join-status?userId=${userId}`);
+      console.log('groupAPI: Join status response:', response.status);
+      
+      return response.data as {
+        groupId: number;
+        userId: number;
+        status: 'pending' | 'accepted' | 'rejected' | 'not_requested';
+      };
+    } catch (error: any) {
+      console.error('groupAPI: Error getting join status:', error);
+      
+      if (error.response?.status === 404) {
+        return {
+          groupId,
+          userId,
+          status: 'not_requested'
+        };
+      } else if (error.response?.status === 401) {
+        throw new Error('Phiên đăng nhập hết hạn');
+      } else if (error.isNetworkError) {
+        return {
+          groupId,
+          userId,
+          status: 'not_requested'
+        };
+      } else {
+        return {
+          groupId,
+          userId,
+          status: 'not_requested'
+        };
+      }
+    }
+  },
+
+  // Duyệt request (user xin vào trực tiếp) - cho admin
+  approveRequest: async (groupId: number, userId: number): Promise<void> => {
+    try {
+      console.log('groupAPI: Approving request:', { groupId, userId });
+      
+      const response = await api.post(`/Group/${groupId}/approve-request/${userId}`);
+      console.log('groupAPI: Approve response:', response.status);
+      
+      return;
+    } catch (error: any) {
+      console.error('groupAPI: Error approving request:', error);
+      
+      if (error.response?.status === 400) {
+        throw new Error('Không thể duyệt yêu cầu');
+      } else if (error.response?.status === 401) {
+        throw new Error('Phiên đăng nhập hết hạn');
+      } else if (error.response?.status === 403) {
+        throw new Error('Bạn không có quyền duyệt yêu cầu');
+      } else if (error.response?.status === 404) {
+        throw new Error('Yêu cầu không tồn tại');
+      } else if (error.isNetworkError) {
+        throw new Error('Lỗi kết nối mạng. Vui lòng thử lại sau.');
+      } else {
+        throw new Error('Không thể duyệt yêu cầu. Vui lòng thử lại.');
+      }
+    }
+  },
+
+  // Từ chối request (user xin vào trực tiếp) - cho admin
+  rejectRequest: async (groupId: number, userId: number): Promise<void> => {
+    try {
+      console.log('groupAPI: Rejecting request:', { groupId, userId });
+      
+      const response = await api.post(`/Group/${groupId}/reject-request/${userId}`);
+      console.log('groupAPI: Reject response:', response.status);
+      
+      return;
+    } catch (error: any) {
+      console.error('groupAPI: Error rejecting request:', error);
+      
+      if (error.response?.status === 400) {
+        throw new Error('Không thể từ chối yêu cầu');
+      } else if (error.response?.status === 401) {
+        throw new Error('Phiên đăng nhập hết hạn');
+      } else if (error.response?.status === 403) {
+        throw new Error('Bạn không có quyền từ chối yêu cầu');
+      } else if (error.response?.status === 404) {
+        throw new Error('Yêu cầu không tồn tại');
+      } else if (error.isNetworkError) {
+        throw new Error('Lỗi kết nối mạng. Vui lòng thử lại sau.');
+      } else {
+        throw new Error('Không thể từ chối yêu cầu. Vui lòng thử lại.');
+      }
+    }
+  },
+
+  // Duyệt invitation (user được mời bởi member) - cho admin
+  approveInvitation: async (groupId: number, userId: number): Promise<void> => {
+    try {
+      console.log('groupAPI: Approving invitation:', { groupId, userId });
+      
+      const response = await api.post(`/Group/${groupId}/approve-invitation/${userId}`);
+      console.log('groupAPI: Approve invitation response:', response.status);
+      
+      return;
+    } catch (error: any) {
+      console.error('groupAPI: Error approving invitation:', error);
+      
+      if (error.response?.status === 400) {
+        throw new Error('Không thể duyệt lời mời');
+      } else if (error.response?.status === 401) {
+        throw new Error('Phiên đăng nhập hết hạn');
+      } else if (error.response?.status === 403) {
+        throw new Error('Bạn không có quyền duyệt lời mời');
+      } else if (error.response?.status === 404) {
+        throw new Error('Lời mời không tồn tại');
+      } else if (error.isNetworkError) {
+        throw new Error('Lỗi kết nối mạng. Vui lòng thử lại sau.');
+      } else {
+        throw new Error('Không thể duyệt lời mời. Vui lòng thử lại.');
+      }
+    }
+  },
+
+  // Từ chối invitation (user được mời bởi member) - cho admin
+  rejectInvitation: async (groupId: number, userId: number): Promise<void> => {
+    try {
+      console.log('groupAPI: Rejecting invitation:', { groupId, userId });
+      
+      const response = await api.post(`/Group/${groupId}/reject-invitation/${userId}`);
+      console.log('groupAPI: Reject invitation response:', response.status);
+      
+      return;
+    } catch (error: any) {
+      console.error('groupAPI: Error rejecting invitation:', error);
+      
+      if (error.response?.status === 400) {
+        throw new Error('Không thể từ chối lời mời');
+      } else if (error.response?.status === 401) {
+        throw new Error('Phiên đăng nhập hết hạn');
+      } else if (error.response?.status === 403) {
+        throw new Error('Bạn không có quyền từ chối lời mời');
+      } else if (error.response?.status === 404) {
+        throw new Error('Lời mời không tồn tại');
+      } else if (error.isNetworkError) {
+        throw new Error('Lỗi kết nối mạng. Vui lòng thử lại sau.');
+      } else {
+        throw new Error('Không thể từ chối lời mời. Vui lòng thử lại.');
+      }
+    }
+  },
+
+  // Kiểm tra role của user trong group (sử dụng logic đơn giản)
+  getUserRoleInGroup: async (groupId: number, userId: number): Promise<{ role: 'admin' | 'member' | null }> => {
+    try {
+      console.log('groupAPI: Getting user role in group:', { groupId, userId });
+      
+      // Lấy thông tin group để check createdById
+      const groupData = await groupAPI.getGroupById(groupId);
+      
+      // Nếu user là người tạo group thì là admin
+      if (groupData.createdById === userId) {
+        return { role: 'admin' };
+      }
+      
+      // Nếu user là member (đã check qua checkMembership) thì là member
+      const isMember = await groupAPI.checkMembership(groupId, userId);
+      if (isMember) {
+        return { role: 'member' };
+      }
+      
+      return { role: null };
+    } catch (error: any) {
+      console.error('groupAPI: Error getting user role:', error);
+      return { role: null };
+    }
+  },
+
+  // Kiểm tra trạng thái của user với group (sử dụng các API có sẵn)
+  checkUserGroupStatus: async (groupId: number, userId: number): Promise<{
+    isMember: boolean;
+    hasPendingRequest: boolean;
+    hasPendingInvitation: boolean;
+    role?: 'admin' | 'member';
+  }> => {
+    try {
+      console.log('groupAPI: Checking user group status:', { groupId, userId });
+      
+      // Sử dụng các API có sẵn để kiểm tra
+      const [membershipResult, roleResult] = await Promise.allSettled([
+        groupAPI.checkMembership(groupId, userId),
+        groupAPI.getUserRoleInGroup(groupId, userId)
+      ]);
+      
+      const isMember = membershipResult.status === 'fulfilled' ? membershipResult.value : false;
+      const role = roleResult.status === 'fulfilled' ? roleResult.value.role : null;
+      
+      // TODO: Cần backend API để check pending request/invitation
+      // Tạm thời return false cho các trạng thái này
+      const hasPendingRequest = false;
+      const hasPendingInvitation = false;
+      
+      console.log('groupAPI: User group status result:', {
+        isMember,
+        hasPendingRequest,
+        hasPendingInvitation,
+        role
+      });
+      
+      return {
+        isMember,
+        hasPendingRequest,
+        hasPendingInvitation,
+        role: role || undefined
+      };
+    } catch (error: any) {
+      console.error('groupAPI: Error checking user group status:', error);
+      
+      return {
+        isMember: false,
+        hasPendingRequest: false,
+        hasPendingInvitation: false
+      };
     }
   }
 };

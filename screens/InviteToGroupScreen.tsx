@@ -28,13 +28,27 @@ export default function InviteToGroupScreen() {
   const [invitingUsers, setInvitingUsers] = useState<Set<number>>(new Set());
   const [invitedUsers, setInvitedUsers] = useState<Set<number>>(new Set());
   const [memberUsers, setMemberUsers] = useState<Set<number>>(new Set());
+  const [userRole, setUserRole] = useState<'admin' | 'member' | null>(null);
 
   useEffect(() => {
     if (currentUser && groupId) {
+      checkUserRole();
       loadFriends();
       checkMemberships();
     }
   }, [currentUser, groupId]);
+
+  const checkUserRole = async () => {
+    if (!currentUser || !groupId) return;
+
+    try {
+      const roleData = await groupAPI.getUserRoleInGroup(Number(groupId), currentUser.id);
+      setUserRole(roleData.role);
+      console.log('User role in group:', roleData.role);
+    } catch (error: any) {
+      console.error('Error checking user role:', error);
+    }
+  };
 
   const loadFriends = async () => {
     if (!currentUser) return;
@@ -89,7 +103,19 @@ export default function InviteToGroupScreen() {
       });
 
       setInvitedUsers(prev => new Set(prev).add(friendId));
-      Alert.alert('Thành công', 'Đã gửi lời mời thành công');
+      
+      // Hiển thị message khác nhau tùy role
+      if (userRole === 'admin') {
+        Alert.alert(
+          'Thành công', 
+          'Đã gửi lời mời! User sẽ được tự động thêm vào nhóm.'
+        );
+      } else {
+        Alert.alert(
+          'Thành công', 
+          'Đã gửi lời mời! Yêu cầu sẽ chờ admin duyệt trước khi user được thêm vào nhóm.'
+        );
+      }
     } catch (error: any) {
       console.error('Error inviting user:', error);
       Alert.alert('Lỗi', error.message || 'Không thể gửi lời mời');

@@ -356,8 +356,15 @@ export default function UserProfileScreen() {
     try {
       console.log(`🚀 [UserProfile] Loading pending group invites count for user ${userId}`);
       const invites = await groupAPI.getPendingInvitationsForUser(userId);
-      console.log(`✅ [UserProfile] Pending group invites count:`, invites.length);
-      setPendingGroupInvitesCount(invites.length);
+      
+      // Chỉ count các invitation pending từ member (cần user action)
+      // Admin invitation sẽ tự động accepted, không cần user action
+      const pendingInvites = invites.filter(
+        inv => inv.status === 'pending' && inv.invitationType === 'invitation'
+      );
+      
+      console.log(`✅ [UserProfile] Pending group invites count:`, pendingInvites.length);
+      setPendingGroupInvitesCount(pendingInvites.length);
     } catch (error: any) {
       console.error('❌ [UserProfile] Error loading pending group invites count:', error);
       setPendingGroupInvitesCount(0);

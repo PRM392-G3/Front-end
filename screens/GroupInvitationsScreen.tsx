@@ -36,7 +36,14 @@ export default function GroupInvitationsScreen() {
     try {
       setLoading(true);
       const invitationsList = await groupAPI.getPendingInvitationsForUser(user.id);
-      setInvitations(invitationsList);
+      
+      // Chỉ hiển thị các invitation có status = 'pending' và invitationType = 'invitation'
+      // (Các invitation từ admin sẽ tự động accepted và không hiển thị ở đây)
+      const pendingInvitations = invitationsList.filter(
+        inv => inv.status === 'pending' && inv.invitationType === 'invitation'
+      );
+      
+      setInvitations(pendingInvitations);
     } catch (error: any) {
       console.error('Error loading group invitations:', error);
       Alert.alert('Lỗi', 'Không thể tải danh sách lời mời');
