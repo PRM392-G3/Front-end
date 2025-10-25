@@ -26,7 +26,15 @@ export default function PostDetailScreen({
 }: PostDetailScreenProps) {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
-  const { updatePost, updatePostLike, updatePostShare, getPost } = usePostContext();
+  const { 
+    updatePost, 
+    updatePostLike, 
+    updatePostShare, 
+    updatePostComment,
+    getPost,
+    syncPostState,
+    getSyncedPost
+  } = usePostContext();
   const [post, setPost] = useState<PostResponse | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -119,6 +127,7 @@ export default function PostDetailScreen({
       
       // Update comment count
       const newCommentCount = comments.length + 1;
+      updatePostComment(post.id, newCommentCount);
       onCommentCountUpdate?.(post.id, newCommentCount);
       updatePost(post.id, { commentCount: newCommentCount });
     } catch (error) {
@@ -173,10 +182,12 @@ export default function PostDetailScreen({
               
               // Update comment count
               if (post) {
-                const updatedPost = { ...post, commentCount: Math.max(0, post.commentCount - 1) };
+                const newCommentCount = Math.max(0, post.commentCount - 1);
+                const updatedPost = { ...post, commentCount: newCommentCount };
                 setPost(updatedPost);
+                updatePostComment(post.id, newCommentCount);
                 updatePost(post.id, updatedPost);
-                onCommentCountUpdate?.(post.id, updatedPost.commentCount);
+                onCommentCountUpdate?.(post.id, newCommentCount);
               }
             } catch (error: any) {
               console.error('Error deleting comment:', error);

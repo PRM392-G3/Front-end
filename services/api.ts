@@ -309,6 +309,16 @@ export const userAPI = {
     }
   },
 
+  // Lấy danh sách following với thông tin follow status
+  getFollowingWithStatus: async (userId: number) => {
+    try {
+      const response = await api.get(`/User/${userId}/following/with-status`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
   // Lấy thông tin chi tiết của một user
   getUserById: async (userId: number) => {
     try {
@@ -363,11 +373,21 @@ export const userAPI = {
     }
   },
 
-  // Lấy danh sách người dùng được đề xuất
-  getSuggestedUsers: async (limit: number = 10) => {
+  // Lấy danh sách followers với thông tin follow status
+  getFollowersWithStatus: async (userId: number) => {
     try {
-      const response = await api.get(`/User/suggested?limit=${limit}`);
-      return response.data as Group;
+      const response = await api.get(`/User/${userId}/followers/with-status`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Lấy danh sách người dùng được đề xuất
+  getSuggestedUsers: async (userId: number, limit: number = 10) => {
+    try {
+      const response = await api.get(`/User/${userId}/friend-suggestions?limit=${limit}`);
+      return response.data;
     } catch (error) {
       throw error;
     }
@@ -468,7 +488,8 @@ export interface Post {
 
 export interface Comment {
   id: number;
-  postId: number;
+  postId?: number;
+  reelId?: number;
   userId: number;
   content: string;
   createdAt: string;
@@ -554,6 +575,43 @@ export interface PostResponse {
   isSharedPost?: boolean; // Flag to indicate if this is a shared post
 }
 
+// Reel interfaces
+export interface ReelMusic {
+  id: number;
+  title: string;
+  artist?: string;
+  musicUrl: string;
+  duration?: number;
+  coverImageUrl?: string;
+  createdAt: string;
+}
+
+export interface ReelResponse {
+  id: number;
+  userId: number;
+  videoUrl: string;
+  videoFileName?: string;
+  caption?: string;
+  musicId?: number;
+  musicUrl?: string;
+  musicFileName?: string;
+  musicTitle?: string;
+  musicArtist?: string;
+  musicDuration: number;
+  duration: number;
+  likeCount: number;
+  commentCount: number;
+  shareCount: number;
+  viewCount: number;
+  isPublic: boolean;
+  isDeleted: boolean;
+  createdAt: string;
+  updatedAt: string;
+  user: User;
+  music?: ReelMusic;
+  isLiked?: boolean; // Added to check if current user liked this reel
+}
+
 // Post API endpoints
 export const postAPI = {
   // Create a new post
@@ -586,6 +644,16 @@ export const postAPI = {
     }
   },
 
+  // Get all posts with like status for current user
+  getAllPostsWithLikes: async () => {
+    try {
+      const response = await api.get('/Post/with-likes');
+      return response.data as PostResponse[];
+    } catch (error) {
+      throw error;
+    }
+  },
+
   // Get posts by user ID
   getPostsByUser: async (userId: number) => {
     try {
@@ -596,7 +664,7 @@ export const postAPI = {
     }
   },
 
-  // Get shared posts by user ID
+  // Get shared posts by user ID with like status
   getSharedPostsByUser: async (userId: number) => {
     try {
       const response = await api.get(`/Post/user/${userId}/shares`);
@@ -697,7 +765,7 @@ export const postAPI = {
 // Comment API endpoints
 export const commentAPI = {
   // Create a new comment
-  createComment: async (data: { postId: number; content: string; userId: number }) => {
+  createComment: async (data: { postId?: number; reelId?: number; content: string; userId: number }) => {
     try {
       const response = await api.post('/Comment', data);
       return response.data as Comment;
@@ -714,6 +782,17 @@ export const commentAPI = {
       return response.data as Comment[];
     } catch (error) {
       console.error('Error getting comments:', error);
+      throw error;
+    }
+  },
+
+  // Get comments for a reel
+  getCommentsByReel: async (reelId: number) => {
+    try {
+      const response = await api.get(`/Comment/reel/${reelId}`);
+      return response.data as Comment[];
+    } catch (error) {
+      console.error('Error getting reel comments:', error);
       throw error;
     }
   },
@@ -816,26 +895,8 @@ export const shareAPI = {
     try {
       console.log('shareAPI: Unsharing post:', postId, 'for user:', userId);
       
-      // Try different API endpoints in case the first one fails
-      let response;
-      try {
-        response = await api.delete(`/Share/${postId}/unshare/${userId}`);
-        console.log('shareAPI: Unshare response (method 1):', response.status);
-      } catch (firstError: any) {
-        console.warn('shareAPI: First method failed, trying alternative:', firstError.message);
-        
-        // Try alternative endpoint
-        try {
-          response = await api.delete(`/Share/unshare/${userId}/${postId}`);
-          console.log('shareAPI: Unshare response (method 2):', response.status);
-        } catch (secondError: any) {
-          console.warn('shareAPI: Second method failed, trying third:', secondError.message);
-          
-          // Try third alternative endpoint
-          response = await api.delete(`/Share/${userId}/${postId}/unshare`);
-          console.log('shareAPI: Unshare response (method 3):', response.status);
-        }
-      }
+      const response = await api.delete(`/Share/unshare/${postId}`);
+      console.log('shareAPI: Unshare response:', response.status);
       
       return response.data as Group;
     } catch (error: any) {
@@ -894,8 +955,8 @@ export const shareAPI = {
   // Check if user has shared post
   hasUserSharedPost: async (userId: number, postId: number) => {
     try {
-      const response = await api.get(`/Share/has-shared/${userId}/${postId}`);
-      return response.data as Group;
+      const response = await api.get(`/Share/check/${postId}`);
+      return response.data;
     } catch (error: any) {
       console.error('Error checking if user shared post:', error);
       throw error;
@@ -1227,4 +1288,168 @@ export const groupAPI = {
       }
     }
   }
+// Reels API functions
+export const reelAPI = {
+  // Create a new reel
+  createReel: async (data: {
+    userId: number;
+    videoUrl: string;
+    caption?: string;
+    musicId?: number;
+    isPublic?: boolean;
+  }) => {
+    try {
+      const response = await api.post('/Reel', data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error creating reel:', error);
+      throw error;
+    }
+  },
+
+  // Get a reel by ID
+  getReelById: async (reelId: number) => {
+    try {
+      const response = await api.get(`/Reel/${reelId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting reel:', error);
+      throw error;
+    }
+  },
+
+  // Get all reels
+  getAllReels: async () => {
+    try {
+      const response = await api.get('/Reel');
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting all reels:', error);
+      throw error;
+    }
+  },
+
+  // Get reels by user
+  getReelsByUser: async (userId: number) => {
+    try {
+      const response = await api.get(`/Reel/user/${userId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting user reels:', error);
+      throw error;
+    }
+  },
+
+        // Update a reel
+        updateReel: async (reelId: number, data: {
+          caption?: string;
+          isPublic?: boolean;
+          videoUrl?: string;
+          videoFileName?: string;
+          musicId?: number;
+          musicUrl?: string;
+          musicFileName?: string;
+          musicTitle?: string;
+          musicArtist?: string;
+          musicDuration?: number;
+          duration?: number;
+        }) => {
+          try {
+            const response = await api.put(`/Reel/${reelId}`, data);
+            return response.data;
+          } catch (error: any) {
+            console.error('Error updating reel:', error);
+            throw error;
+          }
+        },
+
+  // Delete a reel
+  deleteReel: async (reelId: number) => {
+    try {
+      const response = await api.delete(`/Reel/${reelId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error deleting reel:', error);
+      throw error;
+    }
+  },
+
+  // Like a reel
+  likeReel: async (reelId: number, userId: number) => {
+    try {
+      const response = await api.post(`/Reel/${reelId}/like/${userId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error liking reel:', error);
+      throw error;
+    }
+  },
+
+  // Unlike a reel
+  unlikeReel: async (reelId: number, userId: number) => {
+    try {
+      const response = await api.delete(`/Reel/${reelId}/like/${userId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error unliking reel:', error);
+      throw error;
+    }
+  },
+
+  // Get all music for reels
+  getAllReelMusic: async () => {
+    try {
+      const response = await api.get('/Reel/music');
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting reel music:', error);
+      throw error;
+    }
+  },
+
+  // Get music by ID
+  getReelMusicById: async (musicId: number) => {
+    try {
+      const response = await api.get(`/Reel/music/${musicId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting reel music:', error);
+      throw error;
+    }
+  },
+
+  // Create music for reels
+  createReelMusic: async (data: {
+    title: string;
+    artist?: string;
+    musicUrl: string;
+    duration?: number;
+    coverImageUrl?: string;
+  }) => {
+    try {
+      const response = await api.post('/Reel/music', data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error creating reel music:', error);
+      throw error;
+    }
+  },
+};
+
+// Main API object that combines all APIs
+export const API = {
+  ...authAPI,
+  ...userAPI,
+  ...postAPI,
+  ...commentAPI,
+  ...tagAPI,
+  ...shareAPI,
+  ...reelAPI,
+  
+  // Direct access to reel methods
+  getReelById: reelAPI.getReelById,
+  updateReel: reelAPI.updateReel,
+  deleteReel: reelAPI.deleteReel,
+  likeReel: reelAPI.likeReel,
+  unlikeReel: reelAPI.unlikeReel,
 };

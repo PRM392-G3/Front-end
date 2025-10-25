@@ -50,6 +50,7 @@ export const COLORS = {
   gradientStart: '#6366F1',
   gradientEnd: '#4F46E5',
   secondary: '#F8F9FA',
+  cardBackground: '#1F2937',
 };
 
 export const RESPONSIVE_SPACING = {

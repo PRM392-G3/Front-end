@@ -162,7 +162,7 @@ export default function EditPostScreen() {
         tags: tags.length > 0 ? tags : undefined,
       };
 
-      const updatedPost = await postAPI.updatePost(originalPost.id, updateData);
+      const updatedPost = await postAPI.updatePost(originalPost!.id, updateData);
       
       Alert.alert('Thành công', 'Bài viết đã được cập nhật thành công!', [
         {

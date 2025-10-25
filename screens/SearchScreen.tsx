@@ -5,12 +5,23 @@ import { useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { UserSearchResults } from '@/components/UserSearchResults';
 import { SuggestedUsers } from '@/components/SuggestedUsers';
+import { PostSearchResults } from '@/components/PostSearchResults';
+import { SuggestedPosts } from '@/components/SuggestedPosts';
+import { FilterModal, FilterState } from '@/components/FilterModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
 
 export default function SearchScreen() {
   const [activeTab, setActiveTab] = useState<'users' | 'posts' | 'groups' | 'events'>('users');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [filters, setFilters] = useState<FilterState>({
+    category: 'all',
+    sortBy: 'relevance',
+    timeRange: 'all',
+  });
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -42,6 +53,7 @@ export default function SearchScreen() {
                    />
             ) : (
                      <SuggestedUsers 
+                       userId={user?.id || 0}
                        limit={20}
                        onUserPress={(userId) => {
                          // Navigate to user profile screen
@@ -59,29 +71,26 @@ export default function SearchScreen() {
         );
       case 'posts':
         return (
-          <ScrollView style={styles.content}>
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Bài viết nổi bật</Text>
-              <View style={styles.trendingCard}>
-                <View style={styles.trendingImage} />
-                <View style={styles.trendingContent}>
-                  <Text style={styles.trendingTitle}>
-                    Sự kiện công nghệ lớn nhất năm 2024
-                  </Text>
-                  <Text style={styles.trendingStats}>1.2K lượt thích • 234 bình luận</Text>
-                </View>
-              </View>
-              <View style={styles.trendingCard}>
-                <View style={styles.trendingImage} />
-                <View style={styles.trendingContent}>
-                  <Text style={styles.trendingTitle}>
-                    Những xu hướng thiết kế mới nhất
-                  </Text>
-                  <Text style={styles.trendingStats}>890 lượt thích • 156 bình luận</Text>
-                </View>
-              </View>
-            </View>
-          </ScrollView>
+          <View style={styles.content}>
+            {searchQuery.trim() ? (
+              <PostSearchResults 
+                searchQuery={searchQuery}
+                onPostPress={(postId) => {
+                  console.log(`🎯 [SearchScreen] PostSearchResults onPostPress called with postId: ${postId}`);
+                  router.push(`/post-detail?id=${postId}` as any);
+                }}
+              />
+            ) : (
+              <SuggestedPosts 
+                userId={user?.id || 0}
+                limit={20}
+                onPostPress={(postId) => {
+                  console.log(`🎯 [SearchScreen] SuggestedPosts onPostPress called with postId: ${postId}`);
+                  router.push(`/post-detail?id=${postId}` as any);
+                }}
+              />
+            )}
+          </View>
         );
       case 'groups':
         return (
@@ -147,7 +156,10 @@ export default function SearchScreen() {
               <Sparkles size={24} color={COLORS.text.white} />
               <Text style={styles.logoText}>Tìm kiếm</Text>
             </View>
-            <TouchableOpacity style={styles.filterButton}>
+            <TouchableOpacity 
+              style={styles.filterButton}
+              onPress={() => setShowFilterModal(true)}
+            >
               <Filter size={20} color={COLORS.text.white} />
             </TouchableOpacity>
           </View>
@@ -201,6 +213,17 @@ export default function SearchScreen() {
       </View>
 
       {renderContent()}
+
+      {/* Filter Modal */}
+      <FilterModal
+        visible={showFilterModal}
+        onClose={() => setShowFilterModal(false)}
+        onApply={(newFilters) => {
+          setFilters(newFilters);
+          console.log('🔍 [SearchScreen] Applied filters:', newFilters);
+        }}
+        currentFilters={filters}
+      />
     </View>
   );
 }
