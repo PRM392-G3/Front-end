@@ -30,7 +30,7 @@ import {
   Send,
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { API, commentAPI } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { VideoView, useVideoPlayer } from 'expo-video';
@@ -358,7 +358,33 @@ export default function ReelsScreen() {
 
   useEffect(() => {
     loadReels();
+    
+    // Lắng nghe sự kiện refresh khi reel được update
+    const handleReelUpdated = (event: any) => {
+      console.log('Reel updated, refreshing reels...', event.detail);
+      refreshReels();
+    };
+
+    // Add event listener for reel updates
+    if (typeof window !== 'undefined' && window.addEventListener) {
+      window.addEventListener('reelUpdated', handleReelUpdated);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined' && window.removeEventListener) {
+        window.removeEventListener('reelUpdated', handleReelUpdated);
+      }
+    };
   }, []);
+
+  // Alternative: Sử dụng useFocusEffect để refresh khi quay lại màn hình
+  useFocusEffect(
+    React.useCallback(() => {
+      // Refresh reels khi focus vào màn hình
+      console.log('ReelsScreen focused, checking for updates...');
+      refreshReels();
+    }, [])
+  );
 
   const loadReels = async () => {
     try {
@@ -366,7 +392,7 @@ export default function ReelsScreen() {
       setError(null);
       const data: any = await API.getAllReels();
       
-      // Backend now returns isLiked for each reel
+      // Backend now handles privacy filtering, so we can use the data directly
       setReels(data);
     } catch (err: any) {
       console.error('Error loading reels:', err);
@@ -374,6 +400,11 @@ export default function ReelsScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const refreshReels = async () => {
+    console.log('Manually refreshing reels...');
+    await loadReels();
   };
 
   const handleLike = async (reel: any) => {
@@ -434,13 +465,16 @@ export default function ReelsScreen() {
       if (isOwnReel) {
         // Show edit/delete options
         Alert.alert(
-          'Reel Options',
-          'Choose an option',
+          'Tùy chọn Reel',
+          'Chọn một tùy chọn',
           [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Edit', onPress: () => console.log('Edit reel:', reel.id) },
+            { text: 'Hủy', style: 'cancel' },
             { 
-              text: 'Delete', 
+              text: 'Chỉnh sửa', 
+              onPress: () => handleEditReel(reel)
+            },
+            { 
+              text: 'Xóa', 
               style: 'destructive',
               onPress: () => handleDeleteReel(reel)
             }
@@ -449,11 +483,11 @@ export default function ReelsScreen() {
       } else {
         // Show share options for other users' reels
         Alert.alert(
-          'Share Reel',
-          'Share this reel?',
+          'Chia sẻ Reel',
+          'Bạn có muốn chia sẻ reel này?',
           [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Share', onPress: () => console.log('Sharing...') }
+            { text: 'Hủy', style: 'cancel' },
+            { text: 'Chia sẻ', onPress: () => console.log('Sharing...') }
           ]
         );
       }
@@ -462,25 +496,29 @@ export default function ReelsScreen() {
     }
   };
 
+  const handleEditReel = (reel: any) => {
+    router.push(`/edit-reel?id=${reel.id}` as any);
+  };
+
   const handleDeleteReel = async (reel: any) => {
     try {
       Alert.alert(
-        'Delete Reel',
-        'Are you sure you want to delete this reel?',
+        'Xóa Reel',
+        'Bạn có chắc chắn muốn xóa reel này? Hành động này không thể hoàn tác.',
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: 'Hủy', style: 'cancel' },
           {
-            text: 'Delete',
+            text: 'Xóa',
             style: 'destructive',
             onPress: async () => {
               try {
                 await API.deleteReel(reel.id);
                 // Refresh reels after deletion
                 loadReels();
-                Alert.alert('Success', 'Reel deleted successfully');
+                Alert.alert('Thành công', 'Reel đã được xóa');
               } catch (error) {
                 console.error('Error deleting reel:', error);
-                Alert.alert('Error', 'Failed to delete reel');
+                Alert.alert('Lỗi', 'Không thể xóa reel');
               }
             }
           }

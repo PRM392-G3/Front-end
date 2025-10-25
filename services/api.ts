@@ -968,6 +968,29 @@ export const reelAPI = {
     }
   },
 
+        // Update a reel
+        updateReel: async (reelId: number, data: {
+          caption?: string;
+          isPublic?: boolean;
+          videoUrl?: string;
+          videoFileName?: string;
+          musicId?: number;
+          musicUrl?: string;
+          musicFileName?: string;
+          musicTitle?: string;
+          musicArtist?: string;
+          musicDuration?: number;
+          duration?: number;
+        }) => {
+          try {
+            const response = await api.put(`/Reel/${reelId}`, data);
+            return response.data;
+          } catch (error: any) {
+            console.error('Error updating reel:', error);
+            throw error;
+          }
+        },
+
   // Delete a reel
   deleteReel: async (reelId: number) => {
     try {
@@ -1050,4 +1073,11 @@ export const API = {
   ...tagAPI,
   ...shareAPI,
   ...reelAPI,
+  
+  // Direct access to reel methods
+  getReelById: reelAPI.getReelById,
+  updateReel: reelAPI.updateReel,
+  deleteReel: reelAPI.deleteReel,
+  likeReel: reelAPI.likeReel,
+  unlikeReel: reelAPI.unlikeReel,
 };
