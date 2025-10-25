@@ -13,30 +13,55 @@ import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constan
 import { X, Users, Camera, Lock, Globe } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '@/contexts/AuthContext';
+import { groupAPI, CreateGroupRequest } from '@/services/api';
 
 export default function CreateGroupScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const [groupName, setGroupName] = useState('');
   const [description, setDescription] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
 
-  const handleCreateGroup = () => {
+  const handleCreateGroup = async () => {
     if (!groupName.trim()) {
       Alert.alert('Lỗi', 'Vui lòng nhập tên nhóm');
       return;
     }
 
-    // TODO: Call API to create group
-    Alert.alert('Thành công', 'Nhóm đã được tạo', [
-      {
-        text: 'OK',
-        onPress: () => router.back(),
-      },
-    ]);
+    if (!user) {
+      Alert.alert('Lỗi', 'Vui lòng đăng nhập để tạo nhóm');
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      const groupData: CreateGroupRequest = {
+        name: groupName.trim(),
+        description: description.trim(),
+        createdById: user.id,
+        privacy: isPrivate ? 'private' : 'public',
+      };
+
+      const newGroup = await groupAPI.createGroup(groupData);
+      
+      Alert.alert('Thành công', 'Nhóm đã được tạo', [
+        {
+          text: 'OK',
+          onPress: () => router.back(),
+        },
+      ]);
+    } catch (error: any) {
+      console.error('Error creating group:', error);
+      Alert.alert('Lỗi', error.message || 'Không thể tạo nhóm');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
-  const canCreate = groupName.trim().length > 0;
+  const canCreate = groupName.trim().length > 0 && !isCreating;
 
   return (
     <View style={styles.container}>
@@ -54,7 +79,7 @@ export default function CreateGroupScreen() {
           <Text
             style={[styles.createButton, !canCreate && styles.createButtonDisabled]}
           >
-            Tạo
+            {isCreating ? 'Đang tạo...' : 'Tạo'}
           </Text>
         </TouchableOpacity>
       </View>

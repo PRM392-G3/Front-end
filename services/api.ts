@@ -24,6 +24,65 @@ export interface User {
   isFollowing: boolean;
 }
 
+// Group interfaces
+export interface Group {
+  id: number;
+  name: string;
+  description: string;
+  avatarUrl: string | null;
+  coverImageUrl: string | null;
+  createdById: number;
+  privacy: 'private' | 'public';
+  memberCount: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: User;
+}
+
+export interface CreateGroupRequest {
+  name: string;
+  description: string;
+  avatarUrl?: string;
+  coverImageUrl?: string;
+  createdById: number;
+  privacy: 'private' | 'public';
+}
+
+export interface GroupInviteRequest {
+  groupId: number;
+  userId: number;
+  invitedById: number;
+  role: 'member' | 'admin';
+}
+
+export interface GroupInviteResponse {
+  id: number;
+  groupId: number;
+  userId: number;
+  invitedById: number;
+  role: 'member' | 'admin';
+  status: 'pending' | 'accepted' | 'rejected';
+  createdAt: string;
+  updatedAt: string;
+  group: Group;
+  user: User;
+  invitedByUser: User;
+}
+
+export interface GroupInvitation {
+  id: number;
+  groupId: number;
+  userId: number;
+  invitedById: number;
+  role: 'member' | 'admin';
+  status: 'pending' | 'accepted' | 'rejected';
+  createdAt: string;
+  updatedAt: string;
+  group: Group;
+  invitedByUser: User;
+}
+
 // Auth response interface
 export interface AuthResponse {
   token: string;
@@ -121,7 +180,7 @@ export const authAPI = {
         email,
         password,
       });
-      return response.data;
+      return response.data as Group;
     } catch (error) {
       throw error;
     }
@@ -141,7 +200,7 @@ export const authAPI = {
         fullName: userData.name,
         phoneNumber: userData.phone,
       });
-      return response.data;
+      return response.data as Group;
     } catch (error) {
       throw error;
     }
@@ -153,7 +212,7 @@ export const authAPI = {
       const response = await api.post('/Auth/google-login', {
         googleToken,
       });
-      return response.data;
+      return response.data as Group;
     } catch (error) {
       throw error;
     }
@@ -179,7 +238,7 @@ export const authAPI = {
       const response = await api.post('/auth/refresh', {
         refreshToken,
       });
-      return response.data;
+      return response.data as Group;
     } catch (error) {
       throw error;
     }
@@ -266,7 +325,7 @@ export const userAPI = {
   unfollowUser: async (followerId: number, followingId: number) => {
     try {
       const response = await api.delete(`/User/${followerId}/follow/${followingId}`);
-      return response.data;
+      return response.data as Group;
     } catch (error) {
       throw error;
     }
@@ -278,7 +337,7 @@ export const userAPI = {
   followUser: async (followerId: number, followingId: number) => {
     try {
       const response = await api.post(`/User/${followerId}/follow/${followingId}`);
-      return response.data;
+      return response.data as Group;
     } catch (error) {
       throw error;
     }
@@ -288,7 +347,7 @@ export const userAPI = {
   searchUsers: async (query: string, page: number = 1, limit: number = 20) => {
     try {
       const response = await api.get(`/User/search?name=${encodeURIComponent(query)}&page=${page}&limit=${limit}`);
-      return response.data;
+      return response.data as Group;
     } catch (error) {
       throw error;
     }
@@ -298,7 +357,7 @@ export const userAPI = {
   getFollowersList: async (userId: number) => {
     try {
       const response = await api.get(`/User/${userId}/followers`);
-      return response.data;
+      return response.data as Group;
     } catch (error) {
       throw error;
     }
@@ -308,7 +367,7 @@ export const userAPI = {
   getSuggestedUsers: async (limit: number = 10) => {
     try {
       const response = await api.get(`/User/suggested?limit=${limit}`);
-      return response.data;
+      return response.data as Group;
     } catch (error) {
       throw error;
     }
@@ -379,7 +438,7 @@ export const userAPI = {
   unfriend: async (userId: number, friendId: number) => {
     try {
       const response = await api.delete(`/User/${userId}/friend/${friendId}`);
-      return response.data;
+      return response.data as Group;
     } catch (error) {
       throw error;
     }
@@ -583,7 +642,7 @@ export const postAPI = {
   likePost: async (postId: number, userId: number) => {
     try {
       const response = await api.post(`/Post/${postId}/like/${userId}`);
-      return response.data;
+      return response.data as Group;
     } catch (error) {
       console.error('Error liking post:', error);
       throw error;
@@ -594,7 +653,7 @@ export const postAPI = {
   unlikePost: async (postId: number, userId: number) => {
     try {
       const response = await api.delete(`/Post/${postId}/like/${userId}`);
-      return response.data;
+      return response.data as Group;
     } catch (error) {
       console.error('Error unliking post:', error);
       throw error;
@@ -674,7 +733,7 @@ export const commentAPI = {
   deleteComment: async (commentId: number) => {
     try {
       const response = await api.delete(`/Comment/${commentId}`);
-      return response.data;
+      return response.data as Group;
     } catch (error) {
       console.error('Error deleting comment:', error);
       throw error;
@@ -745,7 +804,7 @@ export const shareAPI = {
         caption,
         isPublic
       });
-      return response.data;
+      return response.data as Group;
     } catch (error: any) {
       console.error('Error sharing post:', error);
       throw error;
@@ -778,7 +837,7 @@ export const shareAPI = {
         }
       }
       
-      return response.data;
+      return response.data as Group;
     } catch (error: any) {
       console.error('shareAPI: Error unsharing post:', error);
       console.error('shareAPI: Error status:', error.response?.status);
@@ -814,7 +873,7 @@ export const shareAPI = {
   getSharesByPost: async (postId: number) => {
     try {
       const response = await api.get(`/Share/post/${postId}`);
-      return response.data;
+      return response.data as Group;
     } catch (error: any) {
       console.error('Error getting shares by post:', error);
       throw error;
@@ -825,7 +884,7 @@ export const shareAPI = {
   getSharesByUser: async (userId: number) => {
     try {
       const response = await api.get(`/Share/user/${userId}`);
-      return response.data;
+      return response.data as Group;
     } catch (error: any) {
       console.error('Error getting shares by user:', error);
       throw error;
@@ -836,7 +895,7 @@ export const shareAPI = {
   hasUserSharedPost: async (userId: number, postId: number) => {
     try {
       const response = await api.get(`/Share/has-shared/${userId}/${postId}`);
-      return response.data;
+      return response.data as Group;
     } catch (error: any) {
       console.error('Error checking if user shared post:', error);
       throw error;
@@ -847,10 +906,325 @@ export const shareAPI = {
   getShareCount: async (postId: number) => {
     try {
       const response = await api.get(`/Share/count/${postId}`);
-      return response.data;
+      return response.data as Group;
     } catch (error: any) {
       console.error('Error getting share count:', error);
       throw error;
     }
   },
+};
+
+// Group API
+export const groupAPI = {
+  // Tạo nhóm mới
+  createGroup: async (groupData: CreateGroupRequest): Promise<Group> => {
+    try {
+      console.log('groupAPI: Creating group:', groupData);
+      
+      const response = await api.post('/Group', groupData);
+      console.log('groupAPI: Create group response:', response.status);
+      
+      return response.data as Group;
+    } catch (error: any) {
+      console.error('groupAPI: Error creating group:', error);
+      console.error('groupAPI: Error status:', error.response?.status);
+      console.error('groupAPI: Error message:', error.message);
+      console.error('groupAPI: Error data:', error.response?.data);
+      
+      if (error.response?.status === 400) {
+        const errorData = error.response?.data;
+        if (errorData && errorData.message) {
+          throw new Error(errorData.message);
+        } else {
+          throw new Error('Dữ liệu nhóm không hợp lệ');
+        }
+      } else if (error.response?.status === 401) {
+        throw new Error('Phiên đăng nhập hết hạn');
+      } else if (error.isNetworkError) {
+        throw new Error('Lỗi kết nối mạng. Vui lòng thử lại sau.');
+      } else {
+        throw new Error('Không thể tạo nhóm. Vui lòng thử lại.');
+      }
+    }
+  },
+
+  // Lấy danh sách nhóm của người dùng
+  getUserGroups: async (userId: number): Promise<Group[]> => {
+    try {
+      console.log('groupAPI: Getting user groups for user:', userId);
+      
+      const response = await api.get(`/Group/user/${userId}`);
+      console.log('groupAPI: Get user groups response:', response.status);
+      
+      return response.data as Group[];
+    } catch (error: any) {
+      console.error('groupAPI: Error getting user groups:', error);
+      console.error('groupAPI: Error status:', error.response?.status);
+      console.error('groupAPI: Error message:', error.message);
+      console.error('groupAPI: Error data:', error.response?.data);
+      
+      if (error.response?.status === 404) {
+        return []; // Return empty array if no groups found
+      } else if (error.response?.status === 401) {
+        throw new Error('Phiên đăng nhập hết hạn');
+      } else if (error.isNetworkError) {
+        throw new Error('Lỗi kết nối mạng. Vui lòng thử lại sau.');
+      } else {
+        throw new Error('Không thể lấy danh sách nhóm. Vui lòng thử lại.');
+      }
+    }
+  },
+
+  // Lấy danh sách nhóm công khai (khám phá)
+  getPublicGroups: async (): Promise<Group[]> => {
+    try {
+      console.log('groupAPI: Getting public groups');
+      
+      const response = await api.get('/Group/public');
+      console.log('groupAPI: Get public groups response:', response.status);
+      
+      return response.data as Group[];
+    } catch (error: any) {
+      console.error('groupAPI: Error getting public groups:', error);
+      console.error('groupAPI: Error status:', error.response?.status);
+      console.error('groupAPI: Error message:', error.message);
+      console.error('groupAPI: Error data:', error.response?.data);
+      
+      if (error.response?.status === 404) {
+        return []; // Return empty array if no groups found
+      } else if (error.response?.status === 401) {
+        throw new Error('Phiên đăng nhập hết hạn');
+      } else if (error.isNetworkError) {
+        throw new Error('Lỗi kết nối mạng. Vui lòng thử lại sau.');
+      } else {
+        throw new Error('Không thể lấy danh sách nhóm. Vui lòng thử lại.');
+      }
+    }
+  },
+
+  // Lấy chi tiết nhóm
+  getGroupById: async (groupId: number): Promise<Group> => {
+    try {
+      console.log('groupAPI: Getting group by id:', groupId);
+      
+      const response = await api.get(`/Group/${groupId}`);
+      console.log('groupAPI: Get group response:', response.status);
+      
+      return response.data as Group;
+    } catch (error: any) {
+      console.error('groupAPI: Error getting group:', error);
+      console.error('groupAPI: Error status:', error.response?.status);
+      console.error('groupAPI: Error message:', error.message);
+      console.error('groupAPI: Error data:', error.response?.data);
+      
+      if (error.response?.status === 404) {
+        throw new Error('Nhóm không tồn tại');
+      } else if (error.response?.status === 401) {
+        throw new Error('Phiên đăng nhập hết hạn');
+      } else if (error.isNetworkError) {
+        throw new Error('Lỗi kết nối mạng. Vui lòng thử lại sau.');
+      } else {
+        throw new Error('Không thể lấy thông tin nhóm. Vui lòng thử lại.');
+      }
+    }
+  },
+
+  // Mời thành viên vào nhóm
+  inviteToGroup: async (inviteData: GroupInviteRequest): Promise<GroupInviteResponse> => {
+    try {
+      console.log('groupAPI: Inviting user to group:', inviteData);
+      
+      const response = await api.post('/Group/invite', inviteData);
+      console.log('groupAPI: Invite response:', response.status);
+      
+      return response.data as GroupInviteResponse;
+    } catch (error: any) {
+      console.error('groupAPI: Error inviting to group:', error);
+      console.error('groupAPI: Error status:', error.response?.status);
+      console.error('groupAPI: Error message:', error.message);
+      console.error('groupAPI: Error data:', error.response?.data);
+      
+      if (error.response?.status === 400) {
+        const errorData = error.response?.data;
+        if (errorData && errorData.message) {
+          throw new Error(errorData.message);
+        } else {
+          throw new Error('Không thể gửi lời mời');
+        }
+      } else if (error.response?.status === 401) {
+        throw new Error('Phiên đăng nhập hết hạn');
+      } else if (error.response?.status === 404) {
+        throw new Error('Nhóm hoặc người dùng không tồn tại');
+      } else if (error.isNetworkError) {
+        throw new Error('Lỗi kết nối mạng. Vui lòng thử lại sau.');
+      } else {
+        throw new Error('Không thể gửi lời mời. Vui lòng thử lại.');
+      }
+    }
+  },
+
+  // Rời nhóm
+  leaveGroup: async (groupId: number, userId: number): Promise<void> => {
+    try {
+      console.log('groupAPI: Leaving group:', { groupId, userId });
+      
+      // userId là query parameter, không phải body
+      const response = await api.post(`/Group/${groupId}/leave?userId=${userId}`);
+      console.log('groupAPI: Leave group response:', response.status);
+      console.log('groupAPI: Leave group message:', response.data);
+      
+      return;
+    } catch (error: any) {
+      console.error('groupAPI: Error leaving group:', error);
+      console.error('groupAPI: Error status:', error.response?.status);
+      console.error('groupAPI: Error message:', error.message);
+      console.error('groupAPI: Error data:', error.response?.data);
+      
+      if (error.response?.status === 400) {
+        const errorData = error.response?.data;
+        if (errorData && errorData.message) {
+          throw new Error(errorData.message);
+        } else {
+          throw new Error('Không thể rời nhóm');
+        }
+      } else if (error.response?.status === 401) {
+        throw new Error('Phiên đăng nhập hết hạn');
+      } else if (error.response?.status === 404) {
+        throw new Error('Nhóm không tồn tại hoặc bạn không phải thành viên');
+      } else if (error.isNetworkError) {
+        throw new Error('Lỗi kết nối mạng. Vui lòng thử lại sau.');
+      } else {
+        throw new Error('Không thể rời nhóm. Vui lòng thử lại.');
+      }
+    }
+  },
+
+  // Kiểm tra user có phải thành viên của nhóm không
+  checkMembership: async (groupId: number, userId: number): Promise<boolean> => {
+    try {
+      console.log('groupAPI: Checking membership:', { groupId, userId });
+      
+      const response = await api.get<{ isMember: boolean }>(`/Group/${groupId}/is-member/${userId}`);
+      console.log('groupAPI: Check membership response:', response.status);
+      console.log('groupAPI: isMember:', response.data.isMember);
+      
+      return response.data.isMember;
+    } catch (error: any) {
+      console.error('groupAPI: Error checking membership:', error);
+      console.error('groupAPI: Error status:', error.response?.status);
+      console.error('groupAPI: Error message:', error.message);
+      console.error('groupAPI: Error data:', error.response?.data);
+      
+      // If there's an error, assume not a member
+      if (error.response?.status === 404) {
+        return false;
+      } else if (error.response?.status === 401) {
+        throw new Error('Phiên đăng nhập hết hạn');
+      } else if (error.isNetworkError) {
+        console.warn('groupAPI: Network error when checking membership, returning false');
+        return false;
+      } else {
+        // For other errors, return false instead of throwing
+        console.warn('groupAPI: Unknown error when checking membership, returning false');
+        return false;
+      }
+    }
+  },
+
+  // Chấp nhận lời mời tham gia nhóm
+  acceptInvitation: async (groupId: number, userId: number): Promise<void> => {
+    try {
+      console.log('groupAPI: Accepting invitation:', { groupId, userId });
+      
+      const response = await api.post(`/Group/${groupId}/accept-invitation?userId=${userId}`);
+      console.log('groupAPI: Accept invitation response:', response.status);
+      
+      return;
+    } catch (error: any) {
+      console.error('groupAPI: Error accepting invitation:', error);
+      console.error('groupAPI: Error status:', error.response?.status);
+      console.error('groupAPI: Error message:', error.message);
+      console.error('groupAPI: Error data:', error.response?.data);
+      
+      if (error.response?.status === 400) {
+        throw new Error('Không thể chấp nhận lời mời');
+      } else if (error.response?.status === 401) {
+        throw new Error('Phiên đăng nhập hết hạn');
+      } else if (error.response?.status === 404) {
+        throw new Error('Lời mời không tồn tại');
+      } else if (error.isNetworkError) {
+        throw new Error('Lỗi kết nối mạng. Vui lòng thử lại sau.');
+      } else {
+        throw new Error('Không thể chấp nhận lời mời. Vui lòng thử lại.');
+      }
+    }
+  },
+
+  // Từ chối lời mời tham gia nhóm
+  rejectInvitation: async (groupId: number, userId: number): Promise<void> => {
+    try {
+      console.log('groupAPI: Rejecting invitation:', { groupId, userId });
+      
+      const response = await api.post(`/Group/${groupId}/reject-invitation?userId=${userId}`);
+      console.log('groupAPI: Reject invitation response:', response.status);
+      
+      return;
+    } catch (error: any) {
+      console.error('groupAPI: Error rejecting invitation:', error);
+      console.error('groupAPI: Error status:', error.response?.status);
+      console.error('groupAPI: Error message:', error.message);
+      console.error('groupAPI: Error data:', error.response?.data);
+      
+      if (error.response?.status === 400) {
+        throw new Error('Không thể từ chối lời mời');
+      } else if (error.response?.status === 401) {
+        throw new Error('Phiên đăng nhập hết hạn');
+      } else if (error.response?.status === 404) {
+        throw new Error('Lời mời không tồn tại');
+      } else if (error.isNetworkError) {
+        throw new Error('Lỗi kết nối mạng. Vui lòng thử lại sau.');
+      } else {
+        throw new Error('Không thể từ chối lời mời. Vui lòng thử lại.');
+      }
+    }
+  },
+
+  // Lấy danh sách lời mời nhóm pending của user (tất cả groups mời user này)
+  getPendingInvitationsForUser: async (userId: number): Promise<GroupInvitation[]> => {
+    try {
+      console.log('groupAPI: Getting pending invitations for user:', userId);
+      
+      // TODO: Need backend API endpoint to get all invitations for a user
+      // For now, return empty array
+      console.warn('groupAPI: getPendingInvitationsForUser not implemented on backend yet');
+      return [];
+    } catch (error: any) {
+      console.error('groupAPI: Error getting pending invitations for user:', error);
+      return [];
+    }
+  },
+
+  // Lấy danh sách lời mời pending của một group
+  getGroupPendingInvitations: async (groupId: number): Promise<GroupInvitation[]> => {
+    try {
+      console.log('groupAPI: Getting pending invitations for group:', groupId);
+      
+      const response = await api.get(`/Group/${groupId}/invitations/pending`);
+      console.log('groupAPI: Pending invitations response:', response.status);
+      
+      return response.data as GroupInvitation[];
+    } catch (error: any) {
+      console.error('groupAPI: Error getting pending invitations:', error);
+      
+      if (error.response?.status === 404) {
+        return [];
+      } else if (error.response?.status === 401) {
+        throw new Error('Phiên đăng nhập hết hạn');
+      } else if (error.isNetworkError) {
+        return [];
+      } else {
+        return [];
+      }
+    }
+  }
 };

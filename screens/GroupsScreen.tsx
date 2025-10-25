@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,72 +6,51 @@ import {
   FlatList,
   TouchableOpacity,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
 import { Search, Plus, Users, Lock } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-interface Group {
-  id: string;
-  name: string;
-  description: string;
-  memberCount: number;
-  avatarUrl?: string;
-  isPrivate: boolean;
-  isMember: boolean;
-  lastActivity?: string;
-}
-
-const SAMPLE_GROUPS: Group[] = [
-  {
-    id: '1',
-    name: 'Lập trình React Native',
-    description: 'Nhóm học React Native và chia sẻ kiến thức',
-    memberCount: 1234,
-    isPrivate: false,
-    isMember: true,
-    lastActivity: '5 phút trước',
-  },
-  {
-    id: '2',
-    name: 'Du lịch Việt Nam',
-    description: 'Khám phá vẻ đẹp Việt Nam',
-    memberCount: 567,
-    isPrivate: false,
-    isMember: true,
-    lastActivity: '1 giờ trước',
-  },
-  {
-    id: '3',
-    name: 'Ẩm thực Sài Gòn',
-    description: 'Review quán ăn ngon Sài Gòn',
-    memberCount: 890,
-    isPrivate: false,
-    isMember: false,
-    lastActivity: '2 giờ trước',
-  },
-  {
-    id: '4',
-    name: 'Nhóm riêng tư',
-    description: 'Nhóm chỉ dành cho thành viên',
-    memberCount: 45,
-    isPrivate: true,
-    isMember: true,
-    lastActivity: '30 phút trước',
-  },
-];
+import { useAuth } from '@/contexts/AuthContext';
+import { groupAPI, Group } from '@/services/api';
 
 export default function GroupsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'my-groups' | 'discover'>('my-groups');
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
 
-  const filteredGroups = SAMPLE_GROUPS.filter((group) => {
+  useEffect(() => {
+    loadGroups();
+  }, [activeTab, user]);
+
+  const loadGroups = async () => {
+    if (!user) return;
+    
+    setLoading(true);
+    try {
+      if (activeTab === 'my-groups') {
+        const userGroups = await groupAPI.getUserGroups(user.id);
+        setGroups(userGroups);
+      } else {
+        const publicGroups = await groupAPI.getPublicGroups();
+        setGroups(publicGroups);
+      }
+    } catch (error: any) {
+      console.error('Error loading groups:', error);
+      setGroups([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredGroups = groups.filter((group) => {
     const matchesSearch = group.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesTab = activeTab === 'my-groups' ? group.isMember : !group.isMember;
-    return matchesSearch && matchesTab;
+    return matchesSearch;
   });
 
   const renderGroupCard = ({ item }: { item: Group }) => (
@@ -157,26 +136,33 @@ export default function GroupsScreen() {
       </View>
 
       {/* Groups List */}
-      <FlatList
-        data={filteredGroups}
-        renderItem={renderGroupCard}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Users size={64} color={COLORS.gray} />
-            <Text style={styles.emptyTitle}>
-              {activeTab === 'my-groups' ? 'Chưa có nhóm nào' : 'Không tìm thấy nhóm'}
-            </Text>
-            <Text style={styles.emptySubtitle}>
-              {activeTab === 'my-groups'
-                ? 'Tham gia hoặc tạo nhóm mới để bắt đầu'
-                : 'Thử tìm kiếm với từ khóa khác'}
-            </Text>
-          </View>
-        }
-      />
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.loadingText}>Đang tải nhóm...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredGroups}
+          renderItem={renderGroupCard}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Users size={64} color={COLORS.gray} />
+              <Text style={styles.emptyTitle}>
+                {activeTab === 'my-groups' ? 'Chưa có nhóm nào' : 'Không tìm thấy nhóm'}
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                {activeTab === 'my-groups'
+                  ? 'Tham gia hoặc tạo nhóm mới để bắt đầu'
+                  : 'Thử tìm kiếm với từ khóa khác'}
+              </Text>
+            </View>
+          }
+        />
+      )}
     </View>
   );
 }
@@ -309,6 +295,17 @@ const styles = StyleSheet.create({
   groupActivity: {
     fontSize: FONT_SIZES.xs,
     color: COLORS.gray,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: RESPONSIVE_SPACING.xl * 2,
+  },
+  loadingText: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.text.secondary,
+    marginTop: RESPONSIVE_SPACING.md,
   },
   emptyState: {
     alignItems: 'center',
