@@ -28,8 +28,8 @@ export default function FollowingScreen() {
       const userData = await userAPI.getUserById(parseInt(id));
       setUser(userData);
       
-      // Load following list
-      const followingData = await userAPI.getFollowingList(parseInt(id));
+      // Load following list with follow status
+      const followingData = await userAPI.getFollowingWithStatus(parseInt(id));
       console.log('✅ [Following] API SUCCESS: Received following data:', followingData);
       
       // Handle different response formats
@@ -48,7 +48,10 @@ export default function FollowingScreen() {
   };
 
   const handleUserPress = (userId: number) => {
-    router.push(`/profile?id=${userId}` as any);
+    router.push({
+      pathname: '/profile',
+      params: { userId: userId.toString() }
+    } as any);
   };
 
   const handleUnfollow = async (followingId: number) => {
@@ -59,8 +62,9 @@ export default function FollowingScreen() {
 
     try {
       await userAPI.unfollowUser(currentUser.id, followingId);
+      // Remove the user from the following list
+      setFollowing(prev => prev.filter(user => user.id !== followingId));
       Alert.alert('Thành công', 'Đã bỏ theo dõi người dùng');
-      loadData(); // Refresh data
     } catch (error: any) {
       console.error('❌ [Following] Unfollow error:', error);
       Alert.alert('Lỗi', 'Không thể bỏ theo dõi người dùng này');
@@ -137,8 +141,8 @@ export default function FollowingScreen() {
                     }
                   </Text>
                 </View>
-                {/* Only show unfollow button if viewing own following list */}
-                {currentUser && user && currentUser.id === user.id && currentUser.id !== followedUser.id && (
+                {/* Only show unfollow button if viewing own following list and currently following this user */}
+                {currentUser && user && currentUser.id === user.id && currentUser.id !== followedUser.id && followedUser.isFollowing && (
                   <TouchableOpacity
                     style={styles.unfollowButton}
                     onPress={(e) => {

@@ -13,7 +13,6 @@ export default function FollowersScreen() {
   const [followers, setFollowers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
-  const [followingStatus, setFollowingStatus] = useState<{[key: number]: boolean}>({});
 
   useEffect(() => {
     if (id) {
@@ -29,8 +28,8 @@ export default function FollowersScreen() {
       const userData = await userAPI.getUserById(parseInt(id));
       setUser(userData);
       
-      // Load followers list
-      const followersData = await userAPI.getFollowersList(parseInt(id));
+      // Load followers list with follow status
+      const followersData = await userAPI.getFollowersWithStatus(parseInt(id));
       console.log('✅ [Followers] API SUCCESS: Received followers data:', followersData);
       
       // Handle different response formats
@@ -49,7 +48,10 @@ export default function FollowersScreen() {
   };
 
   const handleUserPress = (userId: number) => {
-    router.push(`/profile?id=${userId}` as any);
+    router.push({
+      pathname: '/profile',
+      params: { userId: userId.toString() }
+    } as any);
   };
 
   const handleFollow = async (followerId: number) => {
@@ -60,11 +62,12 @@ export default function FollowersScreen() {
 
     try {
       await userAPI.followUser(currentUser.id, followerId);
-      // Update following status
-      setFollowingStatus(prev => ({
-        ...prev,
-        [followerId]: true
-      }));
+      // Update following status in the followers list
+      setFollowers(prev => prev.map(follower => 
+        follower.id === followerId 
+          ? { ...follower, isFollowing: true }
+          : follower
+      ));
       Alert.alert('Thành công', 'Đã theo dõi người dùng');
     } catch (error: any) {
       console.error('❌ [Followers] Follow error:', error);
@@ -80,11 +83,12 @@ export default function FollowersScreen() {
 
     try {
       await userAPI.unfollowUser(currentUser.id, followerId);
-      // Update following status
-      setFollowingStatus(prev => ({
-        ...prev,
-        [followerId]: false
-      }));
+      // Update following status in the followers list
+      setFollowers(prev => prev.map(follower => 
+        follower.id === followerId 
+          ? { ...follower, isFollowing: false }
+          : follower
+      ));
       Alert.alert('Thành công', 'Đã bỏ theo dõi người dùng');
     } catch (error: any) {
       console.error('❌ [Followers] Unfollow error:', error);
@@ -161,12 +165,12 @@ export default function FollowersScreen() {
                   {/* Show follow status if viewing own followers list */}
                   {currentUser && user && currentUser.id === user.id && (
                     <Text style={styles.followStatus}>
-                      {followingStatus[follower.id] ? 'Đang theo dõi' : 'Chưa theo dõi'}
+                      {follower.isFollowing ? 'Đang theo dõi' : 'Chưa theo dõi'}
                     </Text>
                   )}
                 </View>
                 {/* Only show follow button if viewing own followers list and not following this user */}
-                {currentUser && user && currentUser.id === user.id && currentUser.id !== follower.id && !followingStatus[follower.id] && (
+                {currentUser && user && currentUser.id === user.id && currentUser.id !== follower.id && !follower.isFollowing && (
                   <TouchableOpacity
                     style={styles.followButton}
                     onPress={(e) => {
@@ -189,7 +193,7 @@ export default function FollowersScreen() {
                   </TouchableOpacity>
                 )}
                 {/* Show unfollow button if viewing own followers list and already following this user */}
-                {currentUser && user && currentUser.id === user.id && currentUser.id !== follower.id && followingStatus[follower.id] && (
+                {currentUser && user && currentUser.id === user.id && currentUser.id !== follower.id && follower.isFollowing && (
                   <TouchableOpacity
                     style={styles.unfollowButton}
                     onPress={(e) => {

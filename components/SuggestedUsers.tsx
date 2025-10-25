@@ -7,11 +7,13 @@ import { useRouter } from 'expo-router';
 import { Users } from 'lucide-react-native';
 
 interface SuggestedUsersProps {
+  userId: number;
   limit?: number;
   onUserPress?: (userId: number) => void;
 }
 
 export const SuggestedUsers: React.FC<SuggestedUsersProps> = ({ 
+  userId,
   limit = 10,
   onUserPress 
 }) => {
@@ -30,9 +32,9 @@ export const SuggestedUsers: React.FC<SuggestedUsersProps> = ({
       }
       setError(null);
 
-      console.log(`[SuggestedUsers] Fetching suggested users, limit: ${limit}`);
+      console.log(`[SuggestedUsers] Fetching suggested users for user ${userId}, limit: ${limit}`);
       
-      const suggestedUsers = await userAPI.getSuggestedUsers(limit) as any;
+      const suggestedUsers = await userAPI.getSuggestedUsers(userId, limit) as any;
       
       console.log(`[SuggestedUsers] Suggested users result:`, suggestedUsers);
       
@@ -62,14 +64,14 @@ export const SuggestedUsers: React.FC<SuggestedUsersProps> = ({
     fetchSuggestedUsers(true);
   };
 
-  const handleUserPress = (userId: number) => {
+  const handleUserPress = (targetUserId: number) => {
     if (onUserPress) {
-      onUserPress(userId);
+      onUserPress(targetUserId);
     } else {
       // Default behavior: navigate to user profile
       router.push({
         pathname: '/profile',
-        params: { userId: userId.toString() }
+        params: { userId: targetUserId.toString() }
       } as any);
     }
   };

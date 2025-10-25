@@ -8,6 +8,7 @@ import { API_CONFIG } from '@/config/api';
 interface SimpleVideoUploadProps {
   onUploadComplete?: (url: string) => void;
   onUploadError?: (error: any) => void;
+  onUploadStart?: () => void;
   folder?: string;
   disabled?: boolean;
 }
@@ -15,6 +16,7 @@ interface SimpleVideoUploadProps {
 const SimpleVideoUpload: React.FC<SimpleVideoUploadProps> = ({
   onUploadComplete,
   onUploadError,
+  onUploadStart,
   folder = 'posts',
   disabled = false
 }) => {
@@ -53,6 +55,7 @@ const SimpleVideoUpload: React.FC<SimpleVideoUploadProps> = ({
     if (!selectedVideo) return;
 
     setIsUploading(true);
+    onUploadStart?.();
     try {
       console.log('Starting video upload...');
       

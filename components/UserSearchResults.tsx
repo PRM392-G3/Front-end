@@ -70,11 +70,22 @@ export const UserSearchResults: React.FC<UserSearchResultsProps> = ({
       
     } catch (err: any) {
       console.error('[UserSearchResults] Search error:', err);
+      console.error('[UserSearchResults] Error response:', err.response?.data);
+      console.error('[UserSearchResults] Error status:', err.response?.status);
       
       let errorMessage = 'Không thể tìm kiếm người dùng';
       
       if (err.response?.status === 401) {
         errorMessage = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+      } else if (err.response?.status === 400) {
+        // Handle 400 Bad Request - might be empty query or invalid parameters
+        const errorData = err.response?.data;
+        if (errorData?.error) {
+          errorMessage = errorData.error;
+        } else {
+          errorMessage = 'Truy vấn tìm kiếm không hợp lệ';
+        }
+        setUsers([]); // Set empty array for 400
       } else if (err.response?.status === 404) {
         errorMessage = 'Không tìm thấy kết quả nào';
         setUsers([]); // Set empty array for 404
