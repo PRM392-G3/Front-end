@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, SafeAreaView, StatusBar, TouchableOpacity, Imag
 import { ArrowLeft, Users, Grid2x2 as Grid, Mail, Phone, MapPin, Calendar, LogOut, Share2, Edit3, User as UserIcon, Bell } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES } from '../constants/theme';
-import { userAPI, User, postAPI, PostResponse, shareAPI, UpdateUserPayload, FriendRequest } from '../services/api';
+import { userAPI, User, postAPI, PostResponse, shareAPI, UpdateUserPayload, FriendRequest, groupAPI, Group } from '../services/api';
 import FollowingList from '../components/FollowingList';
 import { FollowersList } from '../components/FollowersList';
 import { useAuth } from '../contexts/AuthContext';
@@ -27,11 +27,13 @@ export default function UserProfileScreen() {
   } = usePostContext();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'posts' | 'shared' | 'friends'>('posts');
+  const [activeTab, setActiveTab] = useState<'posts' | 'shared' | 'friends' | 'groups'>('posts');
   const [posts, setPosts] = useState<PostResponse[]>([]);
   const [postsLoading, setPostsLoading] = useState(false);
   const [sharedPosts, setSharedPosts] = useState<PostResponse[]>([]);
   const [sharedPostsLoading, setSharedPostsLoading] = useState(false);
+  const [userGroups, setUserGroups] = useState<Group[]>([]);
+  const [groupsLoading, setGroupsLoading] = useState(false);
   const [editVisible, setEditVisible] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<UpdateUserPayload>({
@@ -58,6 +60,7 @@ export default function UserProfileScreen() {
   const [friendsLoading, setFriendsLoading] = useState(false);
   const [friends, setFriends] = useState<User[]>([]);
   const [pendingRequestsCount, setPendingRequestsCount] = useState<number>(0);
+  const [pendingGroupInvitesCount, setPendingGroupInvitesCount] = useState<number>(0);
 
 
   useEffect(() => {
@@ -119,8 +122,16 @@ export default function UserProfileScreen() {
   useEffect(() => {
     if (user && currentUser && user.id === currentUser.id) {
       loadPendingRequestsCount(currentUser.id);
+      loadPendingGroupInvitesCount(currentUser.id);
     }
   }, [user, currentUser]);
+
+  // Load groups when groups tab is selected
+  useEffect(() => {
+    if (activeTab === 'groups' && user) {
+      fetchUserGroups();
+    }
+  }, [activeTab, user]);
 
   // Initialize form when user data is loaded
   useEffect(() => {
@@ -338,6 +349,41 @@ export default function UserProfileScreen() {
     } catch (error: any) {
       console.error('❌ [UserProfile] Error loading pending requests count:', error);
       setPendingRequestsCount(0);
+    }
+  };
+
+  const loadPendingGroupInvitesCount = async (userId: number) => {
+    try {
+      console.log(`🚀 [UserProfile] Loading pending group invites count for user ${userId}`);
+      const invites = await groupAPI.getPendingInvitationsForUser(userId);
+      
+      // Chỉ count các invitation pending từ member (cần user action)
+      // Admin invitation sẽ tự động accepted, không cần user action
+      const pendingInvites = invites.filter(
+        inv => inv.status === 'pending' && inv.invitationType === 'invitation'
+      );
+      
+      console.log(`✅ [UserProfile] Pending group invites count:`, pendingInvites.length);
+      setPendingGroupInvitesCount(pendingInvites.length);
+    } catch (error: any) {
+      console.error('❌ [UserProfile] Error loading pending group invites count:', error);
+      setPendingGroupInvitesCount(0);
+    }
+  };
+
+  // Fetch user groups when groups tab is active
+  const fetchUserGroups = async () => {
+    if (!user) return;
+    
+    setGroupsLoading(true);
+    try {
+      const groups = await groupAPI.getUserGroups(user.id);
+      setUserGroups(groups);
+    } catch (error: any) {
+      console.error('Error fetching user groups:', error);
+      setUserGroups([]);
+    } finally {
+      setGroupsLoading(false);
     }
   };
 
@@ -981,9 +1027,23 @@ export default function UserProfileScreen() {
           }}
           activeOpacity={0.7}
         >
-          <Users size={20} color={activeTab === 'friends' ? COLORS.primary : COLORS.gray} />
+          <UserIcon size={20} color={activeTab === 'friends' ? COLORS.primary : COLORS.gray} />
           <Text style={[styles.tabText, activeTab === 'friends' && styles.activeTabText]}>
             Bạn bè
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'groups' && styles.activeTab]}
+          onPress={() => {
+            console.log('👆 [Profile] Groups tab pressed');
+            setActiveTab('groups');
+          }}
+          activeOpacity={0.7}
+        >
+          <Users size={20} color={activeTab === 'groups' ? COLORS.primary : COLORS.gray} />
+          <Text style={[styles.tabText, activeTab === 'groups' && styles.activeTabText]}>
+            Nhóm
           </Text>
         </TouchableOpacity>
       </View>
@@ -1130,7 +1190,9 @@ export default function UserProfileScreen() {
     );
   }
 
-  const isLoading = activeTab === 'posts' ? postsLoading : activeTab === 'shared' ? sharedPostsLoading : activeTab === 'friends' ? friendsLoading : false;
+  const isLoading = activeTab === 'posts' ? postsLoading : activeTab === 'shared' ? sharedPostsLoading : activeTab === 'friends' ? friendsLoading : activeTab === 'groups' ? groupsLoading : false;
+
+
 
   return (
     <SafeAreaView style={styles.container}>
@@ -1145,20 +1207,37 @@ export default function UserProfileScreen() {
         <View style={styles.headerRight}>
         {currentUser && user && currentUser.id === user.id ? (
             <>
-              {/* Friend Requests Bell Icon with Badge */}
+              {/* Notifications Bell Icon with Badge */}
               <TouchableOpacity 
                 style={styles.bellButton} 
                 onPress={() => {
-                  console.log('👆 [Profile] Friend requests button pressed');
-                  router.push('/friend-requests' as any);
+                  console.log('👆 [Profile] Notifications button pressed');
+                  // Show options for friend requests and group invites
+                  Alert.alert(
+                    'Thông báo',
+                    'Chọn loại thông báo',
+                    [
+                      {
+                        text: `Lời mời kết bạn (${pendingRequestsCount})`,
+                        onPress: () => router.push('/friend-requests' as any),
+                      },
+                      {
+                        text: `Lời mời nhóm (${pendingGroupInvitesCount})`,
+                        onPress: () => router.push('/group-invitations' as any),
+                      },
+                      { text: 'Hủy', style: 'cancel' },
+                    ]
+                  );
                 }}
                 activeOpacity={0.7}
               >
                 <Bell size={22} color={COLORS.text.primary} />
-                {pendingRequestsCount > 0 && (
+                {(pendingRequestsCount + pendingGroupInvitesCount) > 0 && (
                   <View style={styles.badge}>
                     <Text style={styles.badgeText}>
-                      {pendingRequestsCount > 99 ? '99+' : pendingRequestsCount}
+                      {(pendingRequestsCount + pendingGroupInvitesCount) > 99 
+                        ? '99+' 
+                        : (pendingRequestsCount + pendingGroupInvitesCount)}
                     </Text>
                   </View>
                 )}
@@ -1202,7 +1281,9 @@ export default function UserProfileScreen() {
               ? 'Đang tải bài viết...' 
               : activeTab === 'shared' 
                 ? 'Đang tải bài viết đã chia sẻ...'
-                : 'Đang tải danh sách bạn bè...'}
+                : activeTab === 'friends'
+                  ? 'Đang tải danh sách bạn bè...'
+                  : 'Đang tải danh sách nhóm...'}
           </Text>
         </View>
       ) : activeTab === 'posts' ? (
@@ -1227,13 +1308,74 @@ export default function UserProfileScreen() {
           contentContainerStyle={styles.postsList}
           style={styles.mainFlatList}
         />
-      ) : (
+      ) : activeTab === 'friends' ? (
         <FlatList
           data={friends}
           renderItem={renderFriendItem}
           keyExtractor={(item) => `friend-${item.id}`}
           ListHeaderComponent={renderListHeader}
           ListEmptyComponent={renderEmptyComponent}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.postsList}
+          style={styles.mainFlatList}
+        />
+      ) : (
+        <FlatList
+          data={userGroups}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              key={item.id}
+              style={styles.groupItem}
+              onPress={() => router.push(`/group-detail?id=${item.id}`)}
+            >
+              <View style={styles.groupItemAvatar}>
+                {item.avatarUrl ? (
+                  <Image source={{ uri: item.avatarUrl }} style={styles.groupItemAvatarImage} />
+                ) : (
+                  <Users size={24} color={COLORS.white} />
+                )}
+              </View>
+              <View style={styles.groupItemInfo}>
+                <Text style={styles.groupItemName}>{item.name}</Text>
+                <Text style={styles.groupItemMembers}>{item.memberCount} thành viên</Text>
+                {item.description && (
+                  <Text style={styles.groupItemDescription} numberOfLines={2}>
+                    {item.description}
+                  </Text>
+                )}
+                <View style={styles.groupItemMeta}>
+                  <Text style={styles.groupItemPrivacy}>
+                    {item.privacy === 'private' ? 'Riêng tư' : 'Công khai'}
+                  </Text>
+                  <Text style={styles.groupItemSeparator}>•</Text>
+                  <Text style={styles.groupItemDate}>
+                    {new Date(item.createdAt).toLocaleDateString('vi-VN')}
+                  </Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          )}
+          keyExtractor={(item) => `group-${item.id}`}
+          ListHeaderComponent={renderListHeader}
+          ListEmptyComponent={() => (
+            <View style={styles.emptyContainer}>
+              <Users size={64} color={COLORS.gray} />
+              <Text style={styles.emptyText}>
+                {currentUser && user && currentUser.id === user.id 
+                  ? 'Chưa tham gia nhóm nào'
+                  : 'Người dùng này chưa tham gia nhóm nào'
+                }
+              </Text>
+              {currentUser && user && currentUser.id === user.id && (
+                <TouchableOpacity 
+                  style={styles.createGroupButton}
+                  onPress={() => router.push('/create-group')}
+                >
+                  <Text style={styles.createGroupButtonText}>Tạo nhóm mới</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.postsList}
           style={styles.mainFlatList}
@@ -1955,4 +2097,83 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.white,
   } as TextStyle,
+  groupItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: RESPONSIVE_SPACING.md,
+    backgroundColor: COLORS.background.secondary,
+    borderRadius: BORDER_RADIUS.md,
+    marginHorizontal: RESPONSIVE_SPACING.md,
+    marginBottom: RESPONSIVE_SPACING.sm,
+  } as ViewStyle,
+  groupItemAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: BORDER_RADIUS.md,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: RESPONSIVE_SPACING.md,
+  } as ViewStyle,
+  groupItemInfo: {
+    flex: 1,
+  } as ViewStyle,
+  groupItemName: {
+    fontSize: RESPONSIVE_FONT_SIZES.md,
+    fontWeight: '600',
+    color: COLORS.text.primary,
+    marginBottom: 4,
+  } as TextStyle,
+  groupItemMembers: {
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    color: COLORS.text.gray,
+    marginBottom: 4,
+  } as TextStyle,
+  groupItemAvatarImage: {
+    width: 56,
+    height: 56,
+    borderRadius: BORDER_RADIUS.md,
+  } as ImageStyle,
+  groupItemDescription: {
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    color: COLORS.text.secondary,
+    marginBottom: 8,
+    lineHeight: 18,
+  } as TextStyle,
+  groupItemMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  } as ViewStyle,
+  groupItemPrivacy: {
+    fontSize: RESPONSIVE_FONT_SIZES.xs,
+    color: COLORS.primary,
+    fontWeight: '500',
+  } as TextStyle,
+  groupItemSeparator: {
+    fontSize: RESPONSIVE_FONT_SIZES.xs,
+    color: COLORS.gray,
+    marginHorizontal: 6,
+  } as TextStyle,
+  groupItemDate: {
+    fontSize: RESPONSIVE_FONT_SIZES.xs,
+    color: COLORS.gray,
+  } as TextStyle,
+  createGroupButton: {
+    paddingHorizontal: RESPONSIVE_SPACING.lg,
+    paddingVertical: RESPONSIVE_SPACING.sm,
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.md,
+    marginTop: RESPONSIVE_SPACING.md,
+  } as ViewStyle,
+  createGroupButtonText: {
+    fontSize: RESPONSIVE_FONT_SIZES.md,
+    fontWeight: '600',
+    color: COLORS.white,
+  } as TextStyle,
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: RESPONSIVE_SPACING.xl * 2,
+  } as ViewStyle,
 });
