@@ -541,6 +541,7 @@ export interface CreatePostRequest {
   imageUrl?: string;
   videoUrl?: string;
   tags?: string[];
+  groupId?: number; // Optional: for posting in a group
 }
 
 export interface UpdatePostRequest {
@@ -575,6 +576,9 @@ export interface PostResponse {
   shareCaption?: string; // Caption added when sharing
   originalPost?: PostResponse; // Reference to original post if this is a shared post
   isSharedPost?: boolean; // Flag to indicate if this is a shared post
+  // For group posts
+  groupId?: number; // ID of the group this post belongs to
+  group?: Group; // Group information if this is a group post
 }
 
 // Reel interfaces
@@ -1573,6 +1577,74 @@ export const groupAPI = {
         hasPendingRequest: false,
         hasPendingInvitation: false
       };
+    }
+  },
+
+  // Tạo bài viết trong nhóm
+  createGroupPost: async (groupId: number, postData: CreatePostRequest): Promise<PostResponse> => {
+    try {
+      console.log('groupAPI: Creating post in group:', groupId, postData);
+      
+      const dataWithGroup = {
+        ...postData,
+        groupId: groupId
+      };
+      
+      const response = await api.post('/Post', dataWithGroup);
+      console.log('groupAPI: Create group post response:', response.status);
+      
+      return response.data as PostResponse;
+    } catch (error: any) {
+      console.error('groupAPI: Error creating group post:', error);
+      
+      if (error.response?.status === 400) {
+        throw new Error('Dữ liệu bài viết không hợp lệ');
+      } else if (error.response?.status === 403) {
+        throw new Error('Bạn không có quyền đăng bài trong nhóm này');
+      } else {
+        throw new Error('Không thể tạo bài viết. Vui lòng thử lại.');
+      }
+    }
+  },
+
+  // Lấy tất cả bài viết trong nhóm
+  getGroupPosts: async (groupId: number): Promise<PostResponse[]> => {
+    try {
+      console.log('groupAPI: Getting posts for group:', groupId);
+      
+      const response = await api.get(`/Group/${groupId}/posts`);
+      console.log('groupAPI: Get group posts response:', response.status);
+      
+      return response.data as PostResponse[];
+    } catch (error: any) {
+      console.error('groupAPI: Error getting group posts:', error);
+      
+      if (error.response?.status === 404) {
+        return []; // Return empty array if no posts found
+      } else {
+        throw new Error('Không thể tải bài viết của nhóm');
+      }
+    }
+  },
+
+  // Lấy bài viết trong nhóm với trạng thái like của user hiện tại
+  getGroupPostsWithLikes: async (groupId: number): Promise<PostResponse[]> => {
+    try {
+      console.log('groupAPI: Getting posts with likes for group:', groupId);
+      
+      const response = await api.get(`/Group/${groupId}/posts/with-likes`);
+      console.log('groupAPI: Get group posts with likes response:', response.status);
+      
+      return response.data as PostResponse[];
+    } catch (error: any) {
+      console.error('groupAPI: Error getting group posts with likes:', error);
+      
+      if (error.response?.status === 404) {
+        // Fallback to regular posts if with-likes endpoint doesn't exist
+        return await groupAPI.getGroupPosts(groupId);
+      } else {
+        throw new Error('Không thể tải bài viết của nhóm');
+      }
     }
   }
 };

@@ -225,6 +225,12 @@ export default function PostCard({
 
   const isOwner = user?.id === postData.userId;
 
+  const handleGroupPress = () => {
+    if (postData.groupId) {
+      router.push(`/group-detail?id=${postData.groupId}` as any);
+    }
+  };
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -237,7 +243,17 @@ export default function PostCard({
             style={styles.avatar}
           />
           <View style={styles.userDetails}>
-            <Text style={styles.userName}>{postData.user.fullName}</Text>
+            <View style={styles.userNameContainer}>
+              <Text style={styles.userName}>{postData.user.fullName}</Text>
+              {postData.group && (
+                <>
+                  <Text style={styles.groupSeparator}> đã đăng trong </Text>
+                  <TouchableOpacity onPress={handleGroupPress}>
+                    <Text style={styles.groupName}>{postData.group.name}</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
             <Text style={styles.timestamp}>{formatDate(postData.createdAt)}</Text>
           </View>
         </TouchableOpacity>
@@ -405,10 +421,24 @@ const styles = StyleSheet.create({
   userDetails: {
     flex: 1,
   },
+  userNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
   userName: {
     fontSize: RESPONSIVE_FONT_SIZES.md,
     fontWeight: '600',
     color: COLORS.text.primary,
+  },
+  groupSeparator: {
+    fontSize: RESPONSIVE_FONT_SIZES.md,
+    color: COLORS.text.secondary,
+  },
+  groupName: {
+    fontSize: RESPONSIVE_FONT_SIZES.md,
+    fontWeight: '600',
+    color: COLORS.accent.primary,
   },
   timestamp: {
     fontSize: RESPONSIVE_FONT_SIZES.xs,

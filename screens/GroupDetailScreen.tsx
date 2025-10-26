@@ -8,13 +8,16 @@ import {
   Image,
   Alert,
   ActivityIndicator,
+  FlatList,
 } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
-import { ArrowLeft, Users, Settings, Share2, MoreHorizontal } from 'lucide-react-native';
+import { ArrowLeft, Users, Settings, Share2, MoreHorizontal, Plus, Edit3 } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
-import { groupAPI, Group } from '@/services/api';
+import { groupAPI, Group, PostResponse } from '@/services/api';
+import PostCard from '@/components/PostCard';
+import CreateGroupPostScreen from '@/screens/CreateGroupPostScreen';
 
 export default function GroupDetailScreen() {
   const router = useRouter();
@@ -30,10 +33,14 @@ export default function GroupDetailScreen() {
   const [hasPendingInvitation, setHasPendingInvitation] = useState(false);
   const [isLoadingAction, setIsLoadingAction] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
+  const [posts, setPosts] = useState<PostResponse[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(false);
+  const [showCreatePost, setShowCreatePost] = useState(false);
 
   useEffect(() => {
     if (id) {
       loadGroupDetails();
+      loadGroupPosts();
     }
   }, [id]);
 
@@ -73,6 +80,19 @@ export default function GroupDetailScreen() {
     } catch (error: any) {
       console.error('Error checking join status:', error);
       setRequestSent(false);
+    }
+  };
+
+  const loadGroupPosts = async () => {
+    try {
+      setLoadingPosts(true);
+      const groupPosts = await groupAPI.getGroupPostsWithLikes(Number(id));
+      setPosts(groupPosts);
+      console.log('Loaded group posts:', groupPosts.length);
+    } catch (error: any) {
+      console.error('Error loading group posts:', error);
+    } finally {
+      setLoadingPosts(false);
     }
   };
 
@@ -190,6 +210,27 @@ export default function GroupDetailScreen() {
     Alert.alert('Tính năng', 'Tính năng chia sẻ sẽ được phát triển');
   };
 
+  const handleCreatePost = () => {
+    setShowCreatePost(true);
+  };
+
+  const handlePostCreated = (newPost: PostResponse) => {
+    setPosts([newPost, ...posts]);
+    setShowCreatePost(false);
+    // Reload posts to ensure consistency
+    setTimeout(() => {
+      loadGroupPosts();
+    }, 1000);
+  };
+
+  const handlePostDeleted = (postId: number) => {
+    setPosts(posts.filter(post => post.id !== postId));
+  };
+
+  const handlePostUpdated = (updatedPost: PostResponse) => {
+    setPosts(posts.map(post => post.id === updatedPost.id ? updatedPost : post));
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -207,6 +248,18 @@ export default function GroupDetailScreen() {
           <Text style={styles.backButtonText}>Quay lại</Text>
         </TouchableOpacity>
       </View>
+    );
+  }
+
+  // Show create post screen if requested
+  if (showCreatePost && group) {
+    return (
+      <CreateGroupPostScreen
+        onClose={() => setShowCreatePost(false)}
+        onPostCreated={handlePostCreated}
+        groupId={group.id}
+        group={group}
+      />
     );
   }
 
@@ -272,6 +325,15 @@ export default function GroupDetailScreen() {
         <View style={styles.actionButtons}>
           {isMember ? (
             <>
+              {/* Create Post Button - Full width */}
+              <TouchableOpacity 
+                style={styles.createPostButton} 
+                onPress={handleCreatePost}
+              >
+                <Edit3 size={20} color={COLORS.white} />
+                <Text style={styles.createPostButtonText}>Đăng bài trong nhóm</Text>
+              </TouchableOpacity>
+
               {/* Admin buttons - Full width */}
               {isAdmin && (
                 <TouchableOpacity 
@@ -323,7 +385,7 @@ export default function GroupDetailScreen() {
             <Text style={styles.statLabel}>Thành viên</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>0</Text>
+            <Text style={styles.statNumber}>{posts.length}</Text>
             <Text style={styles.statLabel}>Bài viết</Text>
           </View>
           <View style={styles.statItem}>
@@ -332,12 +394,33 @@ export default function GroupDetailScreen() {
           </View>
         </View>
 
-        {/* Recent Activity */}
-        <View style={styles.activityContainer}>
-          <Text style={styles.sectionTitle}>Hoạt động gần đây</Text>
-          <View style={styles.emptyActivity}>
-            <Text style={styles.emptyActivityText}>Chưa có hoạt động nào</Text>
-          </View>
+        {/* Group Posts */}
+        <View style={styles.postsContainer}>
+          <Text style={styles.sectionTitle}>Bài viết trong nhóm</Text>
+          {loadingPosts ? (
+            <View style={styles.loadingPostsContainer}>
+              <ActivityIndicator size="small" color={COLORS.primary} />
+              <Text style={styles.loadingPostsText}>Đang tải bài viết...</Text>
+            </View>
+          ) : posts.length > 0 ? (
+            posts.map((post) => (
+              <PostCard
+                key={post.id}
+                postData={post}
+                onPostUpdated={handlePostUpdated}
+                onPostDeleted={handlePostDeleted}
+                showImage={true}
+              />
+            ))
+          ) : (
+            <View style={styles.emptyPosts}>
+              <Text style={styles.emptyPostsText}>
+                {isMember 
+                  ? 'Chưa có bài viết nào. Hãy tạo bài viết đầu tiên!' 
+                  : 'Chưa có bài viết nào trong nhóm'}
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -509,6 +592,20 @@ const styles = StyleSheet.create({
     marginBottom: RESPONSIVE_SPACING.lg,
     gap: RESPONSIVE_SPACING.sm,
   },
+  createPostButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.accent.primary,
+    paddingVertical: RESPONSIVE_SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    gap: RESPONSIVE_SPACING.xs,
+  },
+  createPostButtonText: {
+    color: COLORS.white,
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+  },
   primaryButton: {
     flex: 1,
     flexDirection: 'row',
@@ -613,7 +710,7 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
     color: COLORS.text.secondary,
   },
-  activityContainer: {
+  postsContainer: {
     paddingHorizontal: RESPONSIVE_SPACING.md,
     marginBottom: RESPONSIVE_SPACING.lg,
   },
@@ -623,13 +720,25 @@ const styles = StyleSheet.create({
     color: COLORS.text.primary,
     marginBottom: RESPONSIVE_SPACING.md,
   },
-  emptyActivity: {
+  loadingPostsContainer: {
     alignItems: 'center',
     paddingVertical: RESPONSIVE_SPACING.xl,
   },
-  emptyActivityText: {
+  loadingPostsText: {
     fontSize: FONT_SIZES.md,
     color: COLORS.text.secondary,
+    marginTop: RESPONSIVE_SPACING.sm,
+  },
+  emptyPosts: {
+    alignItems: 'center',
+    paddingVertical: RESPONSIVE_SPACING.xl,
+    backgroundColor: COLORS.background.secondary,
+    borderRadius: BORDER_RADIUS.lg,
+  },
+  emptyPostsText: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.text.secondary,
+    textAlign: 'center',
   },
   bottomActions: {
     flexDirection: 'row',
