@@ -231,7 +231,17 @@ export const PostSearchResults: React.FC<PostSearchResultsProps> = ({
               </View>
             )}
             <View style={styles.userDetails}>
-              <Text style={styles.userName}>{item.user.fullName}</Text>
+              <View style={styles.userNameContainer}>
+                <Text style={styles.userName}>{item.user.fullName}</Text>
+                {item.group && (
+                  <>
+                    <Text style={styles.groupSeparator}> đã đăng trong </Text>
+                    <TouchableOpacity onPress={() => router.push(`/group-detail?id=${item.groupId}` as any)}>
+                      <Text style={styles.groupName}>{item.group.name}</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
               <Text style={styles.postTime}>{formatDate(item.createdAt)}</Text>
             </View>
           </TouchableOpacity>
@@ -378,11 +388,25 @@ const styles = StyleSheet.create({
   userDetails: {
     flex: 1,
   },
+  userNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
   userName: {
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
     color: COLORS.black,
     marginBottom: 2,
+  },
+  groupSeparator: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.gray,
+  },
+  groupName: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+    color: COLORS.primary,
   },
   postTime: {
     fontSize: FONT_SIZES.xs,

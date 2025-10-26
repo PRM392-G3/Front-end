@@ -211,6 +211,17 @@ export default function GroupDetailScreen() {
   };
 
   const handleCreatePost = () => {
+    // Double check permission before showing create post screen
+    if (!isMember) {
+      Alert.alert('Không có quyền', 'Bạn cần là thành viên của nhóm để đăng bài');
+      return;
+    }
+    
+    if (!group?.isActive) {
+      Alert.alert('Nhóm không hoạt động', 'Nhóm này đã bị vô hiệu hóa');
+      return;
+    }
+    
     setShowCreatePost(true);
   };
 

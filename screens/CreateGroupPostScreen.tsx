@@ -58,7 +58,17 @@ export default function CreateGroupPostScreen({
       Alert.alert('Thành công', 'Bài viết đã được đăng trong nhóm');
     } catch (error: any) {
       console.error('Error creating group post:', error);
-      Alert.alert('Lỗi', error.message || 'Không thể tạo bài viết');
+      
+      // Handle specific error cases
+      if (error.message?.includes('không có quyền')) {
+        Alert.alert('Không có quyền', 'Bạn không có quyền đăng bài trong nhóm này');
+      } else if (error.message?.includes('nhóm này đã bị vô hiệu hóa')) {
+        Alert.alert('Nhóm không hoạt động', 'Nhóm này đã bị vô hiệu hóa');
+      } else if (error.message?.includes('Group not found')) {
+        Alert.alert('Lỗi', 'Không tìm thấy nhóm');
+      } else {
+        Alert.alert('Lỗi', error.message || 'Không thể tạo bài viết');
+      }
     } finally {
       setIsCreating(false);
     }
