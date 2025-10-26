@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, StatusBar, TouchableOpacity, Image, ScrollView, ActivityIndicator, Alert, ViewStyle, TextStyle, ImageStyle, FlatList, Modal, TextInput } from 'react-native';
-import { ArrowLeft, Users, Grid2x2 as Grid, Mail, Phone, MapPin, Calendar, LogOut, Share2, Edit3, User as UserIcon, Bell } from 'lucide-react-native';
+import { ArrowLeft, Users, Grid2x2 as Grid, Mail, Phone, MapPin, Calendar, LogOut, Share2, Edit3, User as UserIcon, Bell, MessageCircle } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES } from '../constants/theme';
 import { userAPI, User, postAPI, PostResponse, shareAPI, UpdateUserPayload, FriendRequest, groupAPI, Group } from '../services/api';
+import { chatAPI } from '../services/chatAPI';
 import FollowingList from '../components/FollowingList';
 import { FollowersList } from '../components/FollowersList';
 import { useAuth } from '../contexts/AuthContext';
@@ -587,6 +588,35 @@ export default function UserProfileScreen() {
     );
   };
 
+  const handleStartChat = async () => {
+    if (!currentUser || !user) {
+      Alert.alert('Lỗi', 'Không thể xác định người dùng');
+      return;
+    }
+
+    if (user.id === currentUser.id) {
+      Alert.alert('Thông báo', 'Bạn không thể nhắn tin với chính mình');
+      return;
+    }
+
+    try {
+      console.log('🚀 [ProfileScreen] Starting chat with user:', user.id);
+      
+      const conversation = await chatAPI.getOrCreateConversation({
+        user1Id: currentUser.id,
+        user2Id: user.id
+      });
+      
+      console.log('✅ [ProfileScreen] Conversation created:', conversation);
+      
+      router.push(`/chat/${conversation.id}` as any);
+      
+    } catch (error) {
+      console.error('❌ [ProfileScreen] Error starting chat:', error);
+      Alert.alert('Lỗi', 'Không thể bắt đầu cuộc trò chuyện');
+    }
+  };
+
   const handlePostUpdated = (updatedPost: PostResponse) => {
     console.log(`🔄 [Profile] Post updated:`, updatedPost);
     setPosts(prevPosts => 
@@ -933,6 +963,17 @@ export default function UserProfileScreen() {
         {/* Friend Action Button - Show for other users */}
         {currentUser && user && currentUser.id !== user.id && friendshipStatus && (
           <View style={styles.friendActionContainer}>
+            {/* Chat Button */}
+            <TouchableOpacity 
+              style={[styles.friendActionButton, styles.chatButton]} 
+              onPress={handleStartChat}
+              activeOpacity={0.7}
+            >
+              <MessageCircle size={18} color={COLORS.white} />
+              <Text style={styles.friendActionButtonText}>Nhắn tin</Text>
+            </TouchableOpacity>
+
+            {/* Friend Action Button */}
             {friendshipStatus.isFriend ? (
               <TouchableOpacity 
                 style={[styles.friendActionButton, styles.friendButton]} 
@@ -958,7 +999,7 @@ export default function UserProfileScreen() {
               >
                 <Users size={18} color={COLORS.white} />
                 <Text style={styles.friendActionButtonText}>Thêm bạn bè</Text>
-          </TouchableOpacity>
+              </TouchableOpacity>
             )}
           </View>
         )}
@@ -2000,6 +2041,8 @@ const styles = StyleSheet.create({
   } as TextStyle,
   friendActionContainer: {
     marginTop: RESPONSIVE_SPACING.md,
+    flexDirection: 'row',
+    gap: RESPONSIVE_SPACING.sm,
   } as ViewStyle,
   friendActionButton: {
     flexDirection: 'row',
@@ -2008,6 +2051,10 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: BORDER_RADIUS.md,
     gap: RESPONSIVE_SPACING.xs,
+    flex: 1,
+  } as ViewStyle,
+  chatButton: {
+    backgroundColor: COLORS.success,
   } as ViewStyle,
   addFriendButton: {
     backgroundColor: COLORS.primary,
