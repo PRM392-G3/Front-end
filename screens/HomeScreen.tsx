@@ -32,7 +32,7 @@ export default function HomeScreen() {
   } = usePostContext();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const autoRefreshTimer = useRef<NodeJS.Timeout | null>(null);
+  const autoRefreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchPosts = useCallback(async (forceRefresh = false) => {
     try {
@@ -42,6 +42,8 @@ export default function HomeScreen() {
         forceRefreshPosts();
       }
       
+      // Fetch all posts including group posts that user has access to
+      // Backend will handle filtering based on user's group memberships and privacy settings
       const fetchedPosts = await postAPI.getAllPostsWithLikes();
       console.log('🏠 [HomeScreen] Fetched posts:', fetchedPosts.length);
       initializePosts(fetchedPosts);
