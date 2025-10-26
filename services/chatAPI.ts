@@ -1,4 +1,4 @@
-import { api } from './api';
+import api from './api';
 
 export interface Conversation {
   id: number;
@@ -32,6 +32,8 @@ export interface GroupChatMessage {
   senderName: string;
   senderAvatarUrl: string;
   content: string;
+  imageUrl?: string;
+  videoUrl?: string;
   createdAt: string;
 }
 
@@ -52,6 +54,8 @@ export interface SendGroupMessageRequest {
   groupId: number;
   senderId: number;
   content: string;
+  imageUrl?: string;
+  videoUrl?: string;
 }
 
 class ChatAPI {
@@ -59,13 +63,13 @@ class ChatAPI {
 
   async createConversation(request: CreateConversationRequest): Promise<Conversation> {
     const response = await api.post('/chat/conversations', request);
-    return response.data;
+    return response.data as Conversation;
   }
 
   async getConversation(user1Id: number, user2Id: number): Promise<Conversation | null> {
     try {
       const response = await api.get(`/chat/conversations/${user1Id}/${user2Id}`);
-      return response.data;
+      return response.data as Conversation;
     } catch (error) {
       return null;
     }
@@ -88,14 +92,14 @@ class ChatAPI {
     console.log('chatAPI: API baseURL:', api.defaults.baseURL);
 
     const response = await api.get(`/chat/conversations/user/${userId}`);
-    return response.data;
+    return response.data as Conversation[];
   }
 
   // ==================== MESSAGE ENDPOINTS ====================
 
   async sendMessage(request: SendMessageRequest): Promise<Message> {
     const response = await api.post('/chat/messages', request);
-    return response.data;
+    return response.data as Message;
   }
 
   async getConversationMessages(
@@ -106,14 +110,14 @@ class ChatAPI {
     const response = await api.get(`/chat/conversations/${conversationId}/messages`, {
       params: { page, limit }
     });
-    return response.data;
+    return response.data as Message[];
   }
 
   // ==================== GROUP MESSAGE ENDPOINTS ====================
 
   async sendGroupMessage(request: SendGroupMessageRequest): Promise<GroupChatMessage> {
     const response = await api.post('/chat/group-messages', request);
-    return response.data;
+    return response.data as GroupChatMessage;
   }
 
   async getGroupMessages(
@@ -124,7 +128,7 @@ class ChatAPI {
     const response = await api.get(`/chat/groups/${groupId}/messages`, {
       params: { page, limit }
     });
-    return response.data;
+    return response.data as GroupChatMessage[];
   }
 }
 
