@@ -11,7 +11,7 @@ import {
   FlatList,
 } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
-import { ArrowLeft, Users, Settings, Share2, MoreHorizontal, Plus, Edit3 } from 'lucide-react-native';
+import { ArrowLeft, Users, Settings, Share2, MoreHorizontal, Plus, Edit3, MessageCircle } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
@@ -211,6 +211,17 @@ export default function GroupDetailScreen() {
   };
 
   const handleCreatePost = () => {
+    // Double check permission before showing create post screen
+    if (!isMember) {
+      Alert.alert('Không có quyền', 'Bạn cần là thành viên của nhóm để đăng bài');
+      return;
+    }
+    
+    if (!group?.isActive) {
+      Alert.alert('Nhóm không hoạt động', 'Nhóm này đã bị vô hiệu hóa');
+      return;
+    }
+    
     setShowCreatePost(true);
   };
 
@@ -325,6 +336,15 @@ export default function GroupDetailScreen() {
         <View style={styles.actionButtons}>
           {isMember ? (
             <>
+              {/* Chat Button - Full width */}
+              <TouchableOpacity 
+                style={styles.chatButton} 
+                onPress={() => router.push(`/group-chat?id=${group.id}` as any)}
+              >
+                <MessageCircle size={20} color={COLORS.white} />
+                <Text style={styles.chatButtonText}>Chat nhóm</Text>
+              </TouchableOpacity>
+
               {/* Create Post Button - Full width */}
               <TouchableOpacity 
                 style={styles.createPostButton} 
@@ -591,6 +611,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: RESPONSIVE_SPACING.md,
     marginBottom: RESPONSIVE_SPACING.lg,
     gap: RESPONSIVE_SPACING.sm,
+  },
+  chatButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    paddingVertical: RESPONSIVE_SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    gap: RESPONSIVE_SPACING.xs,
+    marginBottom: RESPONSIVE_SPACING.sm,
+  },
+  chatButtonText: {
+    color: COLORS.white,
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
   },
   createPostButton: {
     flexDirection: 'row',

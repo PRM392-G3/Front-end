@@ -5,33 +5,25 @@ import {
   StyleSheet,
   TouchableOpacity,
   Platform,
-  KeyboardAvoidingView,
 } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
-import {
-  Image as ImageIcon,
-  Smile,
-  Mic,
-  Send,
-  Plus,
-  Camera,
-} from 'lucide-react-native';
+import { Send, Image as ImageIcon, Camera, Video } from 'lucide-react-native';
 
 interface ChatInputProps {
   onSendMessage: (text: string) => void;
   onSelectImage?: () => void;
   onSelectCamera?: () => void;
-  onVoiceRecord?: () => void;
+  onSelectVideo?: () => void;
 }
 
 export default function ChatInput({
   onSendMessage,
   onSelectImage,
   onSelectCamera,
-  onVoiceRecord,
+  onSelectVideo,
 }: ChatInputProps) {
   const [message, setMessage] = useState('');
-  const [showMoreActions, setShowMoreActions] = useState(false);
+  const [showActions, setShowActions] = useState(false);
 
   const handleSend = () => {
     if (message.trim()) {
@@ -43,12 +35,9 @@ export default function ChatInput({
   const hasText = message.trim().length > 0;
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-    >
-      {/* More actions menu */}
-      {showMoreActions && (
+    <View style={styles.wrapper}>
+      {/* Actions menu */}
+      {showActions && (
         <View style={styles.actionsMenu}>
           <TouchableOpacity style={styles.actionItem} onPress={onSelectImage}>
             <View style={[styles.actionIcon, { backgroundColor: '#FF6B6B' }]}>
@@ -62,27 +51,21 @@ export default function ChatInput({
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionItem}>
-            <View style={[styles.actionIcon, { backgroundColor: '#95E1D3' }]}>
-              <Mic size={24} color={COLORS.white} />
+          <TouchableOpacity style={styles.actionItem} onPress={onSelectVideo}>
+            <View style={[styles.actionIcon, { backgroundColor: '#FF9800' }]}>
+              <Video size={24} color={COLORS.white} />
             </View>
           </TouchableOpacity>
         </View>
       )}
 
       <View style={styles.container}>
-        {/* Plus button */}
-        <TouchableOpacity
-          style={styles.iconButton}
-          onPress={() => setShowMoreActions(!showMoreActions)}
+        {/* Image button */}
+        <TouchableOpacity 
+          style={styles.iconButton} 
+          onPress={() => setShowActions(!showActions)}
         >
-          <Plus
-            size={24}
-            color={COLORS.primary}
-            style={{
-              transform: [{ rotate: showMoreActions ? '45deg' : '0deg' }],
-            }}
-          />
+          <ImageIcon size={24} color={COLORS.primary} />
         </TouchableOpacity>
 
         {/* Text input container */}
@@ -95,32 +78,47 @@ export default function ChatInput({
             onChangeText={setMessage}
             multiline
             maxLength={5000}
+            returnKeyType="default"
+            blurOnSubmit={false}
+            onSubmitEditing={() => {
+              // Không làm gì khi bấm Enter
+            }}
           />
-
-          {/* Emoji button */}
-          {!hasText && (
-            <TouchableOpacity style={styles.emojiButton}>
-              <Smile size={22} color={COLORS.primary} />
-            </TouchableOpacity>
-          )}
         </View>
 
-        {/* Send or voice button */}
-        {hasText ? (
+        {/* Send button */}
+        {hasText && (
           <TouchableOpacity style={styles.sendButton} onPress={handleSend}>
             <Send size={20} color={COLORS.white} />
           </TouchableOpacity>
-        ) : (
-          <TouchableOpacity style={styles.iconButton} onPress={onVoiceRecord}>
-            <Mic size={24} color={COLORS.primary} />
-          </TouchableOpacity>
         )}
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    backgroundColor: COLORS.white,
+  },
+  actionsMenu: {
+    flexDirection: 'row',
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.sm,
+    backgroundColor: COLORS.lightGray,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border.primary,
+  },
+  actionItem: {
+    marginRight: RESPONSIVE_SPACING.md,
+  },
+  actionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: BORDER_RADIUS.full,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   container: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -130,30 +128,12 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: COLORS.border.primary,
   },
-  actionsMenu: {
-    flexDirection: 'row',
-    paddingHorizontal: RESPONSIVE_SPACING.md,
-    paddingVertical: RESPONSIVE_SPACING.md,
-    backgroundColor: COLORS.white,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border.primary,
-    gap: RESPONSIVE_SPACING.md,
-  },
-  actionItem: {
-    alignItems: 'center',
-  },
-  actionIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: BORDER_RADIUS.full,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   iconButton: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: RESPONSIVE_SPACING.xs,
   },
   inputWrapper: {
     flex: 1,
@@ -163,7 +143,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    marginHorizontal: RESPONSIVE_SPACING.xs,
+    marginRight: RESPONSIVE_SPACING.xs,
     maxHeight: 100,
   },
   input: {
@@ -172,10 +152,6 @@ const styles = StyleSheet.create({
     color: COLORS.black,
     maxHeight: 80,
     paddingTop: Platform.OS === 'ios' ? 8 : 0,
-  },
-  emojiButton: {
-    padding: 4,
-    marginLeft: 4,
   },
   sendButton: {
     width: 36,

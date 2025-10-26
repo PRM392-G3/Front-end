@@ -152,11 +152,8 @@ export const mediaAPI = {
         name: 'image.jpg',
       } as any);
       
-      // Add folder
-      formData.append('folder', folder);
-      
       // Make request with progress tracking
-      const response = await mediaApi.post('/blob-storage/upload-image', formData, {
+      const response = await mediaApi.post(`/blob-storage/media/upload?folder=${folder}`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -189,11 +186,8 @@ export const mediaAPI = {
         name: 'video.mp4',
       } as any);
       
-      // Add folder
-      formData.append('folder', folder);
-      
       // Make request with progress tracking
-      const response = await mediaApi.post('/blob-storage/upload-video', formData, {
+      const response = await mediaApi.post(`/blob-storage/media/upload?folder=${folder}`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

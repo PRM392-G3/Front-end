@@ -46,6 +46,19 @@ export default function HomeScreen() {
       // Backend will handle filtering based on user's group memberships and privacy settings
       const fetchedPosts = await postAPI.getAllPostsWithLikes();
       console.log('🏠 [HomeScreen] Fetched posts:', fetchedPosts.length);
+      
+      // Debug: Check group data in posts
+      const postsWithGroups = fetchedPosts.filter(post => post.groupId && post.group);
+      console.log('🏠 [HomeScreen] Posts with groups:', postsWithGroups.length);
+      postsWithGroups.forEach(post => {
+        console.log('🏠 [HomeScreen] Group post:', {
+          id: post.id,
+          groupId: post.groupId,
+          groupName: post.group?.name,
+          userName: post.user.fullName
+        });
+      });
+      
       initializePosts(fetchedPosts);
     } catch (error) {
       console.error('Error fetching posts:', error);

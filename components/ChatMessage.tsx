@@ -1,6 +1,7 @@
-import React from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
+import { VideoView, useVideoPlayer } from 'expo-video';
 
 export interface Message {
   id: string;
@@ -10,6 +11,9 @@ export interface Message {
   isRead?: boolean;
   reactions?: string[];
   imageUrl?: string;
+  videoUrl?: string;
+  avatarUrl?: string;
+  senderName?: string;
 }
 
 interface ChatMessageProps {
@@ -18,8 +22,27 @@ interface ChatMessageProps {
 }
 
 export default function ChatMessage({ message, showAvatar = true }: ChatMessageProps) {
+  const VideoPlayer = ({ uri }: { uri: string }) => {
+    const player = useVideoPlayer(uri, (player) => {
+      player.loop = false;
+      player.play();
+    });
+
+    return (
+      <VideoView
+        player={player}
+        style={styles.messageVideo}
+        contentFit="contain"
+        nativeControls
+      />
+    );
+  };
+  const [showTimestamp, setShowTimestamp] = useState(false);
+
   return (
-    <View
+    <TouchableOpacity
+      activeOpacity={1}
+      onPress={() => setShowTimestamp(!showTimestamp)}
       style={[
         styles.container,
         message.isSent ? styles.sentContainer : styles.receivedContainer,
@@ -27,7 +50,13 @@ export default function ChatMessage({ message, showAvatar = true }: ChatMessageP
     >
       {!message.isSent && showAvatar && (
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>A</Text>
+          {message.avatarUrl ? (
+            <Image source={{ uri: message.avatarUrl }} style={styles.avatarImage} />
+          ) : (
+            <Text style={styles.avatarText}>
+              {message.senderName?.charAt(0).toUpperCase() || 'A'}
+            </Text>
+          )}
         </View>
       )}
 
@@ -35,6 +64,12 @@ export default function ChatMessage({ message, showAvatar = true }: ChatMessageP
         {message.imageUrl && (
           <View style={[styles.imageContainer, message.isSent && styles.sentImageContainer]}>
             <Image source={{ uri: message.imageUrl }} style={styles.messageImage} />
+          </View>
+        )}
+
+        {message.videoUrl && (
+          <View style={[styles.videoContainer, message.isSent && styles.sentVideoContainer]}>
+            <VideoPlayer uri={message.videoUrl} />
           </View>
         )}
         
@@ -70,10 +105,22 @@ export default function ChatMessage({ message, showAvatar = true }: ChatMessageP
             ))}
           </View>
         )}
+
+        {/* Timestamp - chỉ hiện khi bấm vào tin nhắn */}
+        {showTimestamp && (
+          <View style={[
+            styles.timestampContainer,
+            message.isSent ? styles.sentTimestampContainer : styles.receivedTimestampContainer
+          ]}>
+            <Text style={styles.timestampText}>
+              {message.timestamp}
+            </Text>
+          </View>
+        )}
       </View>
 
       {!message.isSent && !showAvatar && <View style={styles.avatarPlaceholder} />}
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -101,6 +148,11 @@ const styles = StyleSheet.create({
   avatarPlaceholder: {
     width: 28,
     marginRight: RESPONSIVE_SPACING.xs,
+  },
+  avatarImage: {
+    width: 28,
+    height: 28,
+    borderRadius: BORDER_RADIUS.full,
   },
   avatarText: {
     fontSize: FONT_SIZES.xs,
@@ -147,6 +199,20 @@ const styles = StyleSheet.create({
     height: 200,
     resizeMode: 'cover',
   },
+  videoContainer: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 4,
+    maxWidth: 250,
+    maxHeight: 250,
+  },
+  sentVideoContainer: {
+    alignSelf: 'flex-end',
+  },
+  messageVideo: {
+    width: 250,
+    height: 250,
+  },
   reactionContainer: {
     position: 'absolute',
     bottom: -8,
@@ -166,6 +232,20 @@ const styles = StyleSheet.create({
   reactionEmoji: {
     fontSize: 14,
     marginHorizontal: 2,
+  },
+  timestampContainer: {
+    marginTop: 4,
+    paddingHorizontal: 4,
+  },
+  sentTimestampContainer: {
+    alignItems: 'flex-end',
+  },
+  receivedTimestampContainer: {
+    alignItems: 'flex-start',
+  },
+  timestampText: {
+    fontSize: FONT_SIZES.xs,
+    color: COLORS.gray,
   },
 });
 

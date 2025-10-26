@@ -226,10 +226,20 @@ export default function PostCard({
   const isOwner = user?.id === postData.userId;
 
   const handleGroupPress = () => {
-    if (postData.groupId) {
+    if (postData.groupId && postData.group) {
+      console.log('🏠 [PostCard] Navigating to group:', postData.group.name, 'ID:', postData.groupId);
       router.push(`/group-detail?id=${postData.groupId}` as any);
     }
   };
+
+  // Debug: Log post data to check group info
+  console.log('🔍 [PostCard] Post data:', {
+    id: postData.id,
+    hasGroup: !!postData.group,
+    hasGroupId: !!postData.groupId,
+    groupId: postData.groupId,
+    groupName: postData.group?.name
+  });
 
   return (
     <View style={styles.container}>
@@ -245,13 +255,14 @@ export default function PostCard({
           <View style={styles.userDetails}>
             <View style={styles.userNameContainer}>
               <Text style={styles.userName}>{postData.user.fullName}</Text>
-              {postData.group && (
-                <>
-                  <Text style={styles.groupSeparator}> đã đăng trong </Text>
-                  <TouchableOpacity onPress={handleGroupPress}>
+              {/* Hiển thị thông tin nhóm nếu là bài viết từ nhóm */}
+              {postData.group && postData.groupId && (
+                <Text style={styles.groupInfo}>
+                  <Text style={styles.separator}> đã đăng trong </Text>
+                  <TouchableOpacity onPress={handleGroupPress} activeOpacity={0.7}>
                     <Text style={styles.groupName}>{postData.group.name}</Text>
                   </TouchableOpacity>
-                </>
+                </Text>
               )}
             </View>
             <Text style={styles.timestamp}>{formatDate(postData.createdAt)}</Text>
@@ -431,14 +442,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.text.primary,
   },
-  groupSeparator: {
-    fontSize: RESPONSIVE_FONT_SIZES.md,
+  groupInfo: {
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    color: COLORS.text.primary,
+    marginTop: 2,
+  },
+  separator: {
     color: COLORS.text.secondary,
   },
   groupName: {
-    fontSize: RESPONSIVE_FONT_SIZES.md,
     fontWeight: '600',
     color: COLORS.accent.primary,
+    textDecorationLine: 'underline',
   },
   timestamp: {
     fontSize: RESPONSIVE_FONT_SIZES.xs,

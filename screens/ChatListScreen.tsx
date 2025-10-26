@@ -1,157 +1,187 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
-import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
-import ChatListItem from '@/components/ChatListItem';
-import { Search as SearchIcon, CreditCard as Edit3, Users } from 'lucide-react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
+} from 'react-native';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-
-interface GroupChat {
-  id: string;
-  name: string;
-  lastMessage: string;
-  unreadCount: number;
-  timestamp: string;
-  memberCount: number;
-}
-
-const SAMPLE_GROUP_CHATS: GroupChat[] = [
-  {
-    id: '1',
-    name: 'Lập trình React Native',
-    lastMessage: 'Nguyễn Văn A: Tuyệt vời! 👍',
-    unreadCount: 5,
-    timestamp: '10 phút',
-    memberCount: 5,
-  },
-  {
-    id: '2',
-    name: 'Du lịch Việt Nam',
-    lastMessage: 'Đã chia sẻ một ảnh',
-    unreadCount: 0,
-    timestamp: '1 giờ',
-    memberCount: 8,
-  },
-];
+import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
+import { MessageCircle } from 'lucide-react-native';
+import { chatAPI, Conversation } from '@/services/chatAPI';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function ChatListScreen() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'all' | 'groups'>('all');
-  
+  const { user } = useAuth();
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      loadConversations();
+    }
+  }, [user]);
+
+  const loadConversations = async () => {
+    if (!user?.id) return;
+    
+    try {
+      setLoading(true);
+      console.log('🚀 [ChatListScreen] Loading conversations for user:', user.id);
+      
+      const data = await chatAPI.getUserConversations(user.id);
+      console.log('✅ [ChatListScreen] Conversations loaded:', data);
+      
+      setConversations(data);
+    } catch (error) {
+      console.error('❌ [ChatListScreen] Error loading conversations:', error);
+      Alert.alert('Lỗi', 'Không thể tải danh sách cuộc trò chuyện');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadConversations();
+    setRefreshing(false);
+  };
+
+  const handleStartChat = async (otherUserId: number) => {
+    if (!user?.id) return;
+    
+    try {
+      console.log('🚀 [ChatListScreen] Starting chat with user:', otherUserId);
+      
+      const conversation = await chatAPI.getOrCreateConversation({
+        user1Id: user.id,
+        user2Id: otherUserId,
+      });
+      
+      console.log('✅ [ChatListScreen] Conversation created:', conversation);
+      
+      router.push(`/chat/${conversation.id}` as any);
+    } catch (error) {
+      console.error('❌ [ChatListScreen] Error starting chat:', error);
+      Alert.alert('Lỗi', 'Không thể bắt đầu cuộc trò chuyện');
+    }
+  };
+
+  const handleConversationPress = (conversationId: number) => {
+    router.push(`/chat/${conversationId}` as any);
+  };
+
+  const handleSearchPress = () => {
+    router.push('/search' as any);
+  };
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+    
+    if (diffInHours < 24) {
+      return date.toLocaleTimeString('vi-VN', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } else if (diffInHours < 168) { // 7 days
+      return date.toLocaleDateString('vi-VN', { weekday: 'short' });
+    } else {
+      return date.toLocaleDateString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+      });
+    }
+  };
+
+  const renderConversation = ({ item }: { item: Conversation }) => {
+    const otherUser = user?.id === item.user1Id 
+      ? { name: item.user2Name, avatar: item.user2AvatarUrl }
+      : { name: item.user1Name, avatar: item.user1AvatarUrl };
+
+    return (
+      <TouchableOpacity
+        style={styles.conversationItem}
+        onPress={() => handleConversationPress(item.id)}
+      >
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>
+            {otherUser.name.charAt(0).toUpperCase()}
+          </Text>
+        </View>
+        
+        <View style={styles.conversationInfo}>
+          <View style={styles.conversationHeader}>
+            <Text style={styles.conversationName}>{otherUser.name}</Text>
+            {item.lastMessage && (
+              <Text style={styles.conversationTime}>
+                {formatTime(item.lastMessage.createdAt)}
+              </Text>
+            )}
+          </View>
+          
+          {item.lastMessage && (
+            <Text style={styles.lastMessage} numberOfLines={1}>
+              {item.lastMessage.content}
+            </Text>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderEmpty = () => (
+    <View style={styles.emptyContainer}>
+      <MessageCircle size={64} color={COLORS.gray} />
+      <Text style={styles.emptyTitle}>Chưa có cuộc trò chuyện nào</Text>
+      <Text style={styles.emptySubtitle}>
+        Bạn chưa có cuộc trò chuyện nào
+      </Text>
+    </View>
+  );
+
+  const renderHeader = () => (
+    <View style={styles.header}>
+      <Text style={styles.headerTitle}>Tin nhắn</Text>
+    </View>
+  );
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={styles.loadingText}>Đang tải...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Tin nhắn</Text>
-        <TouchableOpacity style={styles.headerButton}>
-          <Edit3 size={22} color={COLORS.black} />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.searchContainer}>
-        <SearchIcon size={20} color={COLORS.gray} style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Tìm kiếm cuộc trò chuyện"
-          placeholderTextColor={COLORS.gray}
-        />
-      </View>
-
-      {/* Tabs */}
-      <View style={styles.tabs}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'all' && styles.activeTab]}
-          onPress={() => setActiveTab('all')}
-        >
-          <Text style={[styles.tabText, activeTab === 'all' && styles.activeTabText]}>
-            Tất cả
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'groups' && styles.activeTab]}
-          onPress={() => setActiveTab('groups')}
-        >
-          <Text style={[styles.tabText, activeTab === 'groups' && styles.activeTabText]}>
-            Nhóm
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView style={styles.chatList}>
-        {activeTab === 'all' ? (
-          <>
-            {/* Group Chats */}
-            {SAMPLE_GROUP_CHATS.map((group) => (
-              <TouchableOpacity
-                key={group.id}
-                style={styles.groupChatItem}
-                onPress={() => router.push(`/group-chat?id=${group.id}`)}
-              >
-                <View style={styles.groupAvatarContainer}>
-                  <View style={styles.groupAvatar}>
-                    <Users size={24} color={COLORS.white} />
-                  </View>
-                </View>
-                <View style={styles.chatContent}>
-                  <View style={styles.chatHeader}>
-                    <Text style={styles.groupName}>{group.name}</Text>
-                    <Text style={styles.chatTime}>{group.timestamp}</Text>
-                  </View>
-                  <View style={styles.messageRow}>
-                    <Text style={[styles.lastMessage, group.unreadCount > 0 && styles.unreadMessage]} numberOfLines={1}>
-                      {group.lastMessage}
-                    </Text>
-                    {group.unreadCount > 0 && (
-                      <View style={styles.badge}>
-                        <Text style={styles.badgeText}>{group.unreadCount}</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
-            
-            {/* Individual Chats */}
-            <ChatListItem isOnline={true} hasUnread={true} unreadCount={3} />
-            <ChatListItem isOnline={true} hasUnread={false} />
-            <ChatListItem isOnline={false} hasUnread={true} unreadCount={1} />
-            <ChatListItem isOnline={false} hasUnread={false} />
-            <ChatListItem isOnline={true} hasUnread={false} />
-            <ChatListItem isOnline={false} hasUnread={false} />
-          </>
-        ) : (
-          <>
-            {/* Only Group Chats */}
-            {SAMPLE_GROUP_CHATS.map((group) => (
-              <TouchableOpacity
-                key={group.id}
-                style={styles.groupChatItem}
-                onPress={() => router.push(`/group-chat?id=${group.id}`)}
-              >
-                <View style={styles.groupAvatarContainer}>
-                  <View style={styles.groupAvatar}>
-                    <Users size={24} color={COLORS.white} />
-                  </View>
-                </View>
-                <View style={styles.chatContent}>
-                  <View style={styles.chatHeader}>
-                    <Text style={styles.groupName}>{group.name}</Text>
-                    <Text style={styles.chatTime}>{group.timestamp}</Text>
-                  </View>
-                  <View style={styles.messageRow}>
-                    <Text style={[styles.lastMessage, group.unreadCount > 0 && styles.unreadMessage]} numberOfLines={1}>
-                      {group.lastMessage}
-                    </Text>
-                    {group.unreadCount > 0 && (
-                      <View style={styles.badge}>
-                        <Text style={styles.badgeText}>{group.unreadCount}</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </>
-        )}
-      </ScrollView>
+      {renderHeader()}
+      
+      <FlatList
+        data={conversations}
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={renderConversation}
+        ListEmptyComponent={renderEmpty}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[COLORS.primary]}
+            tintColor={COLORS.primary}
+          />
+        }
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+      />
     </View>
   );
 }
@@ -161,6 +191,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.white,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+  },
+  loadingText: {
+    marginTop: RESPONSIVE_SPACING.md,
+    fontSize: FONT_SIZES.md,
+    color: COLORS.gray,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -168,6 +209,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: RESPONSIVE_SPACING.md,
     paddingTop: 60,
     paddingBottom: RESPONSIVE_SPACING.md,
+    backgroundColor: COLORS.white,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border.primary,
   },
@@ -176,125 +218,85 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.black,
   },
-  headerActions: {
-    flexDirection: 'row',
-    gap: RESPONSIVE_SPACING.xs,
+  listContent: {
+    flexGrow: 1,
   },
-  headerButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  searchContainer: {
+  conversationItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.lightGray,
-    marginHorizontal: RESPONSIVE_SPACING.md,
-    marginVertical: RESPONSIVE_SPACING.md,
     paddingHorizontal: RESPONSIVE_SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    height: 44,
-  },
-  searchIcon: {
-    marginRight: RESPONSIVE_SPACING.sm,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: FONT_SIZES.md,
-    color: COLORS.black,
-  },
-  tabs: {
-    flexDirection: 'row',
-    paddingHorizontal: RESPONSIVE_SPACING.md,
+    paddingVertical: RESPONSIVE_SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border.primary,
+    borderBottomColor: COLORS.border.secondary,
   },
-  tab: {
-    flex: 1,
-    paddingVertical: RESPONSIVE_SPACING.sm,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  activeTab: {
-    borderBottomColor: COLORS.primary,
-  },
-  tabText: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: '500',
-    color: COLORS.gray,
-  },
-  activeTabText: {
-    color: COLORS.primary,
-    fontWeight: '600',
-  },
-  chatList: {
-    flex: 1,
-  },
-  groupChatItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: RESPONSIVE_SPACING.md,
-    backgroundColor: COLORS.white,
-  },
-  groupAvatarContainer: {
-    position: 'relative',
-    marginRight: RESPONSIVE_SPACING.sm,
-  },
-  groupAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: BORDER_RADIUS.md,
+  avatar: {
+    width: 50,
+    height: 50,
+    borderRadius: BORDER_RADIUS.full,
     backgroundColor: COLORS.primary,
+    marginRight: RESPONSIVE_SPACING.md,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  chatContent: {
+  avatarText: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
+    color: COLORS.white,
+  },
+  conversationInfo: {
     flex: 1,
   },
-  chatHeader: {
+  conversationHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 4,
   },
-  groupName: {
+  conversationName: {
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
     color: COLORS.black,
+    flex: 1,
   },
-  chatTime: {
+  conversationTime: {
     fontSize: FONT_SIZES.xs,
     color: COLORS.gray,
   },
-  messageRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
   lastMessage: {
-    flex: 1,
     fontSize: FONT_SIZES.sm,
     color: COLORS.gray,
   },
-  unreadMessage: {
-    color: COLORS.black,
-    fontWeight: '500',
-  },
-  badge: {
-    backgroundColor: COLORS.primary,
-    borderRadius: BORDER_RADIUS.full,
-    minWidth: 20,
-    height: 20,
-    paddingHorizontal: 6,
+  emptyContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: RESPONSIVE_SPACING.sm,
+    paddingHorizontal: RESPONSIVE_SPACING.xl,
   },
-  badgeText: {
-    color: COLORS.white,
-    fontSize: 11,
+  emptyTitle: {
+    fontSize: FONT_SIZES.lg,
     fontWeight: '600',
+    color: COLORS.black,
+    marginTop: RESPONSIVE_SPACING.lg,
+    marginBottom: RESPONSIVE_SPACING.sm,
+  },
+  emptySubtitle: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.gray,
+    textAlign: 'center',
+    marginBottom: RESPONSIVE_SPACING.xl,
+  },
+  searchButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: RESPONSIVE_SPACING.lg,
+    paddingVertical: RESPONSIVE_SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    gap: RESPONSIVE_SPACING.sm,
+  },
+  searchButtonText: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+    color: COLORS.white,
   },
 });

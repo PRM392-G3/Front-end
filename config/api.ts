@@ -1,7 +1,7 @@
 // API Configuration - Unified Configuration
 export const API_CONFIG = {
   // Ngrok URL - cần cập nhật khi restart ngrok
-  BASE_URL: 'https://0163fc9e4a26.ngrok-free.app/api',
+  BASE_URL: 'https://f194bef7f066.ngrok-free.app/api',
   
   // Local development URL (nếu chạy local)
   LOCAL_URL: 'http://localhost:5000/api',
