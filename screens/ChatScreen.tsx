@@ -9,9 +9,11 @@ import {
   Platform,
   ActivityIndicator,
   StatusBar,
+  Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as ImagePicker from 'expo-image-picker';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
 import { ArrowLeft, Phone, Video, Info, MoreVertical } from 'lucide-react-native';
 import ChatMessage, { Message } from '@/components/ChatMessage';
@@ -19,6 +21,7 @@ import ChatInput from '@/components/ChatInput';
 import { useAuth } from '@/contexts/AuthContext';
 import signalRService from '@/services/signalRService';
 import { chatAPI, Message as APIMessage, Conversation } from '@/services/chatAPI';
+import { mediaAPI } from '@/services/mediaAPI';
 
 export default function ChatScreen() {
   const router = useRouter();
@@ -47,6 +50,8 @@ export default function ChatScreen() {
         const convertedMessages: Message[] = apiMessages.map(msg => ({
           id: msg.id.toString(),
           text: msg.content,
+          imageUrl: msg.imageUrl,
+          videoUrl: msg.videoUrl,
           timestamp: new Date(msg.createdAt).toLocaleTimeString('vi-VN', {
             hour: '2-digit',
             minute: '2-digit',
@@ -89,6 +94,8 @@ export default function ChatScreen() {
           const convertedMessages: Message[] = apiMessages.map(msg => ({
             id: msg.id.toString(),
             text: msg.content,
+            imageUrl: msg.imageUrl,
+            videoUrl: msg.videoUrl,
             timestamp: new Date(msg.createdAt).toLocaleTimeString('vi-VN', {
               hour: '2-digit',
               minute: '2-digit',
@@ -97,12 +104,27 @@ export default function ChatScreen() {
             isRead: true,
           }));
           
-          // Only update if messages changed
+          console.log('[ChatScreen] Polling: Converted messages with images:', convertedMessages.length);
+          
+          // Update messages - smart merge to keep optimistic updates
           setMessages(prev => {
+            // Only update if message count changed (new message received)
             if (prev.length !== convertedMessages.length) {
               console.log('[ChatScreen] New message detected via polling');
-              return convertedMessages;
+              
+              // Merge: Keep optimistic messages, add new ones from API
+              const prevIds = new Set(prev.map(m => m.id));
+              const apiIds = new Set(convertedMessages.map(m => m.id));
+              
+              // Add new messages from API
+              const newMessages = convertedMessages.filter(msg => !prevIds.has(msg.id));
+              
+              console.log('[ChatScreen] Adding', newMessages.length, 'new messages from API');
+              
+              // Return: existing optimistic + new from API
+              return [...prev, ...newMessages];
             }
+            
             return prev;
           });
         } catch (error) {
@@ -177,13 +199,14 @@ export default function ChatScreen() {
     };
   }, [conversationId, user]);
 
-  const handleSendMessage = async (text: string) => {
+  const handleSendMessage = async (text: string, imageUrl?: string) => {
     if (!user || !conversationId) return;
 
     // Optimistically add message to UI
     const newMessage: Message = {
       id: Date.now().toString(),
       text,
+      imageUrl,
       timestamp: new Date().toLocaleTimeString('vi-VN', {
         hour: '2-digit',
         minute: '2-digit',
@@ -201,6 +224,7 @@ export default function ChatScreen() {
         conversationId,
         senderId: user.id,
         content: text,
+        imageUrl,
       });
 
       console.log('[ChatScreen] Message sent successfully:', sentMessage);
@@ -227,6 +251,80 @@ export default function ChatScreen() {
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 100);
+  };
+
+  const handleSelectImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Lỗi', 'Cần quyền truy cập thư viện ảnh');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+        allowsMultipleSelection: false,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const imageUri = result.assets[0].uri;
+        console.log('[ChatScreen] Selected image:', imageUri);
+        
+        // Upload image
+        try {
+          const uploadResult = await mediaAPI.uploadImage(imageUri, 'chat');
+          console.log('[ChatScreen] Image uploaded:', uploadResult);
+          
+          if (uploadResult.publicUrl) {
+            // Send message with image
+            handleSendMessage('', uploadResult.publicUrl);
+          }
+        } catch (uploadError) {
+          console.error('[ChatScreen] Upload error:', uploadError);
+          Alert.alert('Lỗi', 'Không thể tải lên ảnh');
+        }
+      }
+    } catch (error) {
+      console.error('[ChatScreen] Image selection error:', error);
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Lỗi', 'Cần quyền truy cập camera');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const imageUri = result.assets[0].uri;
+        console.log('[ChatScreen] Photo taken:', imageUri);
+        
+        // Upload image
+        try {
+          const uploadResult = await mediaAPI.uploadImage(imageUri, 'chat');
+          console.log('[ChatScreen] Photo uploaded:', uploadResult);
+          
+          if (uploadResult.publicUrl) {
+            // Send message with image
+            handleSendMessage('', uploadResult.publicUrl);
+          }
+        } catch (uploadError) {
+          console.error('[ChatScreen] Upload error:', uploadError);
+          Alert.alert('Lỗi', 'Không thể tải lên ảnh');
+        }
+      }
+    } catch (error) {
+      console.error('[ChatScreen] Camera error:', error);
+    }
   };
 
   useEffect(() => {
@@ -335,9 +433,9 @@ export default function ChatScreen() {
       {/* Enhanced Input */}
       <ChatInput
         onSendMessage={handleSendMessage}
-        onSelectImage={() => console.log('Select image')}
-        onSelectCamera={() => console.log('Open camera')}
-        onSelectVideo={() => console.log('Record video')}
+        onSelectImage={handleSelectImage}
+        onSelectCamera={handleTakePhoto}
+        onSelectVideo={() => Alert.alert('Coming Soon', 'Tính năng video sẽ sớm ra mắt')}
       />
     </KeyboardAvoidingView>
   );

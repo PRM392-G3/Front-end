@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import {
   View,
+  Text,
   TextInput,
   StyleSheet,
   TouchableOpacity,
   Platform,
 } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
-import { Send, Image as ImageIcon, Camera, Video, Smile } from 'lucide-react-native';
+import { Send, Image as ImageIcon, Camera, Video, SmilePlus } from 'lucide-react-native';
 
 interface ChatInputProps {
   onSendMessage: (text: string) => void;
@@ -101,7 +102,7 @@ export default function ChatInput({
             style={styles.emojiButton}
             activeOpacity={0.6}
           >
-            <Smile size={22} color={COLORS.primary} />
+            <SmilePlus size={22} color={COLORS.primary} />
           </TouchableOpacity>
         )}
 
