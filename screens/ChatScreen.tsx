@@ -76,33 +76,104 @@ export default function ChatScreen() {
     loadData();
   }, [conversationId, user]);
 
+  // Poll for new messages every 3 seconds as fallback
+  useEffect(() => {
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+    
+    if (conversationId && user) {
+      console.log('[ChatScreen] Starting message polling...');
+      
+      pollInterval = setInterval(async () => {
+        try {
+          const apiMessages = await chatAPI.getConversationMessages(conversationId);
+          const convertedMessages: Message[] = apiMessages.map(msg => ({
+            id: msg.id.toString(),
+            text: msg.content,
+            timestamp: new Date(msg.createdAt).toLocaleTimeString('vi-VN', {
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+            isSent: msg.senderId === user.id,
+            isRead: true,
+          }));
+          
+          // Only update if messages changed
+          setMessages(prev => {
+            if (prev.length !== convertedMessages.length) {
+              console.log('[ChatScreen] New message detected via polling');
+              return convertedMessages;
+            }
+            return prev;
+          });
+        } catch (error) {
+          console.error('[ChatScreen] Polling error:', error);
+        }
+      }, 3000);
+    }
+    
+    return () => {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+        console.log('[ChatScreen] Polling stopped');
+      }
+    };
+  }, [conversationId, user]);
+
   // Listen for real-time messages via SignalR
   useEffect(() => {
-    if (!signalRService.isConnected()) return;
+    console.log('[ChatScreen] Setting up SignalR listener...');
+    console.log('[ChatScreen] SignalR connected:', signalRService.isConnected());
+    console.log('[ChatScreen] Conversation ID:', conversationId);
+    
+    if (!signalRService.isConnected()) {
+      console.warn('[ChatScreen] SignalR not connected, using polling fallback');
+      return;
+    }
 
     const handleMessage = (data: any) => {
-      console.log('[ChatScreen] Received SignalR message:', data);
+      console.log('🔔 [ChatScreen] Received SignalR message:', JSON.stringify(data, null, 2));
       
-      if (data.conversationId === conversationId) {
+      // Try to match conversation ID (handle both number and string)
+      const messageConvId = parseInt(data.conversationId);
+      const currentConvId = parseInt(conversationId as any);
+      
+      if (messageConvId === currentConvId) {
+        console.log('✅ [ChatScreen] Message matches conversation, adding to UI');
         const newMessage: Message = {
           id: Date.now().toString(),
-          text: data.message,
-          timestamp: new Date(data.timestamp).toLocaleTimeString('vi-VN', {
+          text: data.message || data.content || '',
+          timestamp: new Date(data.timestamp || data.createdAt || new Date()).toLocaleTimeString('vi-VN', {
             hour: '2-digit',
             minute: '2-digit',
           }),
-          isSent: data.fromUserId === user?.id,
+          isSent: (data.fromUserId === user?.id) || (data.senderId === user?.id),
           isRead: false,
         };
-        setMessages(prev => [...prev, newMessage]);
+        
+        setMessages(prev => {
+          // Avoid duplicates
+          const exists = prev.some(m => 
+            m.text === newMessage.text && 
+            Math.abs(new Date(m.timestamp).getTime() - new Date(newMessage.timestamp).getTime()) < 1000
+          );
+          
+          if (exists) {
+            return prev;
+          }
+          
+          console.log('✅ [ChatScreen] Adding new message to list via SignalR');
+          return [...prev, newMessage];
+        });
+        
         setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
       }
     };
 
     signalRService.onReceiveMessage(handleMessage);
+    console.log('✅ [ChatScreen] SignalR listener registered');
 
     return () => {
-      // Cleanup
+      console.log('[ChatScreen] Cleaning up SignalR listener');
     };
   }, [conversationId, user]);
 
