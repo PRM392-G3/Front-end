@@ -82,15 +82,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return;
       }
 
-      // Lấy Expo Push Token
+      // Lấy Expo Push Token3
       const expoPushToken = await notificationService.getExpoPushToken();
       if (expoPushToken) {
         // Gửi token lên server
         try {
-          await notificationAPI.updateFcmToken(userId, expoPushToken);
-          console.log('AuthContext: FCM token updated on server');
+          const result = await notificationAPI.updateFcmToken(userId, expoPushToken);
+          if (result) {
+            console.log('AuthContext: FCM token updated on server');
+          } else {
+            console.warn('AuthContext: FCM token endpoint not available, skipping update');
+          }
         } catch (error) {
-          console.error('AuthContext: Failed to update FCM token on server:', error);
+          // Ignore FCM token errors - không crash app
+          console.warn('AuthContext: FCM token update failed (non-critical):', error instanceof Error ? error.message : error);
         }
       }
 
@@ -387,12 +392,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       console.log('AuthContext: Google result:', {
         hasIdToken: !!googleResult.idToken,
-        hasCode: !!googleResult.user?.code,
+        hasCode: !!(googleResult.user && 'code' in googleResult.user ? googleResult.user.code : undefined),
         user: googleResult.user
       });
       
       // Check if mobile flow (has code)
-      if (googleResult.user?.code) {
+      if (googleResult.user && 'code' in googleResult.user && googleResult.user.code) {
         console.log('AuthContext: Mobile flow - sending code to backend...');
         
         // Mobile: send code to backend exchange endpoint
@@ -408,7 +413,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           method: 'POST',
           headers: API_CONFIG.HEADERS,
           body: JSON.stringify({
-            code: googleResult.user.code,
+            code: 'code' in googleResult.user ? googleResult.user.code : '',
             redirectUri
           }),
         });

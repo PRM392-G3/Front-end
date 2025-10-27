@@ -31,8 +31,15 @@ export default function UserProfileScreen() {
   const [activeTab, setActiveTab] = useState<'posts' | 'shared' | 'friends' | 'groups'>('posts');
   const [posts, setPosts] = useState<PostResponse[]>([]);
   const [postsLoading, setPostsLoading] = useState(false);
+  const [totalPostsCount, setTotalPostsCount] = useState(0);
+  const [allPosts, setAllPosts] = useState<PostResponse[]>([]); // Store all posts for pagination
   const [sharedPosts, setSharedPosts] = useState<PostResponse[]>([]);
   const [sharedPostsLoading, setSharedPostsLoading] = useState(false);
+  const [totalSharedPostsCount, setTotalSharedPostsCount] = useState(0);
+  const [allSharedPosts, setAllSharedPosts] = useState<PostResponse[]>([]); // Store all shared posts
+  const [postsPage, setPostsPage] = useState(0);
+  const [sharedPostsPage, setSharedPostsPage] = useState(0);
+  const ITEMS_PER_PAGE = 6;
   const [userGroups, setUserGroups] = useState<Group[]>([]);
   const [groupsLoading, setGroupsLoading] = useState(false);
   const [editVisible, setEditVisible] = useState(false);
@@ -69,6 +76,12 @@ export default function UserProfileScreen() {
     setFriends([]);
     setSharedPosts([]);
     setPosts([]);
+    setTotalPostsCount(0);
+    setTotalSharedPostsCount(0);
+    setAllPosts([]);
+    setAllSharedPosts([]);
+    setPostsPage(0);
+    setSharedPostsPage(0);
     setActiveTab('posts'); // Reset to posts tab when viewing different user
     
     if (userId) {
@@ -81,7 +94,7 @@ export default function UserProfileScreen() {
     } else {
       setLoading(false);
     }
-  }, [userId, currentUser]);
+  }, [userId]); // Removed currentUser from dependency to avoid re-fetching on tab changes
 
   // Refresh profile data when screen comes back into focus (e.g., returning from edit screen)
   useFocusEffect(
@@ -100,14 +113,14 @@ export default function UserProfileScreen() {
     }, [userId, currentUser])
   );
 
-  // Debug activeTab changes
+  // Lazy loading based on active tab
   useEffect(() => {
-    // Load shared posts when switching to shared tab
-    if (activeTab === 'shared' && user && sharedPosts.length === 0) {
+    // Load shared posts when switching to shared tab (only if not loaded)
+    if (activeTab === 'shared' && user && sharedPosts.length === 0 && !sharedPostsLoading) {
       loadSharedPosts(user.id);
     }
-    // Load friends when switching to friends tab
-    if (activeTab === 'friends' && user) {
+    // Load friends when switching to friends tab (only if not loaded)
+    if (activeTab === 'friends' && user && friends.length === 0 && !friendsLoading) {
       loadFriends(user.id);
     }
   }, [activeTab, user?.id]);
@@ -166,16 +179,16 @@ export default function UserProfileScreen() {
       setLoading(true);
       console.log(`🚀 [UserProfile] API CALL: Getting user ${userIdToFetch}`);
       console.log(`🚀 [UserProfile] API URL: /User/${userIdToFetch}`);
+      
+      // Load user data only - DON'T wait for posts to show UI faster
       const userData = await userAPI.getUserById(parseInt(userIdToFetch));
       console.log(`✅ [UserProfile] API SUCCESS: Received user data:`, userData);
       console.log(`✅ [UserProfile] User name: ${userData.fullName}, Email: ${userData.email}`);
       setUser(userData);
+      setLoading(false); // Show UI immediately
       
-      // Load both user posts and shared posts after getting user data
-      await Promise.all([
-        loadUserPosts(parseInt(userIdToFetch)),
-        loadSharedPosts(parseInt(userIdToFetch))
-      ]);
+      // Load posts in background (non-blocking)
+      loadUserPosts(parseInt(userIdToFetch));
     } catch (error: any) {
       console.error('❌ [UserProfile] API ERROR:', error);
       console.error('[UserProfile] Error details:', {
@@ -222,17 +235,35 @@ export default function UserProfileScreen() {
     }
   };
 
-  const loadUserPosts = async (userId: number) => {
+  const loadUserPosts = async (userId: number, page: number = 0, append: boolean = false) => {
     try {
       setPostsLoading(true);
-      console.log(`🚀 [ProfileScreen] Loading posts for user ${userId} with like status`);
-      const postsData = await postAPI.getPostsByUser(userId);
-      console.log(`✅ [ProfileScreen] Posts loaded with like status:`, postsData);
-      console.log(`📊 [ProfileScreen] Posts count: ${postsData.length}`);
+      console.log(`🚀 [ProfileScreen] Loading posts for user ${userId}, page ${page}`);
+      
+      // Load all posts from backend if not already loaded
+      let postsData: PostResponse[];
+      if (allPosts.length > 0 && append) {
+        // Already have data, just paginate
+        postsData = allPosts;
+      } else {
+        // Fetch fresh data
+        postsData = await postAPI.getPostsByUser(userId);
+        console.log(`✅ [ProfileScreen] Posts loaded with like status:`, postsData);
+        setAllPosts(postsData);
+        setTotalPostsCount(postsData.length);
+      }
+      
+      // Paginate - load 6 posts per page
+      const startIdx = page * ITEMS_PER_PAGE;
+      const endIdx = startIdx + ITEMS_PER_PAGE;
+      const paginatedPosts = postsData.slice(0, endIdx);
+      
+      console.log(`📊 [ProfileScreen] Showing ${paginatedPosts.length} of ${postsData.length} total posts`);
       
       // Initialize posts with like/share status from backend
-      initializePosts(postsData);
-      setPosts(postsData);
+      initializePosts(paginatedPosts);
+      setPosts(paginatedPosts);
+      setPostsPage(page);
     } catch (error: any) {
       console.error('❌ [ProfileScreen] Posts loading error:', error);
       const status = error.response?.status;
@@ -251,16 +282,33 @@ export default function UserProfileScreen() {
     }
   };
 
-  const loadSharedPosts = async (userId: number) => {
+  const loadSharedPosts = async (userId: number, page: number = 0, append: boolean = false) => {
     try {
       setSharedPostsLoading(true);
-      console.log(`🚀 [UserProfile] Loading shared posts for user ${userId} with like status`);
-      const sharedPostsData = await postAPI.getSharedPostsByUser(userId);
-      console.log(`✅ [UserProfile] Shared posts loaded with like status:`, sharedPostsData);
+      console.log(`🚀 [UserProfile] Loading shared posts for user ${userId}, page ${page}`);
+      
+      // Load all shared posts from backend if not already loaded
+      let sharedPostsData: PostResponse[];
+      if (allSharedPosts.length > 0 && append) {
+        sharedPostsData = allSharedPosts;
+      } else {
+        sharedPostsData = await postAPI.getSharedPostsByUser(userId);
+        console.log(`✅ [UserProfile] Shared posts loaded:`, sharedPostsData);
+        setAllSharedPosts(sharedPostsData);
+        setTotalSharedPostsCount(sharedPostsData.length);
+      }
+      
+      // Paginate - load 6 posts per page
+      const startIdx = page * ITEMS_PER_PAGE;
+      const endIdx = startIdx + ITEMS_PER_PAGE;
+      const paginatedSharedPosts = sharedPostsData.slice(0, endIdx);
+      
+      console.log(`📊 [UserProfile] Showing ${paginatedSharedPosts.length} of ${sharedPostsData.length} total shared posts`);
       
       // Initialize shared posts with like/share status from backend
-      initializePosts(sharedPostsData);
-      setSharedPosts(sharedPostsData);
+      initializePosts(paginatedSharedPosts);
+      setSharedPosts(paginatedSharedPosts);
+      setSharedPostsPage(page);
     } catch (error: any) {
       console.error('❌ [UserProfile] Shared posts loading error:', error);
       const status = error.response?.status;
@@ -771,6 +819,37 @@ export default function UserProfileScreen() {
     );
   };
 
+  const handleLoadMorePosts = () => {
+    if (!user || posts.length >= allPosts.length) return;
+    const nextPage = postsPage + 1;
+    loadUserPosts(user.id, nextPage, true);
+  };
+
+  const handleLoadMoreSharedPosts = () => {
+    if (!user || sharedPosts.length >= allSharedPosts.length) return;
+    const nextPage = sharedPostsPage + 1;
+    loadSharedPosts(user.id, nextPage, true);
+  };
+
+  const renderLoadMoreButton = (hasMore: boolean, onLoadMore: () => void, loading: boolean) => {
+    if (!hasMore) return null;
+    
+    return (
+      <TouchableOpacity
+        style={styles.loadMoreButton}
+        onPress={onLoadMore}
+        disabled={loading}
+        activeOpacity={0.7}
+      >
+        {loading ? (
+          <ActivityIndicator size="small" color={COLORS.white} />
+        ) : (
+          <Text style={styles.loadMoreButtonText}>Xem thêm bài viết</Text>
+        )}
+      </TouchableOpacity>
+    );
+  };
+
   const handleSaveProfile = async () => {
     if (!user) {
       Alert.alert('Lỗi', 'Không xác định được người dùng.');
@@ -911,14 +990,8 @@ export default function UserProfileScreen() {
             }}
             activeOpacity={0.7}
           >
-            <Text style={styles.statNumber}>{posts.length + sharedPosts.length}</Text>
+            <Text style={styles.statNumber}>{totalPostsCount + totalSharedPostsCount || 0}</Text>
             <Text style={styles.statLabel}>Bài viết</Text>
-            {/* Debug: Show posts count */}
-            {__DEV__ && (
-              <Text style={{ fontSize: 10, color: 'red' }}>
-                Debug: {posts.length} created + {sharedPosts.length} shared = {posts.length + sharedPosts.length} total
-              </Text>
-            )}
           </TouchableOpacity>
           <View style={styles.statDivider} />
           <TouchableOpacity 
@@ -1334,6 +1407,11 @@ export default function UserProfileScreen() {
           keyExtractor={(item) => item.id.toString()}
           ListHeaderComponent={renderListHeader}
           ListEmptyComponent={renderEmptyComponent}
+          ListFooterComponent={() => renderLoadMoreButton(
+            posts.length < allPosts.length, 
+            handleLoadMorePosts, 
+            postsLoading
+          )}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.postsList}
           style={styles.mainFlatList}
@@ -1345,6 +1423,11 @@ export default function UserProfileScreen() {
           keyExtractor={(item) => item.id.toString()}
           ListHeaderComponent={renderListHeader}
           ListEmptyComponent={renderEmptyComponent}
+          ListFooterComponent={() => renderLoadMoreButton(
+            sharedPosts.length < allSharedPosts.length, 
+            handleLoadMoreSharedPosts, 
+            sharedPostsLoading
+          )}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.postsList}
           style={styles.mainFlatList}
@@ -2223,4 +2306,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: RESPONSIVE_SPACING.xl * 2,
   } as ViewStyle,
+  loadMoreButton: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: RESPONSIVE_SPACING.md,
+    paddingHorizontal: RESPONSIVE_SPACING.lg,
+    borderRadius: BORDER_RADIUS.md,
+    marginVertical: RESPONSIVE_SPACING.md,
+    marginHorizontal: RESPONSIVE_SPACING.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  } as ViewStyle,
+  loadMoreButtonText: {
+    color: COLORS.white,
+    fontSize: RESPONSIVE_FONT_SIZES.md,
+    fontWeight: '600',
+  } as TextStyle,
 });

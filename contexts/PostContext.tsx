@@ -36,6 +36,12 @@ interface PostContextType {
   cacheTimestamp: number;
   savePostsToCache: (posts: PostResponse[]) => void;
   loadCachedPosts: () => void;
+  
+  // ✅ Dual cache system
+  backgroundCache: PostResponse[]; // Fresh data fetched in background
+  previewCache: PostResponse[]; // Fallback when network fails
+  backgroundCacheTimestamp: number;
+  previewCacheTimestamp: number;
 }
 
 const PostContext = createContext<PostContextType | undefined>(undefined);
@@ -57,6 +63,12 @@ export const PostProvider: React.FC<PostProviderProps> = ({ children }) => {
   }, []);
   const [cachedPosts, setCachedPosts] = useState<PostResponse[]>([]);
   const [cacheTimestamp, setCacheTimestamp] = useState<number>(0);
+  
+  // ✅ Dual cache system
+  const [backgroundCache, setBackgroundCache] = useState<PostResponse[]>([]); // Fresh background fetch
+  const [previewCache, setPreviewCache] = useState<PostResponse[]>([]); // Old fallback cache
+  const [backgroundCacheTimestamp, setBackgroundCacheTimestamp] = useState<number>(0);
+  const [previewCacheTimestamp, setPreviewCacheTimestamp] = useState<number>(0);
   const likeStates = useState<Map<number, { isLiked: boolean; likeCount: number }>>(new Map())[0];
   const setLikeStates = useState<Map<number, { isLiked: boolean; likeCount: number }>>(new Map())[1];
   const [shareStates, setShareStates] = useState<Map<number, { isShared: boolean; shareCount: number }>>(new Map());
@@ -81,8 +93,8 @@ export const PostProvider: React.FC<PostProviderProps> = ({ children }) => {
         console.log('PostContext: Loading cached posts (age:', Math.round(cacheAge / 1000 / 60), 'minutes)');
         console.log('PostContext: Cache size:', parsedPosts.length, 'posts');
         
-        // Always load cache for offline support (up to 7 days)
-        if (cacheAge < 7 * 24 * 60 * 60 * 1000 && parsedPosts.length > 0) {
+        // Always load cache for offline support (up to 1 day)
+        if (cacheAge < 1 * 24 * 60 * 60 * 1000 && parsedPosts.length > 0) {
           setCachedPosts(parsedPosts);
           
           // Smart loading strategy based on cache age:
@@ -504,6 +516,11 @@ export const PostProvider: React.FC<PostProviderProps> = ({ children }) => {
     cacheTimestamp,
     savePostsToCache,
     loadCachedPosts,
+    // Dual cache system
+    backgroundCache: backgroundCache,
+    previewCache: previewCache,
+    backgroundCacheTimestamp: backgroundCacheTimestamp || 0,
+    previewCacheTimestamp: previewCacheTimestamp || 0,
   };
   
   // Expose additional cache methods

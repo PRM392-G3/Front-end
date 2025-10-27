@@ -5,7 +5,7 @@ import PostCard from '@/components/PostCard';
 import CreatePostScreen from '@/screens/CreatePostScreen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Plus, RefreshCw, Search, Bell } from 'lucide-react-native';
-import { postAPI, PostResponse } from '@/services/api';
+import { postAPI, PostResponse, PostFeedResponse } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePostContext } from '@/contexts/PostContext';
 import { useFocusEffect } from '@react-navigation/native';
@@ -48,11 +48,68 @@ export default function HomeScreen() {
         setHasMore(true);
       }
       
-      console.log('🏠 [HomeScreen] Fetching posts with like status...', `Page: ${pageNumber}`);
+      console.log('🏠 [HomeScreen] Fetching optimized feed...', `Page: ${pageNumber}`);
       
-      // Fetch posts with pagination
-      const fetchedPosts = await postAPI.getAllPostsWithLikes(pageNumber);
-      console.log('🏠 [HomeScreen] Fetched posts:', fetchedPosts.length);
+      // ✅ OPTIMIZED: Fetch posts with metadata only (no N+1 queries)
+      const fetchedFeedData = await postAPI.getOptimizedFeed(pageNumber);
+      console.log('🏠 [HomeScreen] Fetched optimized posts:', fetchedFeedData.length);
+      
+      // Convert PostFeedResponse to PostResponse format for compatibility
+      const fetchedPosts: PostResponse[] = fetchedFeedData.map(feed => {
+        // Ensure user data is always present with fallbacks
+        const userName = feed.userName || 'Người dùng';
+        const userAvatar = feed.userAvatar || null;
+        
+        console.log('📝 [HomeScreen] Converting post:', {
+          id: feed.id,
+          userId: feed.userId,
+          userName: userName,
+          hasAvatar: !!userAvatar
+        });
+        
+        return {
+          id: feed.id,
+          userId: feed.userId,
+          content: feed.content,
+          imageUrl: feed.imageUrl || undefined,
+          videoUrl: feed.videoUrl || undefined,
+          likeCount: feed.likeCount,
+          commentCount: feed.commentCount,
+          shareCount: feed.shareCount,
+          isPublic: feed.isPublic,
+          isDeleted: false,
+          createdAt: feed.createdAt,
+          updatedAt: feed.updatedAt,
+          user: {
+            id: feed.userId,
+            email: '', // Not needed for display
+            fullName: userName,
+            coverImageUrl: null,
+            avatarUrl: userAvatar,
+            phoneNumber: '',
+            bio: null,
+            dateOfBirth: null,
+            location: null,
+            isActive: true,
+            emailVerifiedAt: null,
+            lastLoginAt: null,
+            createdAt: '',
+            updatedAt: '',
+            followersCount: 0,
+            followingCount: 0,
+            postsCount: 0,
+            isFollowing: false,
+          },
+          comments: [], // Empty array - lazy loaded
+          likes: [], // Empty array - not loaded
+          shares: [], // Empty array - not loaded
+          tags: feed.tagNames.map(name => ({ name }) as any),
+          isLiked: feed.isLiked,
+          isShared: feed.isShared,
+          groupId: feed.groupId || undefined,
+          group: feed.groupName ? { name: feed.groupName } as any : undefined,
+        };
+      });
       
       if (pageNumber === 1) {
         // For first page, use smart merge with cache
@@ -83,8 +140,57 @@ export default function HomeScreen() {
         setTimeout(async () => {
           try {
             console.log('🏠 [HomeScreen] Prefetching next page...');
-            const nextPagePosts = await postAPI.getAllPostsWithLikes(2);
-            console.log('🏠 [HomeScreen] Prefetched posts:', nextPagePosts.length);
+            const nextPageFeedData = await postAPI.getOptimizedFeed(2);
+            console.log('🏠 [HomeScreen] Prefetched posts:', nextPageFeedData.length);
+            
+            // Convert to PostResponse format for cache
+            const nextPagePosts: PostResponse[] = nextPageFeedData.map(feed => {
+              const userName = feed.userName || 'Người dùng';
+              const userAvatar = feed.userAvatar || null;
+              
+              return {
+                id: feed.id,
+                userId: feed.userId,
+                content: feed.content,
+                imageUrl: feed.imageUrl || undefined,
+                videoUrl: feed.videoUrl || undefined,
+                likeCount: feed.likeCount,
+                commentCount: feed.commentCount,
+                shareCount: feed.shareCount,
+                isPublic: feed.isPublic,
+                isDeleted: false,
+                createdAt: feed.createdAt,
+                updatedAt: feed.updatedAt,
+                user: {
+                  id: feed.userId,
+                  email: '',
+                  fullName: userName,
+                  coverImageUrl: null,
+                  avatarUrl: userAvatar,
+                  phoneNumber: '',
+                  bio: null,
+                  dateOfBirth: null,
+                  location: null,
+                  isActive: true,
+                  emailVerifiedAt: null,
+                  lastLoginAt: null,
+                  createdAt: '',
+                  updatedAt: '',
+                  followersCount: 0,
+                  followingCount: 0,
+                  postsCount: 0,
+                  isFollowing: false,
+                },
+                comments: [], 
+                likes: [], 
+                shares: [],
+                tags: feed.tagNames.map(name => ({ name }) as any),
+                isLiked: feed.isLiked,
+                isShared: feed.isShared,
+                groupId: feed.groupId || undefined,
+                group: feed.groupName ? { name: feed.groupName } as any : undefined,
+              };
+            });
             
             // Merge prefetched posts into cache
             if (nextPagePosts.length > 0) {
@@ -98,17 +204,20 @@ export default function HomeScreen() {
     } catch (error: any) {
       console.error('Error fetching posts:', error);
       
-      // If offline or network error, show cached data if available
+      // If offline or network error, show cached data if available (silently fail)
       if (error.message?.includes('Network') || error.message?.includes('timeout')) {
-        console.log('🏠 [HomeScreen] Network error, using cached data');
+        console.log('🏠 [HomeScreen] Network error, keeping existing data');
         if (posts.length > 0) {
-          console.log('🏠 [HomeScreen] Using', posts.length, 'cached posts');
-          // Don't show error if we have cached data
+          console.log('🏠 [HomeScreen] Keeping', posts.length, 'existing posts - NOT refreshing');
+          // Don't show error if we have cached data, just keep it
           return;
         }
+        // Only show error if we have NO data at all
+        console.warn('🏠 [HomeScreen] No cached data available');
+      } else {
+        // Only alert for non-network errors
+        Alert.alert('Lỗi', 'Không thể tải bài viết. Vui lòng kiểm tra kết nối mạng và thử lại.');
       }
-      
-      Alert.alert('Lỗi', 'Không thể tải bài viết. Vui lòng kiểm tra kết nối mạng và thử lại.');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -116,28 +225,11 @@ export default function HomeScreen() {
     }
   }, [posts]);
 
-  // Auto refresh timer
+  // Auto refresh timer - DISABLED per user request
   useEffect(() => {
-    const startAutoRefresh = () => {
-      if (autoRefreshTimer.current) {
-        clearInterval(autoRefreshTimer.current);
-      }
-      
-      // Auto refresh every 30 seconds
-      autoRefreshTimer.current = setInterval(async () => {
-        console.log('🏠 [HomeScreen] Auto refreshing posts...');
-        try {
-          forceRefreshPosts();
-          const fetchedPosts = await postAPI.getAllPostsWithLikes();
-          initializePosts(fetchedPosts);
-        } catch (error) {
-          console.error('Auto refresh error:', error);
-        }
-      }, 30000);
-    };
-
-    startAutoRefresh();
-
+    // Auto refresh DISABLED - data should stay loaded without refresh
+    console.log('🏠 [HomeScreen] Auto refresh DISABLED - data stays loaded');
+    
     return () => {
       if (autoRefreshTimer.current) {
         clearInterval(autoRefreshTimer.current);
@@ -145,60 +237,96 @@ export default function HomeScreen() {
     };
   }, []);
 
-  // Load posts when screen focuses - PRIORITIZE CACHE
+  // Load posts when screen focuses - PRIORITIZE CACHE - NO AUTO REFETCH
   useFocusEffect(
     useCallback(() => {
       console.log('🏠 [HomeScreen] Screen focused, posts available:', posts.length);
       
-      // If we already have posts (from cache or previous load), don't reload
-      if (posts.length > 0 && initialLoadComplete) {
-        console.log('🏠 [HomeScreen] Already have posts, skipping reload');
+      // ✅ NEVER refetch - just use existing data
+      if (posts.length > 0) {
+        console.log('🏠 [HomeScreen] Already have posts, NOT refetching - keeping existing data');
+        setInitialLoadComplete(true);
+        setIsLoading(false);
         return;
       }
       
-      const loadPosts = async () => {
-        try {
-          // Only show loading if we don't have ANY posts
-          if (posts.length === 0) {
+      // Only fetch if we have absolutely NO posts
+      if (posts.length === 0 && !initialLoadComplete) {
+        const loadPosts = async () => {
+          try {
             setIsLoading(true);
+            const fetchedPosts = await postAPI.getOptimizedFeed(1);
+            
+            // Convert PostFeedResponse to PostResponse format
+            const convertedPosts = fetchedPosts.map(feed => {
+              const userName = feed.userName || 'Người dùng';
+              const userAvatar = feed.userAvatar || null;
+              
+              return {
+                id: feed.id,
+                userId: feed.userId,
+                content: feed.content,
+                imageUrl: feed.imageUrl || undefined,
+                videoUrl: feed.videoUrl || undefined,
+                likeCount: feed.likeCount,
+                commentCount: feed.commentCount,
+                shareCount: feed.shareCount,
+                isPublic: feed.isPublic,
+                isDeleted: false,
+                createdAt: feed.createdAt,
+                updatedAt: feed.updatedAt,
+                user: {
+                  id: feed.userId,
+                  email: '',
+                  fullName: userName,
+                  coverImageUrl: null,
+                  avatarUrl: userAvatar,
+                  phoneNumber: '',
+                  bio: null,
+                  dateOfBirth: null,
+                  location: null,
+                  isActive: true,
+                  emailVerifiedAt: null,
+                  lastLoginAt: null,
+                  createdAt: '',
+                  updatedAt: '',
+                  followersCount: 0,
+                  followingCount: 0,
+                  postsCount: 0,
+                  isFollowing: false,
+                },
+                comments: [], 
+                likes: [], 
+                shares: [],
+                tags: feed.tagNames.map(name => ({ name }) as any),
+                isLiked: feed.isLiked,
+                isShared: feed.isShared,
+                groupId: feed.groupId || undefined,
+                group: feed.groupName ? { name: feed.groupName } as any : undefined,
+              };
+            });
+            
+            initializePosts(convertedPosts);
+            setInitialLoadComplete(true);
+          } catch (error) {
+            console.error('Error fetching posts:', error);
+            setInitialLoadComplete(true); // Mark as complete even on error
+          } finally {
+            setIsLoading(false);
           }
-          
-          const fetchedPosts = await postAPI.getAllPostsWithLikes(1);
-          initializePosts(fetchedPosts);
-          setInitialLoadComplete(true);
-        } catch (error) {
-          console.error('Error fetching posts:', error);
-          // Keep showing cached posts if available
-          if (posts.length > 0) {
-            console.log('🏠 [HomeScreen] Network error, keeping cached posts');
-          } else {
-            Alert.alert('Lỗi', 'Không thể tải bài viết. Vui lòng kiểm tra kết nối mạng.');
-          }
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      
-      // If no posts, fetch from server, otherwise skip
-      if (posts.length === 0) {
+        };
+        
         loadPosts();
-      } else {
-        console.log('🏠 [HomeScreen] Using cached posts, skipping network request');
-        setIsLoading(false);
-        setInitialLoadComplete(true);
       }
     }, [posts.length, initialLoadComplete])
   );
 
+  // DISABLED: No manual refresh - keep existing data
   const handleRefresh = useCallback(async () => {
-    setIsRefreshing(true);
-    try {
-      await fetchPosts(true, 1);
-      setInitialLoadComplete(true);
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [fetchPosts]);
+    console.log('🏠 [HomeScreen] Manual refresh DISABLED - keeping existing data');
+    setIsRefreshing(false);
+    // Don't fetch - just keep what we have
+  }, []);
   
   const handleLoadMore = useCallback(() => {
     if (!isLoadingMore && hasMore && page > 0) {

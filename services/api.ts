@@ -375,6 +375,19 @@ export const userAPI = {
     }
   },
 
+  // ✅ OPTIMIZED: Get lightweight user profile (fast loading)
+  getUserProfile: async (userId: number) => {
+    try {
+      console.log('[userAPI] Getting user profile:', userId);
+      const response = await api.get(`/User/${userId}/profile`);
+      console.log('[userAPI] Profile response:', response.data);
+      return response.data as User;
+    } catch (error: any) {
+      console.error('[userAPI] Error getting user profile:', error.response?.data);
+      throw error;
+    }
+  },
+
   // Hủy theo dõi một user
   // followerId: ID của người đang follow (user hiện tại)
   // followingId: ID của người được follow (sẽ bị hủy follow)
@@ -625,6 +638,37 @@ export interface PostResponse {
   group?: Group; // Group information if this is a group post
 }
 
+// ✅ Lightweight Feed DTO - only metadata, no nested objects
+export interface PostFeedResponse {
+  // Basic post info
+  id: number;
+  userId: number;
+  content: string;
+  imageUrl?: string | null;
+  videoUrl?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  groupId?: number | null;
+  groupName?: string | null;
+  isPublic: boolean;
+  
+  // Basic user info (only name & avatar)
+  userName: string;
+  userAvatar?: string | null;
+  
+  // Counts only - NO nested arrays
+  likeCount: number;
+  commentCount: number;
+  shareCount: number;
+  
+  // Status flags
+  isLiked: boolean;
+  isShared: boolean;
+  
+  // Tags (only names)
+  tagNames: string[];
+}
+
 // Reel interfaces
 export interface ReelMusic {
   id: number;
@@ -690,6 +734,24 @@ export const postAPI = {
       const response = await api.get(`/Post/with-likes?page=${page}&pageSize=${pageSize}`);
       return response.data as PostResponse[];
     } catch (error) {
+      throw error;
+    }
+  },
+
+  // ✅ OPTIMIZED: Get posts with metadata only (no N+1 queries)
+  // Comments lazy loaded when user taps
+  getOptimizedFeed: async (page = 1, pageSize = 20) => {
+    try {
+      console.log('[postAPI] Fetching optimized feed:', { page, pageSize });
+      const response = await api.get(`/Post/optimized-feed`, {
+        params: { page, pageSize }
+      });
+      const data = response.data as any;
+      const posts = data?.posts || data || [];
+      console.log('[postAPI] Optimized feed response:', posts.length, 'posts');
+      return Array.isArray(posts) ? posts as PostFeedResponse[] : [];
+    } catch (error: any) {
+      console.error('[postAPI] Error fetching optimized feed:', error);
       throw error;
     }
   },
@@ -759,10 +821,12 @@ export const postAPI = {
   // Like a post
   likePost: async (postId: number, userId: number) => {
     try {
+      console.log('[postAPI] Liking post:', { postId, userId });
       const response = await api.post(`/Post/${postId}/like/${userId}`);
-      return response.data as Group;
-    } catch (error) {
-      console.error('Error liking post:', error);
+      console.log('[postAPI] Like response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('[postAPI] Error liking post:', error.response?.data);
       throw error;
     }
   },
@@ -770,10 +834,12 @@ export const postAPI = {
   // Unlike a post
   unlikePost: async (postId: number, userId: number) => {
     try {
+      console.log('[postAPI] Unliking post:', { postId, userId });
       const response = await api.delete(`/Post/${postId}/like/${userId}`);
-      return response.data as Group;
-    } catch (error) {
-      console.error('Error unliking post:', error);
+      console.log('[postAPI] Unlike response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('[postAPI] Error unliking post:', error.response?.data);
       throw error;
     }
   },
@@ -1069,17 +1135,24 @@ export const notificationAPI = {
       console.log('notificationAPI: FCM token updated successfully');
       return response.data;
     } catch (error: any) {
-      console.error('notificationAPI: Error updating FCM token:', error);
-      
+      // 404 có thể do endpoint chưa được implement - không crash app
       if (error.response?.status === 404) {
-        throw new Error('Người dùng không tồn tại');
-      } else if (error.response?.status === 401) {
-        throw new Error('Phiên đăng nhập hết hạn');
-      } else if (error.isNetworkError) {
-        throw new Error('Lỗi kết nối mạng');
+        console.warn('notificationAPI: FCM token endpoint not found (404) - ignoring gracefully');
+        return null;
       }
       
-      throw error;
+      console.error('notificationAPI: Error updating FCM token:', error);
+      
+      if (error.response?.status === 401) {
+        throw new Error('Phiên đăng nhập hết hạn');
+      } else if (error.isNetworkError) {
+        console.warn('notificationAPI: Network error when updating FCM token - ignoring gracefully');
+        return null;
+      }
+      
+      // Ignore other errors gracefully
+      console.warn('notificationAPI: Failed to update FCM token, but continuing without error');
+      return null;
     }
   },
 

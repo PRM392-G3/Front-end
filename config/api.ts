@@ -7,6 +7,7 @@ const getBaseUrl = () => {
     return envUrl;
   }
   // Fallback to ngrok nếu không có env
+  // Note: URL should include /api as configured by user
   const fallbackUrl = 'https://2fefeca44269.ngrok-free.app/api';
   console.log('[API Config] Using fallback URL:', fallbackUrl);
   return fallbackUrl;
@@ -16,9 +17,9 @@ export const API_CONFIG = {
   // Backend URL - từ env hoặc fallback
   BASE_URL: getBaseUrl(),
   
-  // Timeout settings
-  TIMEOUT: 30000,
-  MEDIA_TIMEOUT: 30000,
+  // Timeout settings - 2 minutes for slow connections
+  TIMEOUT: 120000,
+  MEDIA_TIMEOUT: 120000,
   
   // Headers
   HEADERS: {

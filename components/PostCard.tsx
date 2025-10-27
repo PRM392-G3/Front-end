@@ -10,6 +10,7 @@ import { useRouter } from 'expo-router';
 import ShareButton from './ShareButton';
 import PostLikesModal from './PostLikesModal';
 import FloatingCommentModal from './FloatingCommentModal';
+import UserPreviewFloating from './UserPreviewFloating';
 import { commentAPI } from '@/services/api';
 
 interface PostCardProps {
@@ -72,6 +73,7 @@ export default function PostCard({
   const [showFullContent, setShowFullContent] = useState(false);
   const [showLikesModal, setShowLikesModal] = useState(false);
   const [showCommentModal, setShowCommentModal] = useState(false);
+  const [showUserPreview, setShowUserPreview] = useState(false);
 
   // Video player setup
   const player = useVideoPlayer(postData.videoUrl || '', (player) => {
@@ -200,7 +202,8 @@ export default function PostCard({
   };
 
   const handleUserPress = () => {
-    router.push(`/profile?id=${postData.userId}` as any);
+    // Show floating preview instead of navigating directly
+    setShowUserPreview(true);
   };
 
   const handlePostPress = () => {
@@ -236,9 +239,30 @@ export default function PostCard({
     }
   };
 
-  // Debug: Log post data to check group info
+  // Helper to get user info - handle both old and new formats
+  const getUserInfo = () => {
+    // Try to get from user object (legacy format)
+    if (postData.user && postData.user.fullName) {
+      return {
+        name: postData.user.fullName,
+        avatar: postData.user.avatarUrl || null
+      };
+    }
+    // Fallback to try to get from postData directly (optimized format)
+    // This handles the case where user data might be missing
+    return {
+      name: 'Người dùng',
+      avatar: null
+    };
+  };
+
+  const userInfo = getUserInfo();
+
+  // Debug: Log post data to check user info
   console.log('🔍 [PostCard] Post data:', {
     id: postData.id,
+    hasUser: !!postData.user,
+    userName: userInfo.name,
     hasGroup: !!postData.group,
     hasGroupId: !!postData.groupId,
     groupId: postData.groupId,
@@ -252,13 +276,13 @@ export default function PostCard({
         <TouchableOpacity style={styles.userInfo} onPress={handleUserPress}>
           <Image
             source={{
-              uri: postData.user.avatarUrl || 'https://via.placeholder.com/40'
+              uri: userInfo.avatar || 'https://via.placeholder.com/40'
             }}
             style={styles.avatar}
           />
           <View style={styles.userDetails}>
             <View style={styles.userNameContainer}>
-              <Text style={styles.userName}>{postData.user.fullName}</Text>
+              <Text style={styles.userName}>{userInfo.name}</Text>
               {/* Hiển thị thông tin nhóm nếu là bài viết từ nhóm */}
               {postData.group && postData.groupId && (
                 <Text style={styles.groupInfo}>
@@ -415,6 +439,21 @@ export default function PostCard({
           } catch (error) {
             console.error('Error updating comment count:', error);
           }
+        }}
+      />
+
+      {/* User Preview Floating Modal */}
+      <UserPreviewFloating
+        visible={showUserPreview}
+        onClose={() => setShowUserPreview(false)}
+        userId={postData.userId}
+        isCurrentUser={user?.id === postData.userId}
+        onUserPress={(userId) => {
+          // Only navigate if it's current user's own profile
+          router.push({
+            pathname: '/profile',
+            params: { userId: userId.toString() }
+          } as any);
         }}
       />
     </View>
