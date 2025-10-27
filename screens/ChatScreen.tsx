@@ -107,7 +107,7 @@ export default function ChatScreen() {
   }, [conversationId, user]);
 
   const handleSendMessage = async (text: string) => {
-    if (!conversation || !user) return;
+    if (!user || !conversationId) return;
 
     // Optimistically add message to UI
     const newMessage: Message = {
@@ -123,27 +123,34 @@ export default function ChatScreen() {
 
     setMessages(prev => [...prev, newMessage]);
 
-    // Determine toUserId
-    const toUserId = user.id === conversation.user1Id 
-      ? conversation.user2Id 
-      : conversation.user1Id;
-
     try {
-      // Send via SignalR for real-time
-      if (signalRService.isConnected()) {
-        await signalRService.sendMessageToUser(toUserId, text, conversationId);
-      }
-
-      // Also save to database via API
-      await chatAPI.sendMessage({
+      // Save to database via API
+      console.log('[ChatScreen] Sending message to API...');
+      const sentMessage = await chatAPI.sendMessage({
         conversationId,
         senderId: user.id,
         content: text,
       });
 
-      console.log('[ChatScreen] Message sent successfully');
+      console.log('[ChatScreen] Message sent successfully:', sentMessage);
+
+      // Send via SignalR for real-time (if connected)
+      if (signalRService.isConnected() && conversation) {
+        const toUserId = user.id === conversation.user1Id 
+          ? conversation.user2Id 
+          : conversation.user1Id;
+        
+        try {
+          await signalRService.sendMessageToUser(toUserId, text, conversationId);
+          console.log('[ChatScreen] Message sent via SignalR');
+        } catch (error) {
+          console.warn('[ChatScreen] SignalR send failed (non-critical):', error);
+        }
+      }
     } catch (error) {
       console.error('[ChatScreen] Error sending message:', error);
+      // Optionally remove the optimistic message on error
+      setMessages(prev => prev.filter(m => m.id !== newMessage.id));
     }
 
     setTimeout(() => {
