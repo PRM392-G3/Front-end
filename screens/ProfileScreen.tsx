@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, StatusBar, TouchableOpacity, Image, ScrollView, ActivityIndicator, Alert, ViewStyle, TextStyle, ImageStyle, FlatList, Modal, TextInput } from 'react-native';
-import { ArrowLeft, Users, Grid2x2 as Grid, Mail, Phone, MapPin, Calendar, LogOut, Share2, Edit3, User as UserIcon, Bell, MessageCircle } from 'lucide-react-native';
+import { ArrowLeft, Users, Grid2x2 as Grid, Mail, Phone, MapPin, Calendar, LogOut, Share2, Edit3, User as UserIcon, MessageCircle } from 'lucide-react-native';
+import NotificationBadge from '../components/NotificationBadge';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES } from '../constants/theme';
 import { userAPI, User, postAPI, PostResponse, shareAPI, UpdateUserPayload, FriendRequest, groupAPI, Group } from '../services/api';
@@ -1321,41 +1322,8 @@ export default function UserProfileScreen() {
         <View style={styles.headerRight}>
         {currentUser && user && currentUser.id === user.id ? (
             <>
-              {/* Notifications Bell Icon with Badge */}
-              <TouchableOpacity 
-                style={styles.bellButton} 
-                onPress={() => {
-                  console.log('👆 [Profile] Notifications button pressed');
-                  // Show options for friend requests and group invites
-                  Alert.alert(
-                    'Thông báo',
-                    'Chọn loại thông báo',
-                    [
-                      {
-                        text: `Lời mời kết bạn (${pendingRequestsCount})`,
-                        onPress: () => router.push('/friend-requests' as any),
-                      },
-                      {
-                        text: `Lời mời nhóm (${pendingGroupInvitesCount})`,
-                        onPress: () => router.push('/group-invitations' as any),
-                      },
-                      { text: 'Hủy', style: 'cancel' },
-                    ]
-                  );
-                }}
-                activeOpacity={0.7}
-              >
-                <Bell size={22} color={COLORS.text.primary} />
-                {(pendingRequestsCount + pendingGroupInvitesCount) > 0 && (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>
-                      {(pendingRequestsCount + pendingGroupInvitesCount) > 99 
-                        ? '99+' 
-                        : (pendingRequestsCount + pendingGroupInvitesCount)}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
+              {/* Unified Notification Badge */}
+              <NotificationBadge style={styles.bellButton} />
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <LogOut size={20} color="#EF4444" />
               </TouchableOpacity>

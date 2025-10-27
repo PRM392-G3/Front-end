@@ -5,6 +5,7 @@ import { authAPI, User, AuthResponse, notificationAPI, GoogleLoginResponse, Comp
 import { googleSignInService } from '@/services/googleSignIn'; // Disabled for Expo Go
 import { usePostContext } from './PostContext';
 import notificationService from '@/services/notificationService';
+import signalRService from '@/services/signalRService';
 import * as Notifications from 'expo-notifications';
 import { handleNotificationNavigation } from '@/utils/notificationNavigation';
 
@@ -51,6 +52,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [token, setToken] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isInitializingNotifications, setIsInitializingNotifications] = useState(false);
   const notificationListenerRef = useRef<any>(null);
   const responseListenerRef = useRef<any>(null);
   
@@ -69,8 +71,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    * Khởi tạo notification service
    */
   const initializeNotifications = async (userId: number) => {
+    // Prevent duplicate initialization
+    if (isInitializingNotifications || notificationListenerRef.current !== null) {
+      console.log('AuthContext: Notifications already initialized, skipping...');
+      return;
+    }
+    
     try {
+      setIsInitializingNotifications(true);
       console.log('AuthContext: Initializing notifications for user:', userId);
+
+      // Connect to SignalR for real-time chat
+      // Commented out temporarily until backend ChatHub is ready
+      try {
+        const storedToken = await AsyncStorage.getItem('auth_token');
+        if (storedToken && !signalRService.isConnected()) {
+          console.log('AuthContext: Attempting to connect to SignalR...');
+          
+          // Try to connect with timeout
+          const connectPromise = signalRService.connect(storedToken);
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('SignalR connection timeout')), 5000)
+          );
+          
+          try {
+            await Promise.race([connectPromise, timeoutPromise]);
+            console.log('AuthContext: SignalR connected successfully');
+          } catch (error) {
+            console.warn('AuthContext: SignalR connection failed (will retry later):', error);
+            // Don't block other initialization
+          }
+        }
+      } catch (error) {
+        console.warn('AuthContext: SignalR connection error (non-critical):', error);
+        // Don't block notification initialization if SignalR fails
+      }
 
       // Setup Android channel nếu cần
       await notificationService.setupAndroidChannel();
@@ -100,12 +135,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       // Lắng nghe notification khi app đang mở (foreground)
-      notificationService.onNotificationReceived((notification) => {
+      const receivedListener = notificationService.onNotificationReceived((notification) => {
         console.log('AuthContext: Notification received:', notification);
         
         // Hiển thị alert hoặc custom notification UI
         const title = notification.request.content.title || 'Thông báo mới';
         const body = notification.request.content.body || '';
+        const data = notification.request.content.data;
         
         Alert.alert(
           title,
@@ -114,21 +150,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             {
               text: 'Xem',
               onPress: () => {
-                // TODO: Navigate based on notification data
-                console.log('Navigate to notification:', notification.request.content.data);
+                // Navigate based on notification data
+                console.log('Navigate to notification:', data);
+                handleNotificationNavigation(data);
               },
             },
             { text: 'Đóng', style: 'cancel' },
           ]
         );
       });
+      
+      notificationListenerRef.current = receivedListener;
 
       // Lắng nghe khi user click vào notification
-      notificationService.onNotificationResponse((response) => {
+      const responseListener = notificationService.onNotificationResponse((response) => {
         console.log('AuthContext: Notification tapped:', response);
-        // TODO: Navigate based on notification type
         handleNotificationNavigation(response.notification.request.content.data);
       });
+      
+      responseListenerRef.current = responseListener;
 
       // Kiểm tra notification khi mở app từ killed state
       const lastNotification = await notificationService.getLastNotificationResponse();
@@ -147,6 +187,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     } catch (error) {
       console.error('AuthContext: Error initializing notifications:', error);
+    } finally {
+      setIsInitializingNotifications(false);
     }
   };
 
@@ -155,7 +197,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    * Cleanup notification listeners
    */
   const cleanupNotifications = () => {
-    notificationService.removeListeners();
+    try {
+      notificationService.removeListeners();
+      notificationListenerRef.current = null;
+      responseListenerRef.current = null;
+      setIsInitializingNotifications(false);
+      console.log('AuthContext: Notification listeners cleaned up');
+    } catch (error) {
+      console.error('AuthContext: Error cleaning up notification listeners:', error);
+    }
   };
 
   // Kiểm tra trạng thái authentication khi app khởi động
@@ -242,6 +292,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const clearAuthData = async () => {
     try {
       console.log('AuthContext: Clearing all auth data...');
+      
+      // Disconnect SignalR
+      try {
+        if (signalRService.isConnected()) {
+          await signalRService.disconnect();
+          console.log('AuthContext: SignalR disconnected');
+        }
+      } catch (error) {
+        console.error('AuthContext: SignalR disconnect error:', error);
+      }
+      
       await AsyncStorage.multiRemove(['auth_token', 'refresh_token', 'user_data', 'token_expires_at']);
       setToken(null);
       setRefreshToken(null);
@@ -658,11 +719,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Khởi tạo notifications khi user đã có sẵn (sau khi restore session)
   useEffect(() => {
-    if (user && token && !isLoading) {
-      console.log('AuthContext: User restored, initializing notifications...');
-      initializeNotifications(user.id);
+    // Prevent duplicate initialization
+    if (!user || !token || isLoading || isInitializingNotifications) {
+      return;
     }
-  }, [user, token, isLoading]);
+    
+    let isMounted = true;
+    
+    const initNotifications = async () => {
+      if (isMounted && notificationListenerRef.current === null) {
+        console.log('AuthContext: User restored, initializing notifications...');
+        await initializeNotifications(user.id);
+      }
+    };
+    
+    initNotifications();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id, !!token, isLoading]);
 
   const value: AuthContextType = {
     user,

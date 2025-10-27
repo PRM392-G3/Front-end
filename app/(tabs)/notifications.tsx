@@ -1,31 +1,5 @@
-import { View, Text, StyleSheet } from 'react-native';
-import { COLORS, FONT_SIZES, SPACING } from '@/constants/theme';
+import NotificationsScreen from '@/screens/NotificationsScreen';
 
-export default function NotificationsScreen() {
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Thông báo</Text>
-      <Text style={styles.subtitle}>Chức năng đang phát triển</Text>
-    </View>
-  );
+export default function NotificationsTab() {
+  return <NotificationsScreen />;
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: COLORS.white,
-    padding: SPACING.lg,
-  },
-  title: {
-    fontSize: FONT_SIZES.xl,
-    fontWeight: '700',
-    color: COLORS.black,
-    marginBottom: SPACING.sm,
-  },
-  subtitle: {
-    fontSize: FONT_SIZES.md,
-    color: COLORS.gray,
-  },
-});

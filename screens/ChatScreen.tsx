@@ -8,72 +8,108 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  StatusBar,
 } from 'react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
-import { ArrowLeft, Phone, Video, Info } from 'lucide-react-native';
+import { ArrowLeft, Phone, Video, Info, MoreVertical } from 'lucide-react-native';
 import ChatMessage, { Message } from '@/components/ChatMessage';
 import ChatInput from '@/components/ChatInput';
 import { useAuth } from '@/contexts/AuthContext';
 import signalRService from '@/services/signalRService';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { chatAPI, Message as APIMessage, Conversation } from '@/services/chatAPI';
 
 export default function ChatScreen() {
+  const router = useRouter();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const scrollViewRef = useRef<ScrollView>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [isConnected, setIsConnected] = useState(false);
+  const [conversation, setConversation] = useState<Conversation | null>(null);
+  const [otherUser, setOtherUser] = useState<{ name: string; avatar: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const conversationId = id ? parseInt(id) : 0;
 
-  // Connect to SignalR when screen loads
+  // Load conversation and messages
   useEffect(() => {
-    const connectSignalR = async () => {
-      try {
-        const token = await AsyncStorage.getItem('auth_token');
-        if (!token || !user) {
-          console.log('[ChatScreen] No token or user, cannot connect');
-          setIsLoading(false);
-          return;
-        }
+    const loadData = async () => {
+      if (!conversationId || !user) {
+        setIsLoading(false);
+        return;
+      }
 
-        console.log('[ChatScreen] Connecting to SignalR...');
-        await signalRService.connect(token);
-        setIsConnected(true);
+      try {
+        // Load messages from API
+        const apiMessages = await chatAPI.getConversationMessages(conversationId);
         
-        // Listen for incoming messages
-        signalRService.onReceiveMessage((data) => {
-          console.log('[ChatScreen] Received message:', data);
-          const newMessage: Message = {
-            id: Date.now().toString(),
-            text: data.message,
-            timestamp: new Date(data.timestamp).toLocaleTimeString('vi-VN', {
-              hour: '2-digit',
-              minute: '2-digit',
-            }),
-            isSent: data.fromUserId === user.id,
-            isRead: false,
-          };
-          setMessages(prev => [...prev, newMessage]);
-          setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-        });
+        // Convert API messages to component messages
+        const convertedMessages: Message[] = apiMessages.map(msg => ({
+          id: msg.id.toString(),
+          text: msg.content,
+          timestamp: new Date(msg.createdAt).toLocaleTimeString('vi-VN', {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+          isSent: msg.senderId === user.id,
+          isRead: true,
+        }));
+
+        setMessages(convertedMessages);
+
+        // Determine other user info from first message
+        if (apiMessages.length > 0) {
+          const firstMsg = apiMessages[0];
+          const other = firstMsg.senderId === user.id
+            ? { name: conversation?.user2Name || 'User', avatar: conversation?.user2AvatarUrl || '' }
+            : { name: firstMsg.senderName, avatar: firstMsg.senderAvatarUrl };
+          setOtherUser(other);
+        }
 
         setIsLoading(false);
       } catch (error) {
-        console.error('[ChatScreen] SignalR connection error:', error);
+        console.error('[ChatScreen] Error loading messages:', error);
         setIsLoading(false);
       }
     };
 
-    connectSignalR();
+    loadData();
+  }, [conversationId, user]);
 
-    // Cleanup on unmount
-    return () => {
-      signalRService.disconnect();
+  // Listen for real-time messages via SignalR
+  useEffect(() => {
+    if (!signalRService.isConnected()) return;
+
+    const handleMessage = (data: any) => {
+      console.log('[ChatScreen] Received SignalR message:', data);
+      
+      if (data.conversationId === conversationId) {
+        const newMessage: Message = {
+          id: Date.now().toString(),
+          text: data.message,
+          timestamp: new Date(data.timestamp).toLocaleTimeString('vi-VN', {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+          isSent: data.fromUserId === user?.id,
+          isRead: false,
+        };
+        setMessages(prev => [...prev, newMessage]);
+        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+      }
     };
-  }, [user]);
+
+    signalRService.onReceiveMessage(handleMessage);
+
+    return () => {
+      // Cleanup
+    };
+  }, [conversationId, user]);
 
   const handleSendMessage = async (text: string) => {
-    if (!isConnected || !user) return;
+    if (!conversation || !user) return;
 
+    // Optimistically add message to UI
     const newMessage: Message = {
       id: Date.now().toString(),
       text,
@@ -85,14 +121,27 @@ export default function ChatScreen() {
       isRead: false,
     };
 
-    setMessages([...messages, newMessage]);
+    setMessages(prev => [...prev, newMessage]);
 
-    // TODO: Get actual conversationId from props/route
-    const conversationId = 1; // This should come from navigation params
-    const toUserId = 2; // This should come from navigation params
+    // Determine toUserId
+    const toUserId = user.id === conversation.user1Id 
+      ? conversation.user2Id 
+      : conversation.user1Id;
 
     try {
-      await signalRService.sendMessageToUser(toUserId, text, conversationId);
+      // Send via SignalR for real-time
+      if (signalRService.isConnected()) {
+        await signalRService.sendMessageToUser(toUserId, text, conversationId);
+      }
+
+      // Also save to database via API
+      await chatAPI.sendMessage({
+        conversationId,
+        senderId: user.id,
+        content: text,
+      });
+
+      console.log('[ChatScreen] Message sent successfully');
     } catch (error) {
       console.error('[ChatScreen] Error sending message:', error);
     }
@@ -106,42 +155,81 @@ export default function ChatScreen() {
     scrollViewRef.current?.scrollToEnd({ animated: false });
   }, []);
 
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <StatusBar barStyle="light-content" />
+        <LinearGradient
+          colors={[COLORS.primary, COLORS.primaryDark]}
+          style={styles.loadingGradient}
+        >
+          <ActivityIndicator size="large" color={COLORS.white} />
+          <Text style={styles.loadingText}>Đang tải tin nhắn...</Text>
+        </LinearGradient>
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
     >
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton}>
-          <ArrowLeft size={24} color={COLORS.black} />
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.headerInfo}>
-          <View style={styles.headerAvatar}>
-            <Text style={styles.headerAvatarText}>A</Text>
-          </View>
-          <View>
-            <Text style={styles.headerName}>Nguyễn Văn A</Text>
-            <Text style={styles.headerStatus}>Đang hoạt động</Text>
-          </View>
-        </TouchableOpacity>
+      <StatusBar barStyle="light-content" />
 
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerButton}>
-            <Phone size={22} color={COLORS.primary} />
+      {/* Enhanced Header with Gradient */}
+      <LinearGradient
+        colors={[COLORS.primary, COLORS.primaryDark]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.gradientHeader}
+      >
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.backButton} 
+            onPress={() => router.back()}
+          >
+            <ArrowLeft size={24} color={COLORS.white} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerButton}>
-            <Video size={22} color={COLORS.primary} />
+          
+          <TouchableOpacity style={styles.headerInfo}>
+            <View style={styles.headerAvatar}>
+              <Text style={styles.headerAvatarText}>
+                {otherUser?.name?.charAt(0).toUpperCase() || 'U'}
+              </Text>
+            </View>
+            <View style={styles.headerTextContainer}>
+              <Text style={styles.headerName} numberOfLines={1}>
+                {otherUser?.name || 'User'}
+              </Text>
+              <View style={styles.statusContainer}>
+                <View style={[
+                  styles.statusDot,
+                  signalRService.isConnected() ? styles.statusOnline : styles.statusOffline
+                ]} />
+                <Text style={styles.headerStatus} numberOfLines={1}>
+                  {signalRService.isConnected() ? 'Đang hoạt động' : 'Đang kết nối...'}
+                </Text>
+              </View>
+            </View>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerButton}>
-            <Info size={22} color={COLORS.primary} />
-          </TouchableOpacity>
+
+          <View style={styles.headerActions}>
+            <TouchableOpacity style={styles.headerButton}>
+              <Phone size={20} color={COLORS.white} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.headerButton}>
+              <Video size={20} color={COLORS.white} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.headerButton}>
+              <MoreVertical size={20} color={COLORS.white} />
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
+      </LinearGradient>
 
-      {/* Messages */}
+      {/* Messages Area */}
       <ScrollView
         ref={scrollViewRef}
         style={styles.messages}
@@ -166,12 +254,12 @@ export default function ChatScreen() {
         })}
       </ScrollView>
 
-      {/* Input */}
+      {/* Enhanced Input */}
       <ChatInput
         onSendMessage={handleSendMessage}
         onSelectImage={() => console.log('Select image')}
         onSelectCamera={() => console.log('Open camera')}
-        onVoiceRecord={() => console.log('Record voice')}
+        onSelectVideo={() => console.log('Record video')}
       />
     </KeyboardAvoidingView>
   );
@@ -180,19 +268,46 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.white,
+    backgroundColor: '#F5F7FA',
+  },
+  loadingContainer: {
+    flex: 1,
+  },
+  loadingGradient: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 100,
+  },
+  loadingText: {
+    marginTop: RESPONSIVE_SPACING.md,
+    fontSize: FONT_SIZES.md,
+    color: COLORS.white,
+    fontWeight: '500',
+  },
+  gradientHeader: {
+    paddingTop: 50,
+    paddingBottom: RESPONSIVE_SPACING.md,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: RESPONSIVE_SPACING.md,
-    paddingTop: 60,
-    paddingBottom: RESPONSIVE_SPACING.md,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border.primary,
   },
   backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: BORDER_RADIUS.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: RESPONSIVE_SPACING.sm,
   },
   headerInfo: {
@@ -201,42 +316,65 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerAvatar: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: BORDER_RADIUS.full,
-    backgroundColor: COLORS.primary,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
     marginRight: RESPONSIVE_SPACING.sm,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
   },
   headerAvatarText: {
-    fontSize: FONT_SIZES.md,
+    fontSize: FONT_SIZES.lg,
     fontWeight: '700',
     color: COLORS.white,
   },
+  headerTextContainer: {
+    flex: 1,
+  },
   headerName: {
     fontSize: FONT_SIZES.md,
-    fontWeight: '600',
-    color: COLORS.black,
+    fontWeight: '700',
+    color: COLORS.white,
+    marginBottom: 2,
+  },
+  statusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 4,
+  },
+  statusOnline: {
+    backgroundColor: '#4ADE80',
+  },
+  statusOffline: {
+    backgroundColor: '#9CA3AF',
   },
   headerStatus: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.success,
-    marginTop: 2,
+    color: 'rgba(255, 255, 255, 0.9)',
   },
   headerActions: {
     flexDirection: 'row',
-    gap: RESPONSIVE_SPACING.xs,
+    gap: 8,
   },
   headerButton: {
     width: 36,
     height: 36,
+    borderRadius: BORDER_RADIUS.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   messages: {
     flex: 1,
-    backgroundColor: COLORS.white,
+    backgroundColor: '#F5F7FA',
   },
   messagesContent: {
     paddingTop: RESPONSIVE_SPACING.md,
@@ -248,11 +386,17 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.gray,
-    backgroundColor: COLORS.lightGray,
-    paddingHorizontal: RESPONSIVE_SPACING.md,
+    color: '#9CA3AF',
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: BORDER_RADIUS.full,
+    fontWeight: '500',
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
 });

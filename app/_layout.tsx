@@ -6,7 +6,9 @@ import { Platform } from 'react-native';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { PostProvider } from '@/contexts/PostContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import notificationService from '@/services/notificationService';
 import * as Notifications from 'expo-notifications';
+import NotificationManager from '@/components/NotificationManager';
 
 // Cấu hình handler cho notification khi app đang chạy
 Notifications.setNotificationHandler({
@@ -21,9 +23,38 @@ export default function RootLayout() {
   useFrameworkReady();
 
   useEffect(() => {
-    // Setup notification handler cho background notifications
-    setupBackgroundNotifications();
+    // Setup notification service listeners
+    setupNotificationHandlers();
 
+    // Cleanup listeners khi component unmount
+    return () => {
+      notificationService.removeListeners();
+    };
+  }, []);
+
+  const setupNotificationHandlers = () => {
+    // Lắng nghe notification khi app đang mở (foreground)
+    notificationService.onNotificationReceived((notification) => {
+      console.log('🔔 [RootLayout] Notification received:', notification);
+      // Notification sẽ được hiển thị tự động bởi hệ thống
+      // vì đã set shouldShowAlert: true trong handler
+    });
+
+    // Lắng nghe khi user click vào notification
+    notificationService.onNotificationResponse((response) => {
+      console.log('🔔 [RootLayout] User clicked notification:', response);
+      const notification = response.notification;
+      const data = notification.request.content.data;
+      
+      // Handle navigation based on notification type
+      if (data) {
+        // TODO: Add navigation logic based on notification data
+        console.log('Notification data:', data);
+      }
+    });
+  };
+
+  useEffect(() => {
     if (Platform.OS === 'web') {
       // Cập nhật title và meta tags cho web
       document.title = 'Nexora - Social Platform';
@@ -52,24 +83,6 @@ export default function RootLayout() {
     }
   }, []);
 
-  /**
-   * Setup background notification handlers
-   * Xử lý notifications khi app ở background hoặc killed state
-   */
-  const setupBackgroundNotifications = () => {
-    // Xử lý notification nhận được khi app đang ở background
-    const notificationListener = Notifications.addNotificationReceivedListener(notification => {
-      console.log('RootLayout: Background notification received:', notification);
-      
-      // Notification sẽ được hiển thị tự động bởi hệ thống
-      // Có thể thực hiện các xử lý khác ở đây nếu cần
-    });
-
-    // Cleanup listener khi component unmount
-    return () => {
-      Notifications.removeNotificationSubscription(notificationListener);
-    };
-  };
 
   return (
     <SafeAreaProvider>
@@ -89,6 +102,7 @@ export default function RootLayout() {
             <Stack.Screen name="+not-found" />
           </Stack>
           <StatusBar style="auto" />
+          <NotificationManager />
         </PostProvider>
       </AuthProvider>
     </SafeAreaProvider>

@@ -37,6 +37,7 @@ export default function ChatMessage({ message, showAvatar = true }: ChatMessageP
       />
     );
   };
+  
   const [showTimestamp, setShowTimestamp] = useState(false);
 
   return (
@@ -48,31 +49,27 @@ export default function ChatMessage({ message, showAvatar = true }: ChatMessageP
         message.isSent ? styles.sentContainer : styles.receivedContainer,
       ]}
     >
+      {/* Avatar for received messages */}
       {!message.isSent && showAvatar && (
-        <View style={styles.avatar}>
-          {message.avatarUrl ? (
-            <Image source={{ uri: message.avatarUrl }} style={styles.avatarImage} />
-          ) : (
-            <Text style={styles.avatarText}>
-              {message.senderName?.charAt(0).toUpperCase() || 'A'}
-            </Text>
-          )}
+        <View style={styles.avatarContainer}>
+          <View style={styles.avatar}>
+            {message.avatarUrl ? (
+              <Image source={{ uri: message.avatarUrl }} style={styles.avatarImage} />
+            ) : (
+              <Text style={styles.avatarText}>
+                {message.senderName?.charAt(0).toUpperCase() || 'A'}
+              </Text>
+            )}
+          </View>
         </View>
       )}
 
-      <View style={styles.messageWrapper}>
-        {message.imageUrl && (
-          <View style={[styles.imageContainer, message.isSent && styles.sentImageContainer]}>
-            <Image source={{ uri: message.imageUrl }} style={styles.messageImage} />
-          </View>
-        )}
-
-        {message.videoUrl && (
-          <View style={[styles.videoContainer, message.isSent && styles.sentVideoContainer]}>
-            <VideoPlayer uri={message.videoUrl} />
-          </View>
-        )}
-        
+      {/* Message content */}
+      <View style={[
+        styles.messageContainer,
+        message.isSent && styles.sentMessageContainer
+      ]}>
+        {/* Text message bubble */}
         {message.text && (
           <View
             style={[
@@ -91,13 +88,23 @@ export default function ChatMessage({ message, showAvatar = true }: ChatMessageP
           </View>
         )}
 
+        {/* Image message */}
+        {message.imageUrl && (
+          <View style={[styles.mediaContainer, message.isSent && styles.sentMediaContainer]}>
+            <Image source={{ uri: message.imageUrl }} style={styles.messageImage} />
+          </View>
+        )}
+
+        {/* Video message */}
+        {message.videoUrl && (
+          <View style={[styles.mediaContainer, message.isSent && styles.sentMediaContainer]}>
+            <VideoPlayer uri={message.videoUrl} />
+          </View>
+        )}
+
+        {/* Reactions */}
         {message.reactions && message.reactions.length > 0 && (
-          <View
-            style={[
-              styles.reactionContainer,
-              message.isSent && styles.sentReactionContainer,
-            ]}
-          >
+          <View style={styles.reactionContainer}>
             {message.reactions.map((reaction, index) => (
               <Text key={index} style={styles.reactionEmoji}>
                 {reaction}
@@ -106,20 +113,21 @@ export default function ChatMessage({ message, showAvatar = true }: ChatMessageP
           </View>
         )}
 
-        {/* Timestamp - chỉ hiện khi bấm vào tin nhắn */}
+        {/* Timestamp */}
         {showTimestamp && (
-          <View style={[
-            styles.timestampContainer,
-            message.isSent ? styles.sentTimestampContainer : styles.receivedTimestampContainer
+          <Text style={[
+            styles.timestamp,
+            message.isSent ? styles.sentTimestamp : styles.receivedTimestamp
           ]}>
-            <Text style={styles.timestampText}>
-              {message.timestamp}
-            </Text>
-          </View>
+            {message.timestamp}
+          </Text>
         )}
       </View>
 
-      {!message.isSent && !showAvatar && <View style={styles.avatarPlaceholder} />}
+      {/* Read receipt */}
+      {message.isSent && message.isRead && (
+        <Text style={styles.readReceipt}>✓✓</Text>
+      )}
     </TouchableOpacity>
   );
 }
@@ -129,6 +137,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginBottom: RESPONSIVE_SPACING.xs,
     paddingHorizontal: RESPONSIVE_SPACING.md,
+    alignItems: 'flex-end',
   },
   sentContainer: {
     justifyContent: 'flex-end',
@@ -136,116 +145,117 @@ const styles = StyleSheet.create({
   receivedContainer: {
     justifyContent: 'flex-start',
   },
+  avatarContainer: {
+    width: 32,
+    marginRight: 8,
+  },
   avatar: {
-    width: 28,
-    height: 28,
+    width: 32,
+    height: 32,
     borderRadius: BORDER_RADIUS.full,
     backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: RESPONSIVE_SPACING.xs,
-  },
-  avatarPlaceholder: {
-    width: 28,
-    marginRight: RESPONSIVE_SPACING.xs,
   },
   avatarImage: {
-    width: 28,
-    height: 28,
+    width: 32,
+    height: 32,
     borderRadius: BORDER_RADIUS.full,
   },
   avatarText: {
-    fontSize: FONT_SIZES.xs,
-    fontWeight: '600',
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '700',
     color: COLORS.white,
   },
-  messageWrapper: {
+  messageContainer: {
     maxWidth: '75%',
-    position: 'relative',
+  },
+  sentMessageContainer: {
+    alignSelf: 'flex-end',
   },
   bubble: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderRadius: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
   },
   sentBubble: {
     backgroundColor: COLORS.primary,
     borderBottomRightRadius: 4,
   },
   receivedBubble: {
-    backgroundColor: COLORS.lightGray,
+    backgroundColor: COLORS.white,
     borderBottomLeftRadius: 4,
   },
   text: {
     fontSize: FONT_SIZES.md,
-    lineHeight: 20,
+    lineHeight: 22,
+    letterSpacing: 0.2,
   },
   sentText: {
     color: COLORS.white,
   },
   receivedText: {
-    color: COLORS.black,
+    color: '#1F2937',
   },
-  imageContainer: {
-    borderRadius: 12,
+  mediaContainer: {
+    borderRadius: 18,
     overflow: 'hidden',
     marginBottom: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  sentImageContainer: {
+  sentMediaContainer: {
     alignSelf: 'flex-end',
   },
   messageImage: {
-    width: 200,
-    height: 200,
+    width: 220,
+    height: 220,
     resizeMode: 'cover',
-  },
-  videoContainer: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 4,
-    maxWidth: 250,
-    maxHeight: 250,
-  },
-  sentVideoContainer: {
-    alignSelf: 'flex-end',
   },
   messageVideo: {
     width: 250,
     height: 250,
   },
   reactionContainer: {
-    position: 'absolute',
-    bottom: -8,
-    right: 8,
     flexDirection: 'row',
+    marginTop: 4,
     backgroundColor: COLORS.white,
     borderRadius: BORDER_RADIUS.full,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderWidth: 1,
-    borderColor: COLORS.border.primary,
-  },
-  sentReactionContainer: {
-    left: 8,
-    right: 'auto',
+    borderColor: '#E5E7EB',
+    alignSelf: 'flex-start',
   },
   reactionEmoji: {
-    fontSize: 14,
+    fontSize: 12,
     marginHorizontal: 2,
   },
-  timestampContainer: {
-    marginTop: 4,
-    paddingHorizontal: 4,
-  },
-  sentTimestampContainer: {
-    alignItems: 'flex-end',
-  },
-  receivedTimestampContainer: {
-    alignItems: 'flex-start',
-  },
-  timestampText: {
+  timestamp: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.gray,
+    marginTop: 4,
+    paddingHorizontal: 8,
+  },
+  sentTimestamp: {
+    color: '#9CA3AF',
+    alignSelf: 'flex-end',
+  },
+  receivedTimestamp: {
+    color: '#9CA3AF',
+    alignSelf: 'flex-start',
+  },
+  readReceipt: {
+    fontSize: 10,
+    color: '#10B981',
+    marginLeft: 4,
+    marginBottom: 2,
   },
 });
-

@@ -4,8 +4,11 @@ import { COLORS, RESPONSIVE_SPACING, FONT_SIZES, BORDER_RADIUS, SAFE_AREA, DIMEN
 import PostCard from '@/components/PostCard';
 import CreatePostScreen from '@/screens/CreatePostScreen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Plus, RefreshCw, Search, Bell } from 'lucide-react-native';
-import { postAPI, PostResponse, PostFeedResponse } from '@/services/api';
+import { Plus, RefreshCw, Search, TestTube } from 'lucide-react-native';
+import NotificationBadge from '@/components/NotificationBadge';
+import NotificationPopup from '@/components/NotificationPopup';
+import { postAPI, PostResponse, PostFeedResponse, Notification } from '@/services/api';
+import notificationService from '@/services/notificationService';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePostContext } from '@/contexts/PostContext';
 import { useFocusEffect } from '@react-navigation/native';
@@ -20,6 +23,7 @@ export default function HomeScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const [showTestPopup, setShowTestPopup] = useState(false);
   const { user } = useAuth();
   const { 
     posts, 
@@ -390,15 +394,37 @@ export default function HomeScreen() {
     );
   };
 
+  const handleTestNotification = async () => {
+    try {
+      // 1. Show test system notification
+      await notificationService.scheduleLocalNotification(
+        'Test Notification',
+        'Đây là một thông báo thử nghiệm từ hệ thống!',
+        {
+          type: 'LIKE',
+          postId: '1',
+        }
+      );
+      
+      // 2. Show test in-app popup
+      setShowTestPopup(true);
+      
+      console.log('✅ Test notification sent');
+    } catch (error) {
+      console.error('Error sending test notification:', error);
+    }
+  };
+
   const renderHeader = () => (
     <View style={[styles.header, { paddingTop: insets.top + RESPONSIVE_SPACING.sm }]}>
       <Text style={styles.headerTitle}>Trang chủ</Text>
       <View style={styles.headerActions}>
+        <NotificationBadge style={styles.headerButton} />
         <TouchableOpacity
-          style={styles.headerButton}
-          onPress={() => router.push('/notifications')}
+          style={styles.testButton}
+          onPress={handleTestNotification}
         >
-          <Bell size={22} color={COLORS.text.primary} />
+          <TestTube size={18} color={COLORS.white} />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.createPostButton}
@@ -487,6 +513,26 @@ export default function HomeScreen() {
           ) : null
         }
       />
+
+      {/* Test notification popup */}
+      {showTestPopup && (
+        <NotificationPopup
+          notification={
+            {
+              id: Date.now(),
+              title: 'Test Notification',
+              message: 'Đây là một thông báo thử nghiệm!',
+              createdAt: new Date().toISOString(),
+              type: 'LIKE' as const,
+              isRead: false,
+              userId: user?.id || 0,
+              fromUserId: user?.id || 0,
+            } as Notification
+          }
+          visible={showTestPopup}
+          onClose={() => setShowTestPopup(false)}
+        />
+      )}
     </View>
   );
 }
@@ -521,6 +567,14 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: COLORS.background.secondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  testButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FF6B6B',
     justifyContent: 'center',
     alignItems: 'center',
   },

@@ -36,13 +36,20 @@ class SignalRService {
     this.isConnecting = true;
 
     try {
-      const apiUrl = getAPIUrl();
-      console.log('[SignalR] Connecting to:', apiUrl);
+      // Remove /api from URL for SignalR (hubs are at root level)
+      let baseUrl = getAPIUrl();
+      baseUrl = baseUrl.replace('/api', ''); // Remove /api prefix
+      
+      const hubUrl = `${baseUrl}/chathub`;
+      console.log('[SignalR] Connecting to:', hubUrl);
 
       this.connection = new HubConnectionBuilder()
-        .withUrl(`${apiUrl}/chathub`, {
+        .withUrl(hubUrl, {
           accessTokenFactory: () => token,
           withCredentials: true,
+          headers: {
+            'ngrok-skip-browser-warning': 'true',
+          },
         })
         .configureLogging(LogLevel.Information)
         .withAutomaticReconnect({
