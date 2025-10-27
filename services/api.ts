@@ -92,6 +92,26 @@ export interface AuthResponse {
   expiresAt: string;
 }
 
+// Google Login Response
+export interface GoogleLoginResponse {
+  isNewUser: boolean;
+  token: string | null;
+  email: string | null;
+  fullName: string | null;
+  avatarUrl: string | null;
+  googleId: string | null;
+  message: string;
+}
+
+// Complete Google Registration Request
+export interface CompleteGoogleRegistrationRequest {
+  email: string;
+  googleId: string;
+  password: string;
+  fullName: string;
+  avatarUrl?: string;
+}
+
 // Cấu hình axios instance
 const api = axios.create({
   baseURL: API_CONFIG.BASE_URL,
@@ -182,7 +202,7 @@ export const authAPI = {
         email,
         password,
       });
-      return response.data as Group;
+      return response.data as AuthResponse;
     } catch (error) {
       throw error;
     }
@@ -202,7 +222,7 @@ export const authAPI = {
         fullName: userData.name,
         phoneNumber: userData.phone,
       });
-      return response.data as Group;
+      return response.data as AuthResponse;
     } catch (error) {
       throw error;
     }
@@ -214,8 +234,29 @@ export const authAPI = {
       const response = await api.post('/Auth/google-login', {
         googleToken,
       });
-      return response.data as Group;
+      return response.data as GoogleLoginResponse;
     } catch (error) {
+      throw error;
+    }
+  },
+
+  // Hoàn tất đăng ký Google (cho user mới)
+  completeGoogleRegistration: async (data: CompleteGoogleRegistrationRequest) => {
+    try {
+      console.log('authAPI: Full request data:', JSON.stringify(data, null, 2));
+      console.log('authAPI: Completing Google registration:', data.email);
+      const response = await api.post('/Auth/complete-google-registration', {
+        email: data.email,
+        googleId: data.googleId,
+        password: data.password,
+        fullName: data.fullName,
+        avatarUrl: data.avatarUrl,
+      });
+      console.log('authAPI: Response received:', JSON.stringify(response.data, null, 2));
+      return response.data as AuthResponse;
+    } catch (error: any) {
+      console.error('authAPI: Error completing Google registration:', error);
+      console.error('authAPI: Error response data:', error.response?.data);
       throw error;
     }
   },
@@ -240,7 +281,7 @@ export const authAPI = {
       const response = await api.post('/auth/refresh', {
         refreshToken,
       });
-      return response.data as Group;
+      return response.data as AuthResponse;
     } catch (error) {
       throw error;
     }
@@ -651,10 +692,20 @@ export const postAPI = {
   },
 
   // Get all posts with like status for current user
-  getAllPostsWithLikes: async () => {
+  getAllPostsWithLikes: async (page = 1, pageSize = 10) => {
     try {
-      const response = await api.get('/Post/with-likes');
+      const response = await api.get(`/Post/with-likes?page=${page}&pageSize=${pageSize}`);
       return response.data as PostResponse[];
+    } catch (error) {
+      throw error;
+    }
+  },
+  
+  // Get posts without like status (for public access)
+  getAllPosts: async (page = 1, pageSize = 10) => {
+    try {
+      const response = await api.get(`/Post?page=${page}&pageSize=${pageSize}`);
+      return response.data as { posts: PostResponse[], currentPage: number, pageSize: number, hasMore: boolean };
     } catch (error) {
       throw error;
     }
@@ -976,6 +1027,243 @@ export const shareAPI = {
       return response.data as Group;
     } catch (error: any) {
       console.error('Error getting share count:', error);
+      throw error;
+    }
+  },
+};
+
+// Notification interfaces
+export interface Notification {
+  id: number;
+  userId: number;
+  fromUserId: number;
+  type: 'LIKE' | 'COMMENT' | 'FRIEND_REQUEST' | 'FRIEND_ACCEPTED' | 'MESSAGE' | 
+        'GROUP_JOIN_REQUEST' | 'GROUP_JOIN_APPROVED' | 'GROUP_INVITATION' |
+        'POST_SHARE' | 'REEL_LIKE' | 'REEL_COMMENT';
+  title: string;
+  message: string;
+  postId?: number;
+  commentId?: number;
+  groupId?: number;
+  reelId?: number;
+  isRead: boolean;
+  createdAt: string;
+  fromUser?: User;
+}
+
+export interface NotificationSettings {
+  userId: number;
+  enablePushNotifications: boolean;
+  enableEmailNotifications: boolean;
+  enableLikeNotifications: boolean;
+  enableCommentNotifications: boolean;
+  enableFriendRequestNotifications: boolean;
+  enableMessageNotifications: boolean;
+  enableGroupNotifications: boolean;
+}
+
+// Notification API endpoints
+export const notificationAPI = {
+  /**
+   * Cập nhật FCM Token lên server
+   */
+  updateFcmToken: async (userId: number, fcmToken: string) => {
+    try {
+      console.log('notificationAPI: Updating FCM token for user:', userId);
+      const response = await api.put(`/User/${userId}/fcm-token`, {
+        fcmToken: fcmToken,
+      });
+      console.log('notificationAPI: FCM token updated successfully');
+      return response.data;
+    } catch (error: any) {
+      console.error('notificationAPI: Error updating FCM token:', error);
+      
+      if (error.response?.status === 404) {
+        throw new Error('Người dùng không tồn tại');
+      } else if (error.response?.status === 401) {
+        throw new Error('Phiên đăng nhập hết hạn');
+      } else if (error.isNetworkError) {
+        throw new Error('Lỗi kết nối mạng');
+      }
+      
+      throw error;
+    }
+  },
+
+  /**
+   * Lấy tất cả notifications của user
+   */
+  getNotifications: async (userId: number): Promise<Notification[]> => {
+    try {
+      console.log('notificationAPI: Getting notifications for user:', userId);
+      const response = await api.get(`/Notification/user/${userId}`);
+      return response.data as Notification[];
+    } catch (error: any) {
+      console.error('notificationAPI: Error getting notifications:', error);
+      
+      if (error.response?.status === 404) {
+        return []; // Không có notification
+      } else if (error.response?.status === 401) {
+        throw new Error('Phiên đăng nhập hết hạn');
+      } else if (error.isNetworkError) {
+        console.warn('notificationAPI: Network error, returning empty array');
+        return [];
+      }
+      
+      throw error;
+    }
+  },
+
+  /**
+   * Lấy notifications chưa đọc
+   */
+  getUnreadNotifications: async (userId: number): Promise<Notification[]> => {
+    try {
+      console.log('notificationAPI: Getting unread notifications for user:', userId);
+      const response = await api.get(`/Notification/user/${userId}/unread`);
+      return response.data as Notification[];
+    } catch (error: any) {
+      console.error('notificationAPI: Error getting unread notifications:', error);
+      
+      if (error.response?.status === 404) {
+        return [];
+      } else if (error.isNetworkError) {
+        return [];
+      }
+      
+      throw error;
+    }
+  },
+
+  /**
+   * Lấy số lượng notifications chưa đọc
+   */
+  getUnreadCount: async (userId: number): Promise<number> => {
+    try {
+      console.log('notificationAPI: Getting unread count for user:', userId);
+      const response = await api.get(`/Notification/user/${userId}/unread-count`);
+      return response.data.count || 0;
+    } catch (error: any) {
+      console.error('notificationAPI: Error getting unread count:', error);
+      
+      if (error.response?.status === 404) {
+        return 0;
+      } else if (error.isNetworkError) {
+        return 0;
+      }
+      
+      return 0;
+    }
+  },
+
+  /**
+   * Đánh dấu notification đã đọc
+   */
+  markAsRead: async (notificationId: number): Promise<void> => {
+    try {
+      console.log('notificationAPI: Marking notification as read:', notificationId);
+      await api.put(`/Notification/${notificationId}/mark-read`);
+      console.log('notificationAPI: Notification marked as read');
+    } catch (error: any) {
+      console.error('notificationAPI: Error marking notification as read:', error);
+      
+      if (error.response?.status === 404) {
+        throw new Error('Thông báo không tồn tại');
+      }
+      
+      throw error;
+    }
+  },
+
+  /**
+   * Đánh dấu tất cả notifications đã đọc
+   */
+  markAllAsRead: async (userId: number): Promise<void> => {
+    try {
+      console.log('notificationAPI: Marking all notifications as read for user:', userId);
+      await api.put(`/Notification/user/${userId}/mark-all-read`);
+      console.log('notificationAPI: All notifications marked as read');
+    } catch (error: any) {
+      console.error('notificationAPI: Error marking all as read:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Xóa notification
+   */
+  deleteNotification: async (notificationId: number): Promise<void> => {
+    try {
+      console.log('notificationAPI: Deleting notification:', notificationId);
+      await api.delete(`/Notification/${notificationId}`);
+      console.log('notificationAPI: Notification deleted');
+    } catch (error: any) {
+      console.error('notificationAPI: Error deleting notification:', error);
+      
+      if (error.response?.status === 404) {
+        throw new Error('Thông báo không tồn tại');
+      }
+      
+      throw error;
+    }
+  },
+
+  /**
+   * Xóa tất cả notifications
+   */
+  deleteAllNotifications: async (userId: number): Promise<void> => {
+    try {
+      console.log('notificationAPI: Deleting all notifications for user:', userId);
+      await api.delete(`/Notification/user/${userId}/all`);
+      console.log('notificationAPI: All notifications deleted');
+    } catch (error: any) {
+      console.error('notificationAPI: Error deleting all notifications:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Lấy cài đặt notification của user
+   */
+  getNotificationSettings: async (userId: number): Promise<NotificationSettings> => {
+    try {
+      console.log('notificationAPI: Getting notification settings for user:', userId);
+      const response = await api.get(`/Notification/user/${userId}/settings`);
+      return response.data as NotificationSettings;
+    } catch (error: any) {
+      console.error('notificationAPI: Error getting notification settings:', error);
+      
+      // Trả về settings mặc định nếu chưa có
+      if (error.response?.status === 404) {
+        return {
+          userId,
+          enablePushNotifications: true,
+          enableEmailNotifications: true,
+          enableLikeNotifications: true,
+          enableCommentNotifications: true,
+          enableFriendRequestNotifications: true,
+          enableMessageNotifications: true,
+          enableGroupNotifications: true,
+        };
+      }
+      
+      throw error;
+    }
+  },
+
+  /**
+   * Cập nhật cài đặt notification
+   */
+  updateNotificationSettings: async (
+    userId: number,
+    settings: Partial<NotificationSettings>
+  ): Promise<NotificationSettings> => {
+    try {
+      console.log('notificationAPI: Updating notification settings for user:', userId);
+      const response = await api.put(`/Notification/user/${userId}/settings`, settings);
+      return response.data as NotificationSettings;
+    } catch (error: any) {
+      console.error('notificationAPI: Error updating notification settings:', error);
       throw error;
     }
   },

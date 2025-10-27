@@ -9,6 +9,8 @@ import { usePostContext } from '@/contexts/PostContext';
 import { useRouter } from 'expo-router';
 import ShareButton from './ShareButton';
 import PostLikesModal from './PostLikesModal';
+import FloatingCommentModal from './FloatingCommentModal';
+import { commentAPI } from '@/services/api';
 
 interface PostCardProps {
   postData: PostResponse;
@@ -69,6 +71,7 @@ export default function PostCard({
   const [isDeleting, setIsDeleting] = useState(false);
   const [showFullContent, setShowFullContent] = useState(false);
   const [showLikesModal, setShowLikesModal] = useState(false);
+  const [showCommentModal, setShowCommentModal] = useState(false);
 
   // Video player setup
   const player = useVideoPlayer(postData.videoUrl || '', (player) => {
@@ -192,7 +195,8 @@ export default function PostCard({
   };
 
   const handleCommentPress = () => {
-    router.push(`/post-detail?id=${postData.id}` as any);
+    // Open floating comment modal instead of navigating
+    setShowCommentModal(true);
   };
 
   const handleUserPress = () => {
@@ -396,6 +400,23 @@ export default function PostCard({
         postId={postData.id}
         likeCount={likeCount}
       />
+
+      {/* Floating Comment Modal - Facebook style */}
+      <FloatingCommentModal
+        visible={showCommentModal}
+        onClose={() => setShowCommentModal(false)}
+        postId={postData.id}
+        postOwnerId={postData.userId}
+        onCommentAdded={async () => {
+          // Update comment count in context by reloading comments
+          try {
+            const comments = await commentAPI.getCommentsByPost(postData.id);
+            updatePostComment(postData.id, comments.length);
+          } catch (error) {
+            console.error('Error updating comment count:', error);
+          }
+        }}
+      />
     </View>
   );
 }
@@ -403,14 +424,10 @@ export default function PostCard({
 const styles = StyleSheet.create({
   container: {
     backgroundColor: COLORS.background.primary,
-    marginVertical: RESPONSIVE_SPACING.sm,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: RESPONSIVE_SPACING.md,
-    shadowColor: COLORS.shadow.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    marginBottom: RESPONSIVE_SPACING.sm,
+    paddingVertical: RESPONSIVE_SPACING.md,
+    paddingHorizontal: RESPONSIVE_SPACING.md,
+    // Facebook-style: no border radius, cleaner look
   },
   header: {
     flexDirection: 'row',
@@ -516,9 +533,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
+    marginTop: RESPONSIVE_SPACING.xs,
     paddingTop: RESPONSIVE_SPACING.sm,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border.primary,
+    borderTopColor: '#E4E6EB', // Facebook border color
   },
   actionButton: {
     flexDirection: 'row',
@@ -533,9 +551,10 @@ const styles = StyleSheet.create({
     padding: RESPONSIVE_SPACING.xs,
   },
   actionText: {
-    fontSize: RESPONSIVE_FONT_SIZES.sm,
+    fontSize: 15,
     color: COLORS.text.secondary,
     marginLeft: RESPONSIVE_SPACING.xs,
+    fontWeight: '600',
   },
   actionTextActive: {
     color: COLORS.accent.primary,

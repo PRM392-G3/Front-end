@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS } from '@/constants/theme';
@@ -8,15 +8,34 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export default function IndexScreen() {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
+  const params = useLocalSearchParams();
 
   useEffect(() => {
+    let isMounted = true;
+
     const checkAndRedirect = async () => {
       console.log('IndexScreen: Checking auth status...');
-      console.log('isLoading:', isLoading);
-      console.log('isAuthenticated:', isAuthenticated);
+      
+      // Wait a bit for router to be ready
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      if (!isMounted) return;
+      
+      // Check for OAuth callback
+      if (typeof window !== 'undefined' && window.location.search) {
+        console.log('IndexScreen: URL has search params:', window.location.search);
+        console.log('IndexScreen: Params:', params);
+      }
+      
+      // Check for OAuth callback code (web only)
+      if (typeof window !== 'undefined' && params.code) {
+        console.log('IndexScreen: OAuth callback detected (web), redirecting to callback handler');
+        window.location.href = `/auth/callback${window.location.search}`;
+        return;
+      }
       
       // Redirect ngay lập tức dựa trên trạng thái authentication
-      if (!isLoading) {
+      if (!isLoading && isMounted) {
         if (isAuthenticated) {
           console.log('IndexScreen: Redirecting to tabs');
           router.replace('/(tabs)');
@@ -28,7 +47,11 @@ export default function IndexScreen() {
     };
 
     checkAndRedirect();
-  }, [isAuthenticated, isLoading, router]);
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthenticated, isLoading, router, params]);
 
   // Hiển thị debug screen trong development
   if (__DEV__) {
