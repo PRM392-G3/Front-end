@@ -8,14 +8,13 @@ export const APIConfigDisplay = () => {
     const config = {
       currentURL: currentUrl,
       baseURL: API_CONFIG.BASE_URL,
-      localURL: API_CONFIG.LOCAL_URL,
       timeout: API_CONFIG.TIMEOUT,
       debug: API_CONFIG.DEBUG,
     };
     
     Alert.alert(
       'API Configuration',
-      `Current URL: ${currentUrl}\n\nBase URL: ${API_CONFIG.BASE_URL}\nLocal URL: ${API_CONFIG.LOCAL_URL}\nTimeout: ${API_CONFIG.TIMEOUT}ms\nDebug: ${API_CONFIG.DEBUG}`,
+      `Current URL: ${currentUrl}\n\nBase URL: ${API_CONFIG.BASE_URL}\nTimeout: ${API_CONFIG.TIMEOUT}ms\nDebug: ${API_CONFIG.DEBUG}`,
       [{ text: 'OK' }]
     );
   };

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_CONFIG } from '../config/api';
+import { API_CONFIG, getAPIUrl } from '../config/api';
 
 // User interface
 export interface User {
@@ -113,8 +113,11 @@ export interface CompleteGoogleRegistrationRequest {
 }
 
 // Cấu hình axios instance
+const BASE_URL = getAPIUrl();
+console.log('[API] Initializing with baseURL:', BASE_URL);
+
 const api = axios.create({
-  baseURL: API_CONFIG.BASE_URL,
+  baseURL: BASE_URL,
   timeout: API_CONFIG.TIMEOUT,
   headers: API_CONFIG.HEADERS,
 });
@@ -681,16 +684,6 @@ export const postAPI = {
     }
   },
 
-  // Get all posts
-  getAllPosts: async () => {
-    try {
-      const response = await api.get('/Post');
-      return response.data as PostResponse[];
-    } catch (error) {
-      throw error;
-    }
-  },
-
   // Get all posts with like status for current user
   getAllPostsWithLikes: async (page = 1, pageSize = 10) => {
     try {
@@ -1142,7 +1135,7 @@ export const notificationAPI = {
     try {
       console.log('notificationAPI: Getting unread count for user:', userId);
       const response = await api.get(`/Notification/user/${userId}/unread-count`);
-      return response.data.count || 0;
+      return (response.data as { count?: number }).count || 0;
     } catch (error: any) {
       console.error('notificationAPI: Error getting unread count:', error);
       

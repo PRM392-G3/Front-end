@@ -146,7 +146,6 @@ export default function SimpleImageUploader({
       // Try multiple endpoints
       const uploadUrls = [
         `${API_BASE_URL}/blob-storage/media/upload`,
-        `${API_CONFIG.LOCAL_URL}/blob-storage/media/upload`,
       ];
 
       let uploadSuccess = false;

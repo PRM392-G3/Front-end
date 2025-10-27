@@ -1,4 +1,5 @@
 import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
+import { getAPIUrl } from '../config/api';
 
 export interface ChatMessage {
   messageId: string;
@@ -35,8 +36,7 @@ class SignalRService {
     this.isConnecting = true;
 
     try {
-      const apiUrl = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://2fefeca44269.ngrok-free.app/api';
-      
+      const apiUrl = getAPIUrl();
       console.log('[SignalR] Connecting to:', apiUrl);
 
       this.connection = new HubConnectionBuilder()

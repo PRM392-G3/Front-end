@@ -77,7 +77,6 @@ const SimpleVideoUpload: React.FC<SimpleVideoUploadProps> = ({
       // Upload URL - try multiple endpoints
       const uploadUrls = [
         `${API_CONFIG.BASE_URL}/blob-storage/media/upload`,
-        `${API_CONFIG.LOCAL_URL}/blob-storage/media/upload`,
       ];
 
       let uploadSuccess = false;

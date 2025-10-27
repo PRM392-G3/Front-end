@@ -1,10 +1,20 @@
 // API Configuration - Unified Configuration
+// Đọc từ environment variable
+const getBaseUrl = () => {
+  const envUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+  if (envUrl) {
+    console.log('[API Config] Using URL from .env:', envUrl);
+    return envUrl;
+  }
+  // Fallback to ngrok nếu không có env
+  const fallbackUrl = 'https://2fefeca44269.ngrok-free.app/api';
+  console.log('[API Config] Using fallback URL:', fallbackUrl);
+  return fallbackUrl;
+};
+
 export const API_CONFIG = {
-  // Backend URL from environment variable or fallback
-  BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL || 'https://2fefeca44269.ngrok-free.app/api',
-  
-  // Local development URL (nếu chạy local)
-  LOCAL_URL: 'http://localhost:5000/api',
+  // Backend URL - từ env hoặc fallback
+  BASE_URL: getBaseUrl(),
   
   // Timeout settings
   TIMEOUT: 30000,
@@ -22,11 +32,9 @@ export const API_CONFIG = {
 
 // Helper function to get current API URL
 export const getAPIUrl = () => {
-  // Trong development, có thể switch giữa ngrok và local
-  if (__DEV__ && false) { // Set thành true để dùng local URL
-    return API_CONFIG.LOCAL_URL;
-  }
-  return API_CONFIG.BASE_URL;
+  const url = getBaseUrl();
+  console.log('[API Config] Current Base URL:', url);
+  return url;
 };
 
 // Helper function to log API calls
@@ -57,7 +65,10 @@ export const testApiConnection = async (): Promise<boolean> => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout
     
-    const response = await fetch(`${API_CONFIG.BASE_URL}/blob-storage/test-connection`, {
+    const url = getAPIUrl();
+    console.log('[API] Testing connection to:', url);
+    
+    const response = await fetch(`${url}/blob-storage/test-connection`, {
       method: 'GET',
       headers: {
         'ngrok-skip-browser-warning': 'true',
@@ -75,10 +86,11 @@ export const testApiConnection = async (): Promise<boolean> => {
 
 // Helper function to get current API status
 export const getApiStatus = () => {
+  const url = getAPIUrl();
   return {
-    baseUrl: API_CONFIG.BASE_URL,
-    isLocalhost: API_CONFIG.BASE_URL.includes('localhost'),
-    isNgrok: API_CONFIG.BASE_URL.includes('ngrok'),
+    baseUrl: url,
+    isLocalhost: url.includes('localhost'),
+    isNgrok: url.includes('ngrok'),
     timeout: API_CONFIG.TIMEOUT,
   };
 };

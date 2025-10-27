@@ -39,25 +39,6 @@ const discovery = {
   revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
 };
 
-export const googleSignInService = {
-  // Đăng nhập với Google
-  signIn: async () => {
-    // Try native Google Sign In first for mobile
-    if (Platform.OS !== 'web') {
-      try {
-        console.log('[googleSignIn] Trying native Google Sign In...');
-        return await googleSignInNative();
-      } catch (error: any) {
-        console.error('[googleSignIn] Native sign in failed, using OAuth flow:', error);
-        // Fall through to OAuth flow
-      }
-    }
-    
-    // Use OAuth flow for web or fallback
-    return await googleSignInOAuth();
-  },
-};
-
 // Native Google Sign In (for mobile)
 async function googleSignInNative() {
   const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID || 
@@ -209,8 +190,7 @@ async function googleSignInOAuth() {
       console.error('Error code:', error.code);
       throw new Error('Lỗi đăng nhập Google: ' + error.message);
     }
-  }
-};
+}
 
 export const googleSignInService = {
   // Đăng nhập với Google

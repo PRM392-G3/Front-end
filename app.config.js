@@ -79,7 +79,7 @@ module.exports = {
                          "https://auth.expo.io/@minhtri10504/nexora-app",
       // Backend API URL from env
       apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL || 
-                  "https://2fefeca44269.ngrok-free.app/api"
+                  "https://79782a0bb508.ngrok-free.app/api"
     },
     owner: "minhtri10504"
   }
