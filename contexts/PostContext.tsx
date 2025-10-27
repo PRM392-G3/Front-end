@@ -23,13 +23,19 @@ interface PostContextType {
   
   // Global post state
   posts: PostResponse[];
-  setPosts: (posts: PostResponse[]) => void;
+  setPosts: (posts: PostResponse[] | ((prev: PostResponse[]) => PostResponse[])) => void;
   refreshPosts: () => void;
   forceRefreshPosts: () => void;
   
   // Sync utilities
   syncPostState: (postId: number, state: { isLiked?: boolean; isShared?: boolean; likeCount?: number; shareCount?: number; commentCount?: number }) => void;
   getSyncedPost: (postId: number) => PostResponse | null;
+  
+  // Cache utilities
+  cachedPosts: PostResponse[];
+  cacheTimestamp: number;
+  savePostsToCache: (posts: PostResponse[]) => void;
+  loadCachedPosts: () => void;
 }
 
 const PostContext = createContext<PostContextType | undefined>(undefined);
@@ -40,14 +46,80 @@ interface PostProviderProps {
 
 export const PostProvider: React.FC<PostProviderProps> = ({ children }) => {
   const [posts, setPosts] = useState<PostResponse[]>([]);
-  const [likeStates, setLikeStates] = useState<Map<number, { isLiked: boolean; likeCount: number }>>(new Map());
+  
+  // Wrapper to ensure type safety
+  const setPostsSafe = useCallback((updater: PostResponse[] | ((prev: PostResponse[]) => PostResponse[])) => {
+    if (typeof updater === 'function') {
+      setPosts(updater);
+    } else {
+      setPosts(updater);
+    }
+  }, []);
+  const [cachedPosts, setCachedPosts] = useState<PostResponse[]>([]);
+  const [cacheTimestamp, setCacheTimestamp] = useState<number>(0);
+  const likeStates = useState<Map<number, { isLiked: boolean; likeCount: number }>>(new Map())[0];
+  const setLikeStates = useState<Map<number, { isLiked: boolean; likeCount: number }>>(new Map())[1];
   const [shareStates, setShareStates] = useState<Map<number, { isShared: boolean; shareCount: number }>>(new Map());
   const [commentStates, setCommentStates] = useState<Map<number, { commentCount: number }>>(new Map());
 
   // Load states from AsyncStorage on mount
   useEffect(() => {
     loadStatesFromStorage();
+    loadCachedPosts();
   }, []);
+  
+  // Load cached posts with smart merging strategy
+  const loadCachedPosts = async () => {
+    try {
+      const cachedData = await AsyncStorage.getItem('cachedPosts');
+      const timestamp = await AsyncStorage.getItem('cachedPostsTimestamp');
+      
+      if (cachedData && timestamp) {
+        const parsedPosts = JSON.parse(cachedData);
+        const cacheAge = Date.now() - parseInt(timestamp);
+        
+        console.log('PostContext: Loading cached posts (age:', Math.round(cacheAge / 1000 / 60), 'minutes)');
+        console.log('PostContext: Cache size:', parsedPosts.length, 'posts');
+        
+        // Always load cache for offline support (up to 7 days)
+        if (cacheAge < 7 * 24 * 60 * 60 * 1000 && parsedPosts.length > 0) {
+          setCachedPosts(parsedPosts);
+          
+          // Smart loading strategy based on cache age:
+          // - Fresh (< 5 min): Show cache immediately, sync in background
+          // - Recent (5-30 min): Show cache, eager sync next page
+          // - Stale (> 30 min): Show cache, aggressive sync
+          
+          if (cacheAge < 5 * 60 * 1000) {
+            console.log('PostContext: Fresh cache (< 5 min), showing immediately');
+            setPosts(parsedPosts);
+          } else if (cacheAge < 30 * 60 * 1000) {
+            console.log('PostContext: Recent cache (5-30 min), showing but will sync soon');
+            setPosts(parsedPosts);
+          } else {
+            console.log('PostContext: Stale cache (> 30 min), showing but will aggressively sync');
+            setPosts(parsedPosts);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('PostContext: Error loading cached posts:', error);
+    }
+  };
+  
+  // Save posts to cache
+  const savePostsToCache = async (postsToCache: PostResponse[]) => {
+    try {
+      // Compress cache data and save
+      const cacheData = JSON.stringify(postsToCache);
+      await AsyncStorage.setItem('cachedPosts', cacheData);
+      await AsyncStorage.setItem('cachedPostsTimestamp', Date.now().toString());
+      setCacheTimestamp(Date.now());
+      console.log('PostContext: Saved', postsToCache.length, 'posts to cache');
+    } catch (error) {
+      console.error('PostContext: Error saving posts to cache:', error);
+    }
+  };
 
   const loadStatesFromStorage = async () => {
     try {
@@ -216,8 +288,39 @@ export const PostProvider: React.FC<PostProviderProps> = ({ children }) => {
   const initializePosts = useCallback((newPosts: PostResponse[]) => {
     console.log('PostContext: Initializing posts with states:', newPosts.length);
     
-    // Always update posts to get latest data from server
-    setPosts(newPosts);
+    // Smart merge: keep cache for old posts, prepend new posts
+    setPosts(prevPosts => {
+      if (prevPosts.length === 0) {
+        // No previous posts, just set new ones
+        return newPosts;
+      }
+      
+      // Merge strategy: Keep unique posts based on ID, favor new data
+      const postMap = new Map();
+      
+      // First, add new posts (fresher data)
+      newPosts.forEach(post => {
+        postMap.set(post.id, post);
+      });
+      
+      // Then add cached posts that aren't in the new data
+      prevPosts.forEach(cachedPost => {
+        if (!postMap.has(cachedPost.id)) {
+          postMap.set(cachedPost.id, cachedPost);
+        }
+      });
+      
+      // Convert back to array and sort by created date
+      const mergedPosts = Array.from(postMap.values());
+      mergedPosts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      
+      console.log('PostContext: Merged', prevPosts.length, 'cached posts with', newPosts.length, 'new posts =', mergedPosts.length, 'total');
+      
+      return mergedPosts;
+    });
+    
+    // Save to cache
+    savePostsToCache(posts);
     
     // Initialize like and share states from posts, but preserve existing states
     setLikeStates(prevLikeStates => {
@@ -392,12 +495,20 @@ export const PostProvider: React.FC<PostProviderProps> = ({ children }) => {
     initializePosts,
     clearStates,
     posts,
-    setPosts,
+    setPosts: setPostsSafe,
     refreshPosts,
     forceRefreshPosts,
     syncPostState,
     getSyncedPost,
+    cachedPosts,
+    cacheTimestamp,
+    savePostsToCache,
+    loadCachedPosts,
   };
+  
+  // Expose additional cache methods
+  (value as any).savePostsToCache = savePostsToCache;
+  (value as any).loadCachedPosts = loadCachedPosts;
 
   return (
     <PostContext.Provider value={value}>

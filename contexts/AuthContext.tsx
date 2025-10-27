@@ -1,9 +1,12 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
-import { authAPI, User, AuthResponse } from '@/services/api';
+import { authAPI, User, AuthResponse, notificationAPI, GoogleLoginResponse, CompleteGoogleRegistrationRequest } from '@/services/api';
 import { googleSignInService } from '@/services/googleSignIn'; // Disabled for Expo Go
 import { usePostContext } from './PostContext';
+import notificationService from '@/services/notificationService';
+import * as Notifications from 'expo-notifications';
+import { handleNotificationNavigation } from '@/utils/notificationNavigation';
 
 interface AuthContextType {
   user: User | null;
@@ -13,7 +16,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   register: (userData: RegisterData) => Promise<boolean>;
-  googleLogin: () => Promise<boolean>;
+  googleLogin: () => Promise<GoogleLoginResponse>;
+  completeGoogleRegistration: (data: CompleteGoogleRegistrationRequest) => Promise<boolean>;
   logout: () => Promise<void>;
   checkAuthStatus: () => Promise<void>;
   clearAuthData: () => Promise<void>;
@@ -47,6 +51,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [token, setToken] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const notificationListenerRef = useRef<any>(null);
+  const responseListenerRef = useRef<any>(null);
   
   // Get PostContext to clear states on logout
   let postContext: any = null;
@@ -58,6 +64,94 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }
 
   const isAuthenticated = !!user && !!token;
+
+  /**
+   * Khởi tạo notification service
+   */
+  const initializeNotifications = async (userId: number) => {
+    try {
+      console.log('AuthContext: Initializing notifications for user:', userId);
+
+      // Setup Android channel nếu cần
+      await notificationService.setupAndroidChannel();
+
+      // Yêu cầu quyền
+      const hasPermission = await notificationService.requestPermissions();
+      if (!hasPermission) {
+        console.log('AuthContext: Notification permission denied');
+        return;
+      }
+
+      // Lấy Expo Push Token
+      const expoPushToken = await notificationService.getExpoPushToken();
+      if (expoPushToken) {
+        // Gửi token lên server
+        try {
+          await notificationAPI.updateFcmToken(userId, expoPushToken);
+          console.log('AuthContext: FCM token updated on server');
+        } catch (error) {
+          console.error('AuthContext: Failed to update FCM token on server:', error);
+        }
+      }
+
+      // Lắng nghe notification khi app đang mở (foreground)
+      notificationService.onNotificationReceived((notification) => {
+        console.log('AuthContext: Notification received:', notification);
+        
+        // Hiển thị alert hoặc custom notification UI
+        const title = notification.request.content.title || 'Thông báo mới';
+        const body = notification.request.content.body || '';
+        
+        Alert.alert(
+          title,
+          body,
+          [
+            {
+              text: 'Xem',
+              onPress: () => {
+                // TODO: Navigate based on notification data
+                console.log('Navigate to notification:', notification.request.content.data);
+              },
+            },
+            { text: 'Đóng', style: 'cancel' },
+          ]
+        );
+      });
+
+      // Lắng nghe khi user click vào notification
+      notificationService.onNotificationResponse((response) => {
+        console.log('AuthContext: Notification tapped:', response);
+        // TODO: Navigate based on notification type
+        handleNotificationNavigation(response.notification.request.content.data);
+      });
+
+      // Kiểm tra notification khi mở app từ killed state
+      const lastNotification = await notificationService.getLastNotificationResponse();
+      if (lastNotification) {
+        console.log('AuthContext: App opened from notification:', lastNotification);
+        handleNotificationNavigation(lastNotification.notification.request.content.data);
+      }
+
+      // Lấy unread count và update badge
+      try {
+        const unreadCount = await notificationAPI.getUnreadCount(userId);
+        await notificationService.setBadgeCount(unreadCount);
+      } catch (error) {
+        console.error('AuthContext: Failed to get unread count:', error);
+      }
+
+    } catch (error) {
+      console.error('AuthContext: Error initializing notifications:', error);
+    }
+  };
+
+
+  /**
+   * Cleanup notification listeners
+   */
+  const cleanupNotifications = () => {
+    notificationService.removeListeners();
+  };
 
   // Kiểm tra trạng thái authentication khi app khởi động
   const checkAuthStatus = async () => {
@@ -83,13 +177,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Trong development, không validate token với server
       // Chỉ kiểm tra xem có token và user data không
-      if (storedToken && storedUser) {
+      if (storedToken) {
         try {
-          // Parse user data để kiểm tra format
-          const userData = JSON.parse(storedUser);
+          let userData;
+          
+          if (storedUser) {
+            // Parse user data để kiểm tra format
+            userData = JSON.parse(storedUser);
+          } else {
+            // If we have token but no user data, decode token to get user info
+            console.log('AuthContext: Decoding token to get user data');
+            const tokenParts = storedToken.split('.');
+            if (tokenParts.length === 3) {
+              const payload = JSON.parse(atob(tokenParts[1]));
+              userData = {
+                id: parseInt(payload.userId),
+                email: payload.email,
+                fullName: payload.fullname
+              };
+              await AsyncStorage.setItem('user_data', JSON.stringify(userData));
+              console.log('AuthContext: Decoded and saved user data from token');
+            }
+          }
           
           // Kiểm tra token có format hợp lệ không (ít nhất 10 ký tự)
-          if (storedToken.length > 10 && userData.email) {
+          if (storedToken.length > 10 && userData && userData.email) {
             console.log('AuthContext: Valid token and user data found');
             console.log('AuthContext: Setting user:', userData.email);
             console.log('AuthContext: Setting token length:', storedToken.length);
@@ -100,7 +212,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           } else {
             console.log('AuthContext: Invalid token or user data, clearing...');
             console.log('AuthContext: Token length:', storedToken.length);
-            console.log('AuthContext: User email:', userData.email);
+            if (userData) console.log('AuthContext: User email:', userData.email);
             // Token hoặc user data không hợp lệ, xóa dữ liệu cũ
             await clearAuthData();
           }
@@ -171,6 +283,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(userData);
         
         console.log('Login successful:', userData.email);
+        
+        // Khởi tạo notifications sau khi login thành công
+        await initializeNotifications(userData.id);
+        
         return true;
       } else {
         console.log('AuthContext: Invalid response structure:', response);
@@ -241,6 +357,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(newUser);
         
         console.log('Register successful:', newUser.email);
+        
+        // Khởi tạo notifications sau khi đăng ký thành công
+        await initializeNotifications(newUser.id);
+        
         return true;
       } else {
         throw new Error('Response không hợp lệ từ server');
@@ -254,61 +374,222 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   // Đăng nhập với Google
-  const googleLogin = async (): Promise<boolean> => {
+  const googleLogin = async (): Promise<GoogleLoginResponse> => {
     try {
       setIsLoading(true);
       
       console.log('AuthContext: Attempting Google login...');
       
-      // Import googleSignInService dynamically để tránh lỗi trong Expo Go
+      // Import googleSignInService dynamically
       const { googleSignInService } = await import('@/services/googleSignIn');
       
       const googleResult = await googleSignInService.signIn();
       
-      if (googleResult.idToken) {
-        console.log('AuthContext: Google login successful, calling API...');
+      console.log('AuthContext: Google result:', {
+        hasIdToken: !!googleResult.idToken,
+        hasCode: !!googleResult.user?.code,
+        user: googleResult.user
+      });
+      
+      // Check if mobile flow (has code)
+      if (googleResult.user?.code) {
+        console.log('AuthContext: Mobile flow - sending code to backend...');
+        
+        // Mobile: send code to backend exchange endpoint
+        const { getAPIUrl, API_CONFIG } = await import('@/config/api');
+        const apiUrl = getAPIUrl();
+        
+        // Get redirect URI used in OAuth (Expo Go)
+        const redirectUri = 'https://auth.expo.io/@minhtri10504/nexora-app';
+        
+        console.log('[AuthContext] Mobile flow - using redirect URI:', redirectUri);
+        
+        const response = await fetch(`${apiUrl}/GoogleOAuth/exchange-code`, {
+          method: 'POST',
+          headers: API_CONFIG.HEADERS,
+          body: JSON.stringify({
+            code: googleResult.user.code,
+            redirectUri
+          }),
+        });
+        
+        const responseText = await response.text();
+        if (!response.ok) {
+          throw new Error(`Backend error: ${responseText}`);
+        }
+        
+        const data = JSON.parse(responseText);
+        console.log('AuthContext: Exchange response:', data);
+        
+        if (data.token) {
+          await AsyncStorage.setItem('auth_token', data.token);
+          if (data.user) {
+            await AsyncStorage.setItem('user_data', JSON.stringify(data.user));
+          }
+          await refreshTokenFromStorage();
+          console.log('Mobile Google login successful');
+          return {
+            token: data.token,
+            isNewUser: false,
+            email: null,
+            fullName: null,
+            avatarUrl: null,
+            googleId: null,
+            message: 'Login successful'
+          };
+        } else if (data.isNewUser) {
+          console.log('Mobile: New user, returning data:', {
+            email: data.email,
+            googleId: data.googleId,
+            fullName: data.fullName,
+            avatarUrl: data.avatarUrl
+          });
+          return {
+            isNewUser: true,
+            token: null,
+            email: data.email,
+            googleId: data.googleId,
+            fullName: data.fullName,
+            avatarUrl: data.avatarUrl,
+            message: 'New user needs registration'
+          };
+        } else {
+          throw new Error('Invalid response from backend');
+        }
+      } 
+      // Web flow (has idToken)
+      else if (googleResult.idToken) {
+        console.log('AuthContext: Web flow - calling API with idToken...');
         
         const response = await authAPI.googleLogin(googleResult.idToken);
         
         console.log('AuthContext: Google API Response:', JSON.stringify(response, null, 2));
         
-        const authResponse = response as AuthResponse;
-        if (authResponse.token && authResponse.user) {
-          const { user: userData, token: accessToken, expiresAt } = authResponse;
-
-          // Lưu token và user data
-          await AsyncStorage.setItem('auth_token', accessToken);
-          await AsyncStorage.setItem('user_data', JSON.stringify(userData));
-          await AsyncStorage.setItem('token_expires_at', expiresAt);
-
-          setToken(accessToken);
-          setRefreshToken(null);
-          setUser(userData);
+        // Kiểm tra nếu là user mới (cần nhập password)
+        if (response.isNewUser) {
+          console.log('AuthContext: New Google user, need to complete registration');
+          return response;
+        }
+        
+        // User đã tồn tại - login thành công
+        if (response.token) {
+          await AsyncStorage.setItem('auth_token', response.token);
+          setToken(response.token);
           
-          console.log('Google login successful:', userData.email);
-          return true;
+          // Try to extract user info from JWT or fetch from API
+          try {
+            await refreshTokenFromStorage();
+          } catch (error) {
+            console.error('Failed to refresh user data:', error);
+          }
+          
+          console.log('Google login successful for existing user');
+          return response;
         } else {
           throw new Error('Google login response không hợp lệ');
         }
       } else {
-        throw new Error('Không thể lấy Google token');
+        throw new Error('Không thể lấy Google token hoặc code');
       }
     } catch (error: any) {
       console.error('Google login error:', error);
       
       // Xử lý các loại lỗi khác nhau
-      if (error.message.includes('OAuth error')) {
+      if (error.message?.includes('OAuth error')) {
         Alert.alert('Lỗi OAuth', 'Có lỗi xảy ra trong quá trình xác thực Google. Vui lòng thử lại.');
-      } else if (error.message.includes('cancelled')) {
+      } else if (error.message?.includes('cancelled')) {
         console.log('Google login cancelled by user');
         // Không hiển thị alert cho trường hợp user cancel
-      } else if (error.message.includes('invalid request')) {
+      } else if (error.message?.includes('invalid request')) {
         Alert.alert('Lỗi cấu hình', 'Cấu hình Google OAuth không đúng. Vui lòng liên hệ admin.');
       } else {
         Alert.alert('Lỗi đăng nhập Google', error.message || 'Có lỗi xảy ra. Vui lòng thử lại.');
       }
       
-      return false;
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Hoàn tất đăng ký Google (cho user mới)
+  const completeGoogleRegistration = async (data: CompleteGoogleRegistrationRequest): Promise<boolean> => {
+    try {
+      setIsLoading(true);
+      
+      console.log('AuthContext: Completing Google registration for:', data.email);
+      
+      const response = await authAPI.completeGoogleRegistration(data);
+      
+      console.log('AuthContext: Complete registration response:', JSON.stringify(response, null, 2));
+      
+      if (response.token) {
+        const accessToken = response.token;
+        
+        console.log('AuthContext: Saving token to storage');
+
+        // Lưu token
+        await AsyncStorage.setItem('auth_token', accessToken);
+
+        setToken(accessToken);
+        setRefreshToken(null);
+        
+        // Decode token to get user info
+        console.log('AuthContext: Decoding token');
+        const tokenParts = accessToken.split('.');
+        if (tokenParts.length === 3) {
+          const payload = JSON.parse(atob(tokenParts[1]));
+          const userId = payload.userId;
+          const email = payload.email;
+          const fullname = payload.fullname;
+          
+          console.log('AuthContext: Decoded user ID:', userId);
+          
+          // Create user object from token payload
+          const userData = {
+            id: parseInt(userId),
+            email: email,
+            fullName: fullname,
+            coverImageUrl: null,
+            avatarUrl: null,
+            phoneNumber: '',
+            bio: null,
+            dateOfBirth: null,
+            location: null,
+            isActive: true,
+            emailVerifiedAt: new Date().toISOString(),
+            lastLoginAt: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            followersCount: 0,
+            followingCount: 0,
+            postsCount: 0,
+            isFollowing: false
+          };
+          
+          await AsyncStorage.setItem('user_data', JSON.stringify(userData));
+          setUser(userData);
+          
+          console.log('Complete Google registration successful:', userData.email);
+          
+          // Khởi tạo notifications sau khi đăng ký hoàn tất
+          await initializeNotifications(userData.id);
+        }
+        
+        return true;
+      } else {
+        throw new Error('Complete registration response không hợp lệ: thiếu token');
+      }
+    } catch (error: any) {
+      console.error('Complete Google registration error:', error);
+      
+      // Extract error message from response
+      const errorMessage = error.response?.data?.message || 
+                          error.response?.data?.error || 
+                          error.message || 
+                          'Có lỗi xảy ra khi hoàn tất đăng ký';
+      
+      throw new Error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -321,6 +602,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       // Google Sign-In disabled in Expo Go
       console.log('Google Sign-Out disabled in Expo Go');
+      
+      // Cleanup notifications
+      cleanupNotifications();
+      await notificationService.clearAll();
       
       // Clear PostContext states
       if (postContext?.clearStates) {
@@ -359,7 +644,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Kiểm tra auth status khi component mount
   useEffect(() => {
     checkAuthStatus();
+    
+    // Cleanup khi unmount
+    return () => {
+      cleanupNotifications();
+    };
   }, []);
+
+  // Khởi tạo notifications khi user đã có sẵn (sau khi restore session)
+  useEffect(() => {
+    if (user && token && !isLoading) {
+      console.log('AuthContext: User restored, initializing notifications...');
+      initializeNotifications(user.id);
+    }
+  }, [user, token, isLoading]);
 
   const value: AuthContextType = {
     user,
@@ -370,6 +668,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     register,
     googleLogin,
+    completeGoogleRegistration,
     logout,
     checkAuthStatus,
     clearAuthData,

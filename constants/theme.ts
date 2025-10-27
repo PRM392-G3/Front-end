@@ -2,20 +2,22 @@
 import { ViewStyle, TextStyle, ImageStyle } from 'react-native';
 
 export const COLORS = {
-  // Background colors
+  // Background colors (Facebook-style)
   background: {
     primary: '#FFFFFF',
-    secondary: '#F8F9FA',
+    secondary: '#F2F3F5', // Facebook light gray
+    tertiary: '#E4E6EB', // Facebook input background
   },
   
   // Text colors
   text: {
-    primary: '#1A1A1A',
-    secondary: '#6B7280',
+    primary: '#1C1E21', // Facebook dark text
+    secondary: '#65676B', // Facebook secondary text
+    tertiary: '#8A8D91', // Facebook muted text
     white: '#FFFFFF',
-    gray: '#6B7280',
-    lightGray: '#F3F4F6',
-    darkGray: '#374151',
+    gray: '#65676B',
+    lightGray: '#E4E6EB',
+    darkGray: '#1C1E21',
   },
   
   // Border colors
@@ -24,10 +26,10 @@ export const COLORS = {
     secondary: '#F3F4F6',
   },
   
-  // Accent colors
+  // Accent colors (Facebook blue)
   accent: {
-    primary: '#6366F1',
-    danger: '#EF4444',
+    primary: '#1877F2', // Facebook blue
+    danger: '#F02849', // Facebook red
   },
   
   // Shadow colors

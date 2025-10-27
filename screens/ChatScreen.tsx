@@ -7,47 +7,73 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
 import { ArrowLeft, Phone, Video, Info } from 'lucide-react-native';
 import ChatMessage, { Message } from '@/components/ChatMessage';
 import ChatInput from '@/components/ChatInput';
+import { useAuth } from '@/contexts/AuthContext';
+import signalRService from '@/services/signalRService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ChatScreen() {
+  const { user } = useAuth();
   const scrollViewRef = useRef<ScrollView>(null);
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      text: 'Chào bạn! Bạn khỏe không? 👋',
-      timestamp: '14:30',
-      isSent: false,
-      isRead: true,
-    },
-    {
-      id: '2',
-      text: 'Mình khỏe, cảm ơn bạn!',
-      timestamp: '14:32',
-      isSent: true,
-      isRead: true,
-      reactions: ['❤️'],
-    },
-    {
-      id: '3',
-      text: 'Tuyệt vời! Hẹn gặp lại bạn sớm nhé',
-      timestamp: '14:35',
-      isSent: false,
-      isRead: true,
-    },
-    {
-      id: '4',
-      text: 'Được rồi, hẹn gặp lại! 😊',
-      timestamp: '14:36',
-      isSent: true,
-      isRead: true,
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const handleSendMessage = (text: string) => {
+  // Connect to SignalR when screen loads
+  useEffect(() => {
+    const connectSignalR = async () => {
+      try {
+        const token = await AsyncStorage.getItem('auth_token');
+        if (!token || !user) {
+          console.log('[ChatScreen] No token or user, cannot connect');
+          setIsLoading(false);
+          return;
+        }
+
+        console.log('[ChatScreen] Connecting to SignalR...');
+        await signalRService.connect(token);
+        setIsConnected(true);
+        
+        // Listen for incoming messages
+        signalRService.onReceiveMessage((data) => {
+          console.log('[ChatScreen] Received message:', data);
+          const newMessage: Message = {
+            id: Date.now().toString(),
+            text: data.message,
+            timestamp: new Date(data.timestamp).toLocaleTimeString('vi-VN', {
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+            isSent: data.fromUserId === user.id,
+            isRead: false,
+          };
+          setMessages(prev => [...prev, newMessage]);
+          setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+        });
+
+        setIsLoading(false);
+      } catch (error) {
+        console.error('[ChatScreen] SignalR connection error:', error);
+        setIsLoading(false);
+      }
+    };
+
+    connectSignalR();
+
+    // Cleanup on unmount
+    return () => {
+      signalRService.disconnect();
+    };
+  }, [user]);
+
+  const handleSendMessage = async (text: string) => {
+    if (!isConnected || !user) return;
+
     const newMessage: Message = {
       id: Date.now().toString(),
       text,
@@ -61,7 +87,16 @@ export default function ChatScreen() {
 
     setMessages([...messages, newMessage]);
 
-    // Scroll to bottom
+    // TODO: Get actual conversationId from props/route
+    const conversationId = 1; // This should come from navigation params
+    const toUserId = 2; // This should come from navigation params
+
+    try {
+      await signalRService.sendMessageToUser(toUserId, text, conversationId);
+    } catch (error) {
+      console.error('[ChatScreen] Error sending message:', error);
+    }
+
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 100);

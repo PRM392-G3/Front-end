@@ -6,11 +6,24 @@ import { Platform } from 'react-native';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { PostProvider } from '@/contexts/PostContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import * as Notifications from 'expo-notifications';
+
+// Cấu hình handler cho notification khi app đang chạy
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
 
 export default function RootLayout() {
   useFrameworkReady();
 
   useEffect(() => {
+    // Setup notification handler cho background notifications
+    setupBackgroundNotifications();
+
     if (Platform.OS === 'web') {
       // Cập nhật title và meta tags cho web
       document.title = 'Nexora - Social Platform';
@@ -39,6 +52,25 @@ export default function RootLayout() {
     }
   }, []);
 
+  /**
+   * Setup background notification handlers
+   * Xử lý notifications khi app ở background hoặc killed state
+   */
+  const setupBackgroundNotifications = () => {
+    // Xử lý notification nhận được khi app đang ở background
+    const notificationListener = Notifications.addNotificationReceivedListener(notification => {
+      console.log('RootLayout: Background notification received:', notification);
+      
+      // Notification sẽ được hiển thị tự động bởi hệ thống
+      // Có thể thực hiện các xử lý khác ở đây nếu cần
+    });
+
+    // Cleanup listener khi component unmount
+    return () => {
+      Notifications.removeNotificationSubscription(notificationListener);
+    };
+  };
+
   return (
     <SafeAreaProvider>
       <AuthProvider>
@@ -53,6 +85,7 @@ export default function RootLayout() {
             <Stack.Screen name="post-detail" />
             <Stack.Screen name="edit-post" />
             <Stack.Screen name="profile-test" />
+            <Stack.Screen name="complete-google-registration" />
             <Stack.Screen name="+not-found" />
           </Stack>
           <StatusBar style="auto" />

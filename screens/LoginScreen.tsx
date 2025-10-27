@@ -9,7 +9,7 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { login, isLoading } = useAuth();
+  const { login, googleLogin, isLoading } = useAuth();
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -56,6 +56,57 @@ export default function LoginScreen() {
       } else {
         Alert.alert('Lỗi', errorMessage || 'Có lỗi xảy ra khi đăng nhập');
       }
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      console.log('LoginScreen: Starting Google login...');
+      const response = await googleLogin();
+      
+      console.log('LoginScreen: Google login response:', response);
+      
+      // Kiểm tra nếu là user mới (cần nhập password)
+      if (response.isNewUser) {
+        console.log('LoginScreen: New user, navigating to complete registration...');
+        
+        // Navigate đến màn hình hoàn tất đăng ký với params
+        router.push({
+          pathname: '/complete-google-registration' as any,
+          params: {
+            email: response.email || '',
+            fullName: response.fullName || '',
+            avatarUrl: response.avatarUrl || '',
+            googleId: response.googleId || '',
+          },
+        });
+      } else {
+        // User đã tồn tại - login thành công
+        console.log('LoginScreen: Existing user, login successful');
+        Alert.alert(
+          'Thành công',
+          'Đăng nhập Google thành công!',
+          [
+            {
+              text: 'OK',
+              onPress: () => router.replace('/(tabs)'),
+            },
+          ]
+        );
+      }
+    } catch (error: any) {
+      console.error('LoginScreen: Google login error:', error);
+      
+      // Không hiển thị error nếu user cancel
+      if (error.isCancelled || error.message?.includes('cancelled')) {
+        console.log('LoginScreen: User cancelled Google login - no action needed');
+        return;
+      }
+      
+      Alert.alert(
+        'Lỗi đăng nhập Google',
+        error.message || 'Có lỗi xảy ra. Vui lòng thử lại.'
+      );
     }
   };
 
@@ -131,8 +182,14 @@ export default function LoginScreen() {
               <View style={styles.dividerLine} />
             </View>
 
-            <TouchableOpacity style={styles.googleButton}>
-              <Text style={styles.googleButtonText}>Đăng nhập với Google</Text>
+            <TouchableOpacity 
+              style={styles.googleButton}
+              onPress={handleGoogleLogin}
+              disabled={isLoading}
+            >
+              <Text style={styles.googleButtonText}>
+                {isLoading ? 'Đang xử lý...' : 'Đăng nhập với Google'}
+              </Text>
             </TouchableOpacity>
 
             <View style={styles.signupContainer}>
