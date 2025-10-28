@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, RefreshControl, Alert, FlatList } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, RefreshControl, Alert, FlatList, Platform } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, FONT_SIZES, BORDER_RADIUS, SAFE_AREA, DIMENSIONS } from '@/constants/theme';
 import PostCard from '@/components/PostCard';
 import CreatePostScreen from '@/screens/CreatePostScreen';
@@ -448,7 +448,57 @@ export default function HomeScreen() {
           setTimeout(async () => {
             try {
               forceRefreshPosts();
-              const fetchedPosts = await postAPI.getAllPostsWithLikes();
+              const fetchedFeedData = await postAPI.getOptimizedFeed(1);
+              
+              // Convert PostFeedResponse to PostResponse format
+              const fetchedPosts: PostResponse[] = fetchedFeedData.map(feed => {
+                const userName = feed.userName || 'Người dùng';
+                const userAvatar = feed.userAvatar || null;
+                
+                return {
+                  id: feed.id,
+                  userId: feed.userId,
+                  content: feed.content,
+                  imageUrl: feed.imageUrl || undefined,
+                  videoUrl: feed.videoUrl || undefined,
+                  likeCount: feed.likeCount,
+                  commentCount: feed.commentCount,
+                  shareCount: feed.shareCount,
+                  isPublic: feed.isPublic,
+                  isDeleted: false,
+                  createdAt: feed.createdAt,
+                  updatedAt: feed.updatedAt,
+                  user: {
+                    id: feed.userId,
+                    email: '',
+                    fullName: userName,
+                    coverImageUrl: null,
+                    avatarUrl: userAvatar,
+                    phoneNumber: '',
+                    bio: null,
+                    dateOfBirth: null,
+                    location: null,
+                    isActive: true,
+                    emailVerifiedAt: null,
+                    lastLoginAt: null,
+                    createdAt: '',
+                    updatedAt: '',
+                    followersCount: 0,
+                    followingCount: 0,
+                    postsCount: 0,
+                    isFollowing: false,
+                  },
+                  comments: [],
+                  likes: [],
+                  shares: [],
+                  tags: feed.tagNames.map(name => ({ name }) as any),
+                  isLiked: feed.isLiked,
+                  isShared: feed.isShared,
+                  groupId: feed.groupId || undefined,
+                  group: feed.groupName ? { name: feed.groupName } as any : undefined,
+                };
+              });
+              
               initializePosts(fetchedPosts);
             } catch (error) {
               console.error('Error refreshing after post creation:', error);
@@ -472,7 +522,11 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.background.primary} />
+      <StatusBar 
+        barStyle="dark-content" 
+        backgroundColor="transparent" 
+        translucent={Platform.OS === 'android'}
+      />
       {renderHeader()}
       
       <FlatList

@@ -10,17 +10,51 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
 import { MessageCircle } from 'lucide-react-native';
 import { chatAPI, Conversation } from '@/services/chatAPI';
 import { useAuth } from '@/contexts/AuthContext';
+import AppStatusBar from '@/components/AppStatusBar';
 
 export default function ChatListScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Helper to resolve the "other" participant's name/avatar from a conversation
+  const getOtherFromConversation = (conv: any) => {
+    const isUser1 = user?.id === conv.user1Id;
+
+    const nameCandidates = [
+      isUser1 ? conv.user2Name : conv.user1Name,
+      isUser1 ? conv.user2FullName : conv.user1FullName,
+      isUser1 ? conv.user2DisplayName : conv.user1DisplayName,
+      conv.participantName,
+      conv.participant1Name,
+      conv.participant2Name,
+      conv.name,
+      conv.displayName,
+      Array.isArray(conv.participants) ? conv.participants.find((p: any) => p.id !== user?.id)?.name : undefined,
+      Array.isArray(conv.participants) ? conv.participants.find((p: any) => p.id !== user?.id)?.fullName : undefined,
+    ];
+
+    const avatarCandidates = [
+      isUser1 ? conv.user2AvatarUrl : conv.user1AvatarUrl,
+      conv.participantAvatarUrl,
+      conv.avatarUrl,
+      Array.isArray(conv.participants) ? conv.participants.find((p: any) => p.id !== user?.id)?.avatarUrl : undefined,
+    ];
+
+    const name = nameCandidates.find((n) => !!n) as string | undefined;
+    const avatar = avatarCandidates.find((a) => !!a) as string | undefined;
+
+    const fallbackName = conv.lastMessage?.senderName || conv.lastMessage?.sender || 'Người dùng';
+    return { name: name || fallbackName, avatar: avatar || '' };
+  };
 
   useEffect(() => {
     if (user) {
@@ -66,7 +100,9 @@ export default function ChatListScreen() {
       
       console.log('✅ [ChatListScreen] Conversation created:', conversation);
       
-      router.push(`/chat/${conversation.id}` as any);
+      // Resolve other user's name using robust helper and pass it as param
+      const other = getOtherFromConversation(conversation)?.name || 'Người dùng';
+      router.push(`/chat/${conversation.id}?name=${encodeURIComponent(other)}` as any);
     } catch (error) {
       console.error('❌ [ChatListScreen] Error starting chat:', error);
       Alert.alert('Lỗi', 'Không thể bắt đầu cuộc trò chuyện');
@@ -74,7 +110,10 @@ export default function ChatListScreen() {
   };
 
   const handleConversationPress = (conversationId: number) => {
-    router.push(`/chat/${conversationId}` as any);
+    // Resolve conversation from list and get other user's name
+    const conv = conversations.find(c => c.id === conversationId);
+    const otherName = conv ? getOtherFromConversation(conv).name : 'Người dùng';
+    router.push(`/chat/${conversationId}?name=${encodeURIComponent(otherName)}` as any);
   };
 
   const handleSearchPress = () => {
@@ -102,9 +141,41 @@ export default function ChatListScreen() {
   };
 
   const renderConversation = ({ item }: { item: Conversation }) => {
-    const otherUser = user?.id === item.user1Id 
-      ? { name: item.user2Name, avatar: item.user2AvatarUrl }
-      : { name: item.user1Name, avatar: item.user1AvatarUrl };
+    const getOtherFromConversation = (conv: any) => {
+      const isUser1 = user?.id === conv.user1Id;
+
+      const nameCandidates = [
+        // common fields
+        isUser1 ? conv.user2Name : conv.user1Name,
+        isUser1 ? conv.user2FullName : conv.user1FullName,
+        isUser1 ? conv.user2DisplayName : conv.user1DisplayName,
+        conv.participantName,
+        conv.participant1Name,
+        conv.participant2Name,
+        conv.name,
+        conv.displayName,
+        // participants array
+        Array.isArray(conv.participants) ? conv.participants.find((p: any) => p.id !== user?.id)?.name : undefined,
+        Array.isArray(conv.participants) ? conv.participants.find((p: any) => p.id !== user?.id)?.fullName : undefined,
+      ];
+
+      const avatarCandidates = [
+        isUser1 ? conv.user2AvatarUrl : conv.user1AvatarUrl,
+        conv.participantAvatarUrl,
+        conv.avatarUrl,
+        Array.isArray(conv.participants) ? conv.participants.find((p: any) => p.id !== user?.id)?.avatarUrl : undefined,
+      ];
+
+      const name = nameCandidates.find((n) => !!n) as string | undefined;
+      const avatar = avatarCandidates.find((a) => !!a) as string | undefined;
+
+      // final fallback to lastMessage sender name
+      const fallbackName = conv.lastMessage?.senderName || conv.lastMessage?.sender || 'Người dùng';
+
+      return { name: name || fallbackName, avatar: avatar || '' };
+    };
+
+    const otherUser = getOtherFromConversation(item);
 
     return (
       <TouchableOpacity
@@ -148,7 +219,7 @@ export default function ChatListScreen() {
   );
 
   const renderHeader = () => (
-    <View style={styles.header}>
+    <View style={[styles.header, { paddingTop: insets.top + RESPONSIVE_SPACING.md }]}>
       <Text style={styles.headerTitle}>Tin nhắn</Text>
     </View>
   );
@@ -156,6 +227,7 @@ export default function ChatListScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
+        <AppStatusBar barStyle="dark-content" />
         <ActivityIndicator size="large" color={COLORS.primary} />
         <Text style={styles.loadingText}>Đang tải...</Text>
       </View>
@@ -164,6 +236,7 @@ export default function ChatListScreen() {
 
   return (
     <View style={styles.container}>
+      <AppStatusBar barStyle="dark-content" />
       {renderHeader()}
       
       <FlatList
@@ -207,7 +280,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: RESPONSIVE_SPACING.md,
-    paddingTop: 60,
     paddingBottom: RESPONSIVE_SPACING.md,
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,

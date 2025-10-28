@@ -22,10 +22,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import signalRService from '@/services/signalRService';
 import { chatAPI, Message as APIMessage, Conversation } from '@/services/chatAPI';
 import { mediaAPI } from '@/services/mediaAPI';
+import AppStatusBar from '@/components/AppStatusBar';
 
 export default function ChatScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, name } = useLocalSearchParams<{ id: string; name?: string }>();
   const { user } = useAuth();
   const scrollViewRef = useRef<ScrollView>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -42,7 +43,22 @@ export default function ChatScreen() {
         return;
       }
 
+      // If caller passed a name param, use it as an immediate fallback while we load conversation
+      if (name && !otherUser) {
+        setOtherUser({ name: decodeURIComponent(name), avatar: '' });
+      }
+
       try {
+        // Load conversation details (to get other user's name/avatar)
+        const conv = await chatAPI.getConversationById(conversationId);
+        if (conv) {
+          setConversation(conv);
+          // Determine the other participant based on current user
+          const other = user.id === conv.user1Id
+            ? { name: conv.user2Name || 'User', avatar: conv.user2AvatarUrl || '' }
+            : { name: conv.user1Name || 'User', avatar: conv.user1AvatarUrl || '' };
+          setOtherUser(other);
+        }
         // Load messages from API
         const apiMessages = await chatAPI.getConversationMessages(conversationId);
         
@@ -62,12 +78,12 @@ export default function ChatScreen() {
 
         setMessages(convertedMessages);
 
-        // Determine other user info from first message
-        if (apiMessages.length > 0) {
+        // If conversation wasn't available above, fallback to first message
+        if (!conv && apiMessages.length > 0) {
           const firstMsg = apiMessages[0];
           const other = firstMsg.senderId === user.id
-            ? { name: conversation?.user2Name || 'User', avatar: conversation?.user2AvatarUrl || '' }
-            : { name: firstMsg.senderName, avatar: firstMsg.senderAvatarUrl };
+            ? { name: 'Người dùng', avatar: '' }
+            : { name: firstMsg.senderName || 'Người dùng', avatar: firstMsg.senderAvatarUrl || '' };
           setOtherUser(other);
         }
 
@@ -334,7 +350,7 @@ export default function ChatScreen() {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <StatusBar barStyle="light-content" />
+        <AppStatusBar barStyle="light-content" />
         <LinearGradient
           colors={[COLORS.primary, COLORS.primaryDark]}
           style={styles.loadingGradient}
@@ -352,7 +368,7 @@ export default function ChatScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
     >
-      <StatusBar barStyle="light-content" />
+      <AppStatusBar barStyle="light-content" />
 
       {/* Enhanced Header with Gradient */}
       <LinearGradient
@@ -391,17 +407,7 @@ export default function ChatScreen() {
             </View>
           </TouchableOpacity>
 
-          <View style={styles.headerActions}>
-            <TouchableOpacity style={styles.headerButton}>
-              <Phone size={20} color={COLORS.white} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.headerButton}>
-              <Video size={20} color={COLORS.white} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.headerButton}>
-              <MoreVertical size={20} color={COLORS.white} />
-            </TouchableOpacity>
-          </View>
+          {/* Header actions removed per design: no call/video/more buttons */}
         </View>
       </LinearGradient>
 

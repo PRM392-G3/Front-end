@@ -96,15 +96,7 @@ export default function ChatInput({
           <ImageIcon size={22} color={COLORS.primary} />
         </TouchableOpacity>
 
-        {/* Emoji button */}
-        {!hasText && (
-          <TouchableOpacity 
-            style={styles.emojiButton}
-            activeOpacity={0.6}
-          >
-            <SmilePlus size={22} color={COLORS.primary} />
-          </TouchableOpacity>
-        )}
+        {/* Emoji removed as requested */}
 
         {/* Text input */}
         <View style={styles.inputWrapper}>
@@ -142,6 +134,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
+    // Add safe bottom padding so input isn't hidden by navigation bar
+    paddingBottom: Platform.OS === 'ios' ? 20 : 16,
   },
   actionsMenu: {
     flexDirection: 'row',

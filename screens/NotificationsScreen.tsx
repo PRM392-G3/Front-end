@@ -20,6 +20,7 @@ import { notificationAPI, Notification } from '@/services/api';
 import { useRouter } from 'expo-router';
 import notificationService from '@/services/notificationService';
 import NotificationItem from '@/components/NotificationItem';
+import AppStatusBar from '@/components/AppStatusBar';
 
 type TabType = 'all' | 'unread';
 
@@ -227,7 +228,7 @@ export default function NotificationsScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <AppStatusBar barStyle="light-content" />
       
       {/* Enhanced Header with Gradient */}
       <LinearGradient

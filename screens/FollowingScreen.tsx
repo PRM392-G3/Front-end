@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, SafeAreaView, StatusBar } from 'react-native';
 import FollowingList from '../components/FollowingList';
+import AppStatusBar from '../components/AppStatusBar';
 
 interface FollowingScreenProps {
   route: {
@@ -15,7 +16,7 @@ const FollowingScreen: React.FC<FollowingScreenProps> = ({ route }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <AppStatusBar barStyle="dark-content" />
       <View style={styles.content}>
         <FollowingList userId={userId} />
       </View>

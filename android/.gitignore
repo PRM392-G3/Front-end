@@ -14,18 +14,3 @@ local.properties
 
 # Bundle artifacts
 *.jsbundle
-
-# Google Services (chứa sensitive data)
-google-services.json
-GoogleService-Info.plist
-
-# Firebase config
-firebase-config.json
-firebaseConfig.js
-
-# Build APK/AAB
-*.apk
-*.aab
-
-# EAS Build
-eas-build-*.tar.gz

@@ -12,6 +12,7 @@ import { FilterModal, FilterState } from '@/components/FilterModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
+import AppStatusBar from '@/components/AppStatusBar';
 
 export default function SearchScreen() {
   const [activeTab, setActiveTab] = useState<'users' | 'posts' | 'groups' | 'events'>('users');
@@ -154,7 +155,7 @@ export default function SearchScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <AppStatusBar barStyle="light-content" />
       
       {/* Enhanced Header with Gradient */}
       <LinearGradient

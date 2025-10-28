@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, ActivityIndicator, Modal, ScrollView } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES } from '@/constants/theme';
 import { Heart, MessageCircle, Share2, MoveHorizontal as MoreHorizontal, Trash2, Edit } from 'lucide-react-native';
@@ -12,6 +12,7 @@ import PostLikesModal from './PostLikesModal';
 import FloatingCommentModal from './FloatingCommentModal';
 import UserPreviewFloating from './UserPreviewFloating';
 import { commentAPI } from '@/services/api';
+import { explainTextInVietnamese } from '@/services/ai';
 
 interface PostCardProps {
   postData: PostResponse;
@@ -74,6 +75,10 @@ export default function PostCard({
   const [showLikesModal, setShowLikesModal] = useState(false);
   const [showCommentModal, setShowCommentModal] = useState(false);
   const [showUserPreview, setShowUserPreview] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResult, setAiResult] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiModalVisible, setAiModalVisible] = useState(false);
 
   // Video player setup
   const player = useVideoPlayer(postData.videoUrl || '', (player) => {
@@ -199,6 +204,23 @@ export default function PostCard({
   const handleCommentPress = () => {
     // Open floating comment modal instead of navigating
     setShowCommentModal(true);
+  };
+
+  const handleExplainWithAI = async () => {
+    if (!postData || !postData.content) return;
+    setAiLoading(true);
+    setAiError(null);
+    setAiResult(null);
+    setAiModalVisible(true);
+    try {
+      const result = await explainTextInVietnamese(postData.content);
+      setAiResult(result);
+    } catch (error: any) {
+      console.error('AI explain error:', error);
+      setAiError(error?.message || 'Lỗi khi gọi AI');
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   const handleUserPress = () => {
@@ -391,6 +413,19 @@ export default function PostCard({
           onShareToggle={onShareToggle}
           disabled={isSharing}
         />
+
+        {/* Gemini-like AI button */}
+        <TouchableOpacity
+          style={styles.aiButton}
+          onPress={handleExplainWithAI}
+          disabled={aiLoading}
+        >
+          {aiLoading ? (
+            <ActivityIndicator size={16} color="#fff" />
+          ) : (
+            <Text style={styles.aiButtonText}>AI</Text>
+          )}
+        </TouchableOpacity>
       </View>
 
       {/* Owner Actions */}
@@ -425,6 +460,42 @@ export default function PostCard({
         likeCount={likeCount}
       />
 
+      {/* AI Explanation Modal */}
+      <Modal
+        visible={aiModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setAiModalVisible(false)}
+      >
+        <View style={styles.aiModalContainer}>
+          <View style={styles.aiModalContent}>
+            <Text style={styles.aiTitle}>Giải thích bằng AI</Text>
+            {aiLoading ? (
+              <ActivityIndicator size={24} color={COLORS.text.secondary} />
+            ) : aiError ? (
+              <Text style={{ color: COLORS.accent.danger }}>{aiError}</Text>
+            ) : (
+              <ScrollView style={{ maxHeight: 400 }}>
+                <Text style={{ color: COLORS.text.primary, lineHeight: 20 }}>
+                  {aiResult}
+                </Text>
+              </ScrollView>
+            )}
+
+            <TouchableOpacity
+              style={styles.aiCloseButton}
+              onPress={() => {
+                setAiModalVisible(false);
+                setAiResult(null);
+                setAiError(null);
+              }}
+            >
+              <Text style={styles.aiCloseText}>Đóng</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Floating Comment Modal - Facebook style */}
       <FloatingCommentModal
         visible={showCommentModal}
@@ -449,11 +520,12 @@ export default function PostCard({
         userId={postData.userId}
         isCurrentUser={user?.id === postData.userId}
         onUserPress={(userId) => {
-          // Only navigate if it's current user's own profile
-          router.push({
-            pathname: '/profile',
-            params: { userId: userId.toString() }
-          } as any);
+          // If navigating to current user's own profile, use replace to ensure reload
+          if (user?.id === userId) {
+            router.replace({ pathname: '/profile', params: { userId: userId.toString() } } as any);
+          } else {
+            router.push({ pathname: '/profile', params: { userId: userId.toString() } } as any);
+          }
         }}
       />
     </View>
@@ -616,5 +688,56 @@ const styles = StyleSheet.create({
     fontSize: RESPONSIVE_FONT_SIZES.sm,
     color: COLORS.accent.primary,
     marginLeft: RESPONSIVE_SPACING.xs,
+  },
+  aiButton: {
+    backgroundColor: COLORS.accent.primary,
+    paddingHorizontal: RESPONSIVE_SPACING.sm,
+    paddingVertical: RESPONSIVE_SPACING.xs,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: RESPONSIVE_SPACING.xs,
+  },
+  aiButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: RESPONSIVE_FONT_SIZES.sm,
+  },
+  aiModalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: RESPONSIVE_SPACING.md,
+  },
+  aiModalContent: {
+    width: '100%',
+    maxHeight: '80%',
+    backgroundColor: COLORS.background.primary,
+    borderRadius: BORDER_RADIUS.md,
+    padding: RESPONSIVE_SPACING.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  aiTitle: {
+    fontSize: RESPONSIVE_FONT_SIZES.md,
+    fontWeight: '700',
+    marginBottom: RESPONSIVE_SPACING.sm,
+    color: COLORS.text.primary,
+  },
+  aiCloseButton: {
+    marginTop: RESPONSIVE_SPACING.md,
+    alignSelf: 'flex-end',
+    backgroundColor: COLORS.border.secondary,
+    paddingHorizontal: RESPONSIVE_SPACING.sm,
+    paddingVertical: RESPONSIVE_SPACING.xs,
+    borderRadius: BORDER_RADIUS.sm,
+  },
+  aiCloseText: {
+    color: COLORS.text.primary,
+    fontWeight: '600',
   },
 });

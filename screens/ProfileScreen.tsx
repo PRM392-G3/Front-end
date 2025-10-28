@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, StatusBar, TouchableOpacity, Image, ScrollView, ActivityIndicator, Alert, ViewStyle, TextStyle, ImageStyle, FlatList, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, StatusBar, TouchableOpacity, Image, ScrollView, ActivityIndicator, Alert, ViewStyle, TextStyle, ImageStyle, FlatList, Modal, TextInput, Platform } from 'react-native';
 import { ArrowLeft, Users, Grid2x2 as Grid, Mail, Phone, MapPin, Calendar, LogOut, Share2, Edit3, User as UserIcon, MessageCircle } from 'lucide-react-native';
 import NotificationBadge from '../components/NotificationBadge';
+import AppStatusBar from '../components/AppStatusBar';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, RESPONSIVE_FONT_SIZES } from '../constants/theme';
 import { userAPI, User, postAPI, PostResponse, shareAPI, UpdateUserPayload, FriendRequest, groupAPI, Group } from '../services/api';
 import { chatAPI } from '../services/chatAPI';
@@ -18,6 +20,7 @@ export default function UserProfileScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
   const router = useRouter();
   const { logout, user: currentUser } = useAuth();
+  const insets = useSafeAreaInsets();
   const { 
     updatePost, 
     updatePostLike, 
@@ -1254,7 +1257,7 @@ export default function UserProfileScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+        <AppStatusBar barStyle="dark-content" />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
           <Text style={styles.loadingText}>Đang tải...</Text>
@@ -1266,7 +1269,7 @@ export default function UserProfileScreen() {
   if (!user) {
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+        <AppStatusBar barStyle="dark-content" />
         
         {/* Header with logout button even when no user data */}
         <View style={styles.header}>
@@ -1311,10 +1314,10 @@ export default function UserProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <AppStatusBar barStyle="dark-content" />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + RESPONSIVE_SPACING.sm }]}>
         <TouchableOpacity style={styles.backButton} onPress={handleGoBack}>
           <ArrowLeft size={24} color={COLORS.black} />
         </TouchableOpacity>
@@ -1332,11 +1335,9 @@ export default function UserProfileScreen() {
             <TouchableOpacity 
               style={styles.myProfileButton} 
               onPress={() => {
-                console.log('👆 [Profile] My Profile button pressed, navigating to own profile');
-                router.push({
-                  pathname: '/profile',
-                  params: { userId: currentUser.id.toString() }
-                } as any);
+                console.log('👆 [Profile] My Profile button pressed, navigating to own profile (replace to /profile)');
+                // Navigate to the canonical /profile route which shows the logged-in user when no userId param is provided
+                router.replace('/profile');
               }}
               activeOpacity={0.7}
             >

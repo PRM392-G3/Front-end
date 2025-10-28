@@ -394,7 +394,7 @@ export const userAPI = {
   unfollowUser: async (followerId: number, followingId: number) => {
     try {
       const response = await api.delete(`/User/${followerId}/follow/${followingId}`);
-      return response.data as Group;
+      return response.data;
     } catch (error) {
       throw error;
     }
@@ -406,7 +406,7 @@ export const userAPI = {
   followUser: async (followerId: number, followingId: number) => {
     try {
       const response = await api.post(`/User/${followerId}/follow/${followingId}`);
-      return response.data as Group;
+      return response.data;
     } catch (error) {
       throw error;
     }
@@ -416,7 +416,7 @@ export const userAPI = {
   searchUsers: async (query: string, page: number = 1, limit: number = 20) => {
     try {
       const response = await api.get(`/User/search?name=${encodeURIComponent(query)}&page=${page}&limit=${limit}`);
-      return response.data as Group;
+      return response.data as User[];
     } catch (error) {
       throw error;
     }
@@ -426,7 +426,7 @@ export const userAPI = {
   getFollowersList: async (userId: number) => {
     try {
       const response = await api.get(`/User/${userId}/followers`);
-      return response.data as Group;
+      return response.data as User[];
     } catch (error) {
       throw error;
     }
@@ -497,27 +497,115 @@ export const userAPI = {
     }
   },
 
-  // Kiểm tra trạng thái kết bạn với một user
-  getFriendshipStatus: async (userId: number, targetUserId: number) => {
+
+  // Hủy kết bạn
+  unfriend: async (userId1: number, userId2: number) => {
     try {
-      const response = await api.get(`/User/${userId}/friendship-status/${targetUserId}`);
-      return response.data as {
-        isFriend: boolean;
-        hasPendingRequest: boolean;
-        requestId?: number;
-        requesterId?: number;
-        receiverId?: number;
-      };
+      const response = await api.delete(`/User/${userId1}/unfriend/${userId2}`);
+      return response.data;
     } catch (error) {
       throw error;
     }
   },
 
-  // Hủy kết bạn
-  unfriend: async (userId: number, friendId: number) => {
+  // Kiểm tra user có đang follow user khác không
+  isFollowing: async (followerId: number, followingId: number) => {
     try {
-      const response = await api.delete(`/User/${userId}/friend/${friendId}`);
-      return response.data as Group;
+      const response = await api.get(`/User/${followerId}/is-following/${followingId}`);
+      return response.data as { isFollowing: boolean };
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Hủy friend request
+  cancelFriendRequest: async (friendshipId: number, requesterId: number) => {
+    try {
+      const response = await api.delete(`/User/friend-request/${friendshipId}/cancel?requesterId=${requesterId}`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Chặn user
+  blockUser: async (blockerId: number, blockedId: number) => {
+    try {
+      const response = await api.post(`/User/${blockerId}/block/${blockedId}`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Bỏ chặn user
+  unblockUser: async (blockerId: number, blockedId: number) => {
+    try {
+      const response = await api.delete(`/User/${blockerId}/unblock/${blockedId}`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Lấy danh sách friend requests đã gửi
+  getSentFriendRequests: async (userId: number) => {
+    try {
+      const response = await api.get(`/User/${userId}/friend-requests/sent`);
+      return response.data as FriendRequest[];
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Kiểm tra hai user có phải là bạn không
+  areFriends: async (userId1: number, userId2: number) => {
+    try {
+      const response = await api.get(`/User/${userId1}/are-friends/${userId2}`);
+      return response.data as { areFriends: boolean };
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Lấy trạng thái friendship giữa hai user
+  // Returns: 'none', 'pending', 'accepted', 'blocked'
+  getFriendshipStatus: async (userId1: number, userId2: number) => {
+    try {
+      const response = await api.get(`/User/${userId1}/friendship-status/${userId2}`);
+      return response.data as { status: string };
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Lấy danh sách bạn chung
+  getMutualFriends: async (userId1: number, userId2: number) => {
+    try {
+      const response = await api.get(`/User/${userId1}/mutual-friends/${userId2}`);
+      return response.data as User[];
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Cập nhật FCM token
+  updateFcmToken: async (userId: number, fcmToken: string) => {
+    try {
+      const response = await api.put(`/User/${userId}/fcm-token`, {
+        fcmToken
+      });
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Get all users (not implemented in old code)
+  getAllUsers: async (page: number = 1, limit: number = 20) => {
+    try {
+      const response = await api.get(`/User?page=${page}&limit=${limit}`);
+      return response.data as User[];
     } catch (error) {
       throw error;
     }

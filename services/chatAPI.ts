@@ -75,6 +75,17 @@ class ChatAPI {
     }
   }
 
+  // Get conversation by its ID
+  async getConversationById(conversationId: number): Promise<Conversation | null> {
+    try {
+      const response = await api.get(`/chat/conversations/${conversationId}`);
+      return response.data as Conversation;
+    } catch (error) {
+      console.warn('[chatAPI] getConversationById failed for id', conversationId, error);
+      return null;
+    }
+  }
+
   async getOrCreateConversation(request: CreateConversationRequest): Promise<Conversation> {
     // Try to get existing conversation first
     const existing = await this.getConversation(request.user1Id, request.user2Id);
