@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -183,9 +184,17 @@ export default function ChatListScreen() {
         onPress={() => handleConversationPress(item.id)}
       >
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>
-            {otherUser.name.charAt(0).toUpperCase()}
-          </Text>
+          {otherUser.avatar ? (
+            <Image
+              source={{ uri: otherUser.avatar }}
+              style={{ width: 50, height: 50, borderRadius: 25 }}
+              resizeMode="cover"
+            />
+          ) : (
+            <Text style={styles.avatarText}>
+              {otherUser.name.charAt(0).toUpperCase()}
+            </Text>
+          )}
         </View>
         
         <View style={styles.conversationInfo}>

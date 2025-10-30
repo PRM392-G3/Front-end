@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG, getAPIUrl } from '../config/api';
 
@@ -122,6 +123,25 @@ const api = axios.create({
   headers: API_CONFIG.HEADERS,
 });
 
+// Tránh redirect nhiều lần khi gặp 401 hàng loạt
+let isHandlingUnauthorized = false;
+const handleUnauthorizedOnce = async () => {
+  if (isHandlingUnauthorized) return;
+  isHandlingUnauthorized = true;
+  try {
+    await AsyncStorage.removeItem('auth_token');
+    await AsyncStorage.removeItem('user_data');
+    await AsyncStorage.removeItem('refresh_token');
+    await AsyncStorage.removeItem('token_expires_at');
+  } catch {}
+  // Điều hướng về màn hình đăng nhập
+  try {
+    router.replace('/auth/login');
+  } catch {}
+  // Reset cờ sau một khoảng ngắn để cho phép xử lý lại nếu cần
+  setTimeout(() => { isHandlingUnauthorized = false; }, 3000);
+};
+
 // Function để lấy token từ AsyncStorage
 const getAuthToken = async (): Promise<string | null> => {
   try {
@@ -182,15 +202,7 @@ api.interceptors.response.use(
       console.log('MainAPI: Token expired or invalid - clearing auth data');
       console.log('MainAPI: Request URL:', error.config?.url);
       console.log('MainAPI: Request headers:', error.config?.headers);
-      
-      // Clear auth data when token is invalid
-      try {
-        await AsyncStorage.removeItem('auth_token');
-        await AsyncStorage.removeItem('user_data');
-        console.log('MainAPI: Cleared auth data due to 401 error');
-      } catch (clearError) {
-        console.error('MainAPI: Error clearing auth data:', clearError);
-      }
+      await handleUnauthorizedOnce();
     }
     return Promise.reject(error);
   }

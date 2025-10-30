@@ -538,7 +538,14 @@ const styles = StyleSheet.create({
     marginBottom: RESPONSIVE_SPACING.sm,
     paddingVertical: RESPONSIVE_SPACING.md,
     paddingHorizontal: RESPONSIVE_SPACING.md,
-    // Facebook-style: no border radius, cleaner look
+    borderWidth: 1,
+    borderColor: '#E4E6EB',
+    borderRadius: BORDER_RADIUS.lg,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2, // Android
   },
   header: {
     flexDirection: 'row',

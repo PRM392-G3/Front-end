@@ -24,38 +24,26 @@ export default function LoginScreen() {
         // Navigation sẽ được xử lý bởi AuthGuard
       }
     } catch (error: any) {
-      console.error('Login error:', error);
-      
-      // Parse error message to get error code and message
-      const errorString = error.message || '';
-      const [errorCode, errorMessage] = errorString.includes('|') 
-        ? errorString.split('|') 
-        : ['UNKNOWN_ERROR', errorString];
-      
-      // Xử lý các lỗi cụ thể
-      if (errorCode === 'EMAIL_NOT_FOUND') {
-        // Hiển thị alert với nút chuyển đến trang đăng ký
-        Alert.alert(
-          'Tài khoản không tồn tại',
-          errorMessage,
-          [
-            {
-              text: 'Hủy',
-              style: 'cancel'
-            },
-            {
-              text: 'Đăng ký ngay',
-              onPress: () => router.push('/auth/register')
-            }
-          ]
-        );
-      } else if (errorCode === 'INVALID_PASSWORD') {
-        Alert.alert('Lỗi đăng nhập', errorMessage);
-      } else if (errorCode === 'NETWORK_ERROR') {
-        Alert.alert('Lỗi kết nối', errorMessage);
-      } else {
-        Alert.alert('Lỗi', errorMessage || 'Có lỗi xảy ra khi đăng nhập');
+      const message = error?.message || '';
+
+      // Các lỗi liên quan đến đăng nhập sai, validate...
+      if (
+        message.includes('Thông tin đăng nhập không hợp lệ') ||
+        message.includes('Email hoặc mật khẩu không đúng') ||
+        message.includes('Tài khoản không tồn tại')
+      ) {
+        Alert.alert('Đăng nhập không thành công', 'Sai tài khoản hoặc mật khẩu.');
+        return;
       }
+
+      // Lỗi kết nối mạng
+      if (message.toLowerCase().includes('kết nối')) {
+        Alert.alert('Lỗi kết nối', message);
+        return;
+      }
+
+      // Lỗi khác (không rõ)
+      Alert.alert('Lỗi', message || 'Có lỗi xảy ra khi đăng nhập');
     }
   };
 

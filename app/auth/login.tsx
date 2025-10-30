@@ -17,15 +17,29 @@ export default function LoginScreen() {
       Alert.alert('Lỗi', 'Vui lòng điền đầy đủ thông tin');
       return;
     }
-
-    const success = await login(email.trim(), password);
-    
-    if (success) {
-      Alert.alert('Thành công', 'Đăng nhập thành công!', [
-        { text: 'OK', onPress: () => router.replace('/(tabs)') }
-      ]);
-    } else {
-      Alert.alert('Lỗi', 'Email hoặc mật khẩu không đúng');
+    try {
+      const success = await login(email.trim(), password);
+      if (success) {
+        Alert.alert('Thành công', 'Đăng nhập thành công!', [
+          { text: 'OK', onPress: () => router.replace('/(tabs)') }
+        ]);
+      }
+      // Không else ở đây! Vì nếu login trả về false là bất thường, còn lại exception sẽ bị catch phía dưới.
+    } catch (error: any) {
+      const message = error?.message || '';
+      if (
+        message.includes('Thông tin đăng nhập không hợp lệ') ||
+        message.includes('Email hoặc mật khẩu không đúng') ||
+        message.includes('Tài khoản không tồn tại')
+      ) {
+        Alert.alert('Đăng nhập không thành công', 'Sai tài khoản hoặc mật khẩu.');
+        return;
+      }
+      if (message.toLowerCase().includes('kết nối')) {
+        Alert.alert('Lỗi kết nối', message);
+        return;
+      }
+      Alert.alert('Lỗi', message || 'Có lỗi xảy ra khi đăng nhập');
     }
   };
 

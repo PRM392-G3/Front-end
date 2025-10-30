@@ -7,7 +7,7 @@ module.exports = {
   // Prefer user-provided `nexora.ico` for web/favicon. Native platforms (iOS/Android)
   // still require PNG icons; keep `icon.png` as fallback for native apps.
   // Place `nexora.ico` and generated PNGs under `assets/images/`.
-  icon: "./assets/images/nexora.ico",
+  icon: "./assets/images/NEXORA.png",
     scheme: "nexora",
     userInterfaceStyle: "automatic",
     newArchEnabled: false,
@@ -19,7 +19,7 @@ module.exports = {
       package: "com.prm392.nexora",
       adaptiveIcon: {
         // adaptiveIcon foreground should be PNG for Android; keep using icon.png
-        foregroundImage: "./assets/images/icon.png",
+        foregroundImage: "./assets/images/NEXORA.png",
         backgroundColor: "#6366F1"
       },
       googleServicesFile: "./google-services.json",
@@ -35,7 +35,7 @@ module.exports = {
       bundler: "metro",
       output: "single",
       // Use nexora.ico as the web favicon (better for desktop browsers)
-      favicon: "./assets/images/nexora.ico",
+      favicon: "./assets/images/NEXORA.png",
       name: "Nexora",
       shortName: "Nexora",
       description: "Nexora - Social Platform",
@@ -46,7 +46,7 @@ module.exports = {
       "expo-router",
       "expo-font",
       "expo-web-browser",
-      [
+      
         [
           "expo-notifications",
           {
@@ -56,7 +56,7 @@ module.exports = {
             sounds: []
           }
         ],
-      ],
+      
       [
         "@react-native-google-signin/google-signin",
         {
