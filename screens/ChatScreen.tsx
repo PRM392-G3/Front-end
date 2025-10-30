@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   StatusBar,
   Alert,
+  Image,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -31,9 +32,11 @@ export default function ChatScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversation, setConversation] = useState<Conversation | null>(null);
-  const [otherUser, setOtherUser] = useState<{ name: string; avatar: string } | null>(null);
+  const [otherUser, setOtherUser] = useState<{ id: number | string, name: string, avatar: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const conversationId = id ? parseInt(id) : 0;
+  const [otherUserStatus, setOtherUserStatus] = useState<'online'|'offline'>('offline');
+  const [otherUserLastIn, setOtherUserLastIn] = useState<Date | null>(null);
 
   // Load conversation and messages
   useEffect(() => {
@@ -45,7 +48,7 @@ export default function ChatScreen() {
 
       // If caller passed a name param, use it as an immediate fallback while we load conversation
       if (name && !otherUser) {
-        setOtherUser({ name: decodeURIComponent(name), avatar: '' });
+        setOtherUser({ id: 0, name: decodeURIComponent(name), avatar: '' }); // Placeholder ID
       }
 
       try {
@@ -53,10 +56,10 @@ export default function ChatScreen() {
         const conv = await chatAPI.getConversationById(conversationId);
         if (conv) {
           setConversation(conv);
-          // Determine the other participant based on current user
-          const other = user.id === conv.user1Id
-            ? { name: conv.user2Name || 'User', avatar: conv.user2AvatarUrl || '' }
-            : { name: conv.user1Name || 'User', avatar: conv.user1AvatarUrl || '' };
+          const isUser1 = user.id === conv.user1Id;
+          const other = isUser1
+            ? { id: conv.user2Id, name: conv.user2Name || 'User', avatar: conv.user2AvatarUrl || '' }
+            : { id: conv.user1Id, name: conv.user1Name || 'User', avatar: conv.user1AvatarUrl || '' };
           setOtherUser(other);
         }
         // Load messages from API
@@ -82,8 +85,8 @@ export default function ChatScreen() {
         if (!conv && apiMessages.length > 0) {
           const firstMsg = apiMessages[0];
           const other = firstMsg.senderId === user.id
-            ? { name: 'Người dùng', avatar: '' }
-            : { name: firstMsg.senderName || 'Người dùng', avatar: firstMsg.senderAvatarUrl || '' };
+            ? { id: 0, name: 'Người dùng', avatar: '' }
+            : { id: firstMsg.senderId, name: firstMsg.senderName || 'Người dùng', avatar: firstMsg.senderAvatarUrl || '' };
           setOtherUser(other);
         }
 
@@ -214,6 +217,48 @@ export default function ChatScreen() {
       console.log('[ChatScreen] Cleaning up SignalR listener');
     };
   }, [conversationId, user]);
+
+  // Poll trạng thái online đối phương
+  useEffect(() => {
+    if (!otherUser?.id) return;
+    const userId = otherUser.id;
+    let interval: any;
+    async function fetchStatus() {
+      try {
+        const res = await fetch(`https://nexora-userstatus.ezexam.online/status/${userId}`);
+        const data = await res.json();
+        if (data && data.last_time_in) {
+          const lastTime = new Date(data.last_time_in);
+          setOtherUserLastIn(lastTime);
+          setOtherUserStatus(
+            new Date().getTime() - lastTime.getTime() < 60000 ? 'online' : 'offline'
+          );
+        }
+      } catch {}
+    }
+    fetchStatus();
+    interval = setInterval(fetchStatus, 60000);
+    return () => clearInterval(interval);
+  }, [otherUser?.id]);
+
+  // Gửi heartbeat của current user
+  useEffect(() => {
+    if (!user || !user.id) return;
+    let interval: any;
+    const currentUserId = user.id;
+    async function sendHeartbeat() {
+      try {
+        await fetch('https://nexora-userstatus.ezexam.online/heartbeat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: currentUserId }),
+        });
+      } catch {}
+    }
+    sendHeartbeat();
+    interval = setInterval(sendHeartbeat, 60000);
+    return () => clearInterval(interval);
+  }, [user?.id]);
 
   const handleSendMessage = async (text: string, imageUrl?: string) => {
     if (!user || !conversationId) return;
@@ -387,9 +432,17 @@ export default function ChatScreen() {
           
           <TouchableOpacity style={styles.headerInfo}>
             <View style={styles.headerAvatar}>
-              <Text style={styles.headerAvatarText}>
-                {otherUser?.name?.charAt(0).toUpperCase() || 'U'}
-              </Text>
+              {otherUser?.avatar ? (
+                <Image
+                  source={{ uri: otherUser.avatar }}
+                  style={{ width: 44, height: 44, borderRadius: 22 }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text style={styles.headerAvatarText}>
+                  {otherUser?.name?.charAt(0).toUpperCase() || 'U'}
+                </Text>
+              )}
             </View>
             <View style={styles.headerTextContainer}>
               <Text style={styles.headerName} numberOfLines={1}>
@@ -398,10 +451,22 @@ export default function ChatScreen() {
               <View style={styles.statusContainer}>
                 <View style={[
                   styles.statusDot,
-                  signalRService.isConnected() ? styles.statusOnline : styles.statusOffline
+                  otherUserStatus === 'online' ? styles.statusOnline : styles.statusOffline
                 ]} />
                 <Text style={styles.headerStatus} numberOfLines={1}>
-                  {signalRService.isConnected() ? 'Đang hoạt động' : 'Đang kết nối...'}
+                  {otherUserStatus === 'online'
+                    ? 'Đang hoạt động'
+                    : otherUserLastIn
+                        ? (() => {
+                            const ms = Date.now() - otherUserLastIn.getTime();
+                            const mins = Math.floor(ms / 60000);
+                            if (mins < 60) return `Online ${mins} phút trước`;
+                            const hours = Math.floor(mins / 60);
+                            if (hours < 24) return `Online ${hours} giờ trước`;
+                            const days = Math.floor(hours / 24);
+                            return `Online ${days} ngày trước`;
+                          })()
+                        : 'Ngoại tuyến'}
                 </Text>
               </View>
             </View>
@@ -422,18 +487,13 @@ export default function ChatScreen() {
           <Text style={styles.dateText}>Hôm nay</Text>
         </View>
 
-        {messages.map((message, index) => {
-          const prevMessage = index > 0 ? messages[index - 1] : null;
-          const showAvatar = !prevMessage || prevMessage.isSent !== message.isSent;
-
-          return (
-            <ChatMessage
-              key={message.id}
-              message={message}
-              showAvatar={showAvatar}
-            />
-          );
-        })}
+        {messages.map((message) => (
+          <ChatMessage
+            key={message.id}
+            message={message}
+            showAvatar={false}
+          />
+        ))}
       </ScrollView>
 
       {/* Enhanced Input */}

@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { COLORS, RESPONSIVE_SPACING, BORDER_RADIUS, FONT_SIZES } from '@/constants/theme';
-import { Search, Plus, Users, Lock } from 'lucide-react-native';
+import { Search, Plus, Users, Lock, Home } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
@@ -89,7 +89,13 @@ export default function GroupsScreen() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + RESPONSIVE_SPACING.md }]}>
+      <View style={[styles.header, { paddingTop: insets.top + RESPONSIVE_SPACING.md }]}>  
+        <TouchableOpacity
+          style={styles.homeButton}
+          onPress={() => router.push('/')}
+        >
+          <Home size={24} color={COLORS.primary} />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Nhóm</Text>
         <TouchableOpacity
           style={styles.createButton}
@@ -194,6 +200,14 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  homeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: BORDER_RADIUS.full,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
   },
   searchContainer: {
     flexDirection: 'row',

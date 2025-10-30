@@ -170,13 +170,6 @@ export const UserSearchCard: React.FC<UserSearchCardProps> = ({
     }
   };
 
-  const getMutualFriendsText = () => {
-    // Trong thực tế, bạn có thể có API để lấy số bạn chung
-    // Hiện tại sẽ hiển thị số ngẫu nhiên hoặc ẩn đi
-    const mutualCount = Math.floor(Math.random() * 20);
-    return mutualCount > 0 ? `${mutualCount} bạn chung` : '';
-  };
-
   return (
     <TouchableOpacity 
       style={styles.container}
@@ -200,9 +193,6 @@ export const UserSearchCard: React.FC<UserSearchCardProps> = ({
           <Text style={styles.bio} numberOfLines={2}>
             {user.bio}
           </Text>
-        )}
-        {getMutualFriendsText() && (
-          <Text style={styles.mutualFriends}>{getMutualFriendsText()}</Text>
         )}
       </View>
 

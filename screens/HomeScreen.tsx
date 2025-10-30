@@ -557,15 +557,7 @@ export default function HomeScreen() {
           ) : null
         }
         ListEmptyComponent={initialLoadComplete && posts.length === 0 ? renderEmptyState : null}
-        ListHeaderComponent={
-          posts.length > 0 ? (
-            <View style={styles.listHeader}>
-              <Text style={styles.postsCount}>
-                {posts.length} bài viết
-              </Text>
-            </View>
-          ) : null
-        }
+        ListHeaderComponent={null}
       />
 
       {/* Test notification popup */}
